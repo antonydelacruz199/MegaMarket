@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -30,12 +29,6 @@ import com.megamarket.app.ui.components.ProductPlaceholderCard
 import com.megamarket.app.ui.navigation.Route
 import kotlinx.coroutines.launch
 
-private data class CatalogPlaceholder(
-    val id: Int,
-    val name: String,
-    val offer: Boolean
-)
-
 @Composable
 fun CatalogScreen(
     onNavigate: (String) -> Unit,
@@ -46,14 +39,6 @@ fun CatalogScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val filters = listOf("Todos", "Abarrotes", "Lácteos", "Bebidas", "Limpieza", "Ofertas")
-    val placeholders = listOf(
-        CatalogPlaceholder(1, "Producto 1", true),
-        CatalogPlaceholder(2, "Producto 2", false),
-        CatalogPlaceholder(3, "Producto 3", true),
-        CatalogPlaceholder(4, "Producto 4", false),
-        CatalogPlaceholder(5, "Producto 5", false),
-        CatalogPlaceholder(6, "Producto 6", true)
-    )
 
     ClientScaffold(
         currentRoute = Route.Catalog.path,
@@ -91,11 +76,10 @@ fun CatalogScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.weight(1f)
             ) {
-                items(placeholders, key = { it.id }) { item ->
+                // Solo placeholders visuales — sin lista de productos reales
+                items(4) { index ->
                     ProductPlaceholderCard(
-                        name = item.name,
-                        brand = "Marca",
-                        showOfferBadge = item.offer,
+                        showOfferBadge = index % 2 == 0,
                         onClick = { onNavigate(Route.ProductDetail.path) },
                         onFavoriteClick = {
                             scope.launch {

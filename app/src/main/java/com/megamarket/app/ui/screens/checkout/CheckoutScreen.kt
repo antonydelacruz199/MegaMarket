@@ -36,8 +36,8 @@ fun CheckoutScreen(
     onBack: () -> Unit,
     onConfirmPurchase: () -> Unit
 ) {
-    var department by rememberSaveable { mutableStateOf("Junín") }
-    var province by rememberSaveable { mutableStateOf("Huancayo") }
+    var department by rememberSaveable { mutableStateOf("") }
+    var province by rememberSaveable { mutableStateOf("") }
     var district by rememberSaveable { mutableStateOf("") }
     var address by rememberSaveable { mutableStateOf("") }
     var reference by rememberSaveable { mutableStateOf("") }

@@ -15,13 +15,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -39,14 +35,12 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.megamarket.app.ui.components.MegaMarketLogo
-import com.megamarket.app.ui.theme.MegaPrimary
 
 @Composable
 fun LoginScreen(
-    onEnterAsClient: () -> Unit,
-    onEnterAsAdmin: () -> Unit
+    onLogin: () -> Unit
 ) {
-    var email by rememberSaveable { mutableStateOf("") }
+    var username by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
     var passwordVisible by rememberSaveable { mutableStateOf(false) }
 
@@ -55,12 +49,10 @@ fun LoginScreen(
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp, vertical = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
-        MegaMarketLogo(
-            size = 72.dp,
-            tint = MegaPrimary
-        )
+        MegaMarketLogo(size = 72.dp)
         Spacer(modifier = Modifier.height(12.dp))
         Text(
             text = "MegaMarket Express",
@@ -78,12 +70,12 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(32.dp))
 
         OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
+            value = username,
+            onValueChange = { username = it },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Correo electrónico") },
+            label = { Text("Usuario") },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
         )
         Spacer(modifier = Modifier.height(12.dp))
         OutlinedTextField(
@@ -115,67 +107,22 @@ fun LoginScreen(
             }
         )
         TextButton(
-            onClick = { /* Visual only */ },
+            onClick = { /* Solo visual */ },
             modifier = Modifier.align(Alignment.End)
         ) {
             Text("¿Olvidaste tu contraseña?")
         }
         Spacer(modifier = Modifier.height(8.dp))
 
-        // TODO: Replace with real authentication via AuthViewModel
+        // TODO: Autenticación real con AuthViewModel + capa de datos (roles cliente/admin)
         Button(
-            onClick = { /* Visual only — no real validation yet */ },
+            onClick = onLogin,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp),
             shape = RoundedCornerShape(12.dp)
         ) {
             Text("Iniciar sesión")
-        }
-
-        Spacer(modifier = Modifier.height(28.dp))
-        HorizontalDivider()
-        Spacer(modifier = Modifier.height(20.dp))
-
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                Text(
-                    text = "Acceso de demostración",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                Text(
-                    text = "Temporal: solo para demostrar navegación.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                // TODO: Replace demo client entry with AuthViewModel authentication
-                OutlinedButton(
-                    onClick = onEnterAsClient,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Ingresar como cliente")
-                }
-                // TODO: Replace demo admin entry with AuthViewModel authentication
-                Button(
-                    onClick = onEnterAsAdmin,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Text("Ingresar como administrador")
-                }
-            }
         }
     }
 }

@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.FilterChip
@@ -43,12 +42,6 @@ fun AdminProductsScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
     val filters = listOf("Todos", "Activos", "Ofertas", "Stock bajo")
-    val placeholders = listOf(
-        "Producto 1" to "Activo",
-        "Producto 2" to "Oferta",
-        "Producto 3" to "Activo",
-        "Producto 4" to "Stock bajo"
-    )
 
     AdminScaffold(
         currentRoute = Route.AdminProducts.path,
@@ -81,7 +74,8 @@ fun AdminProductsScreen(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(filters) { filter ->
+                    items(filters.size) { index ->
+                        val filter = filters[index]
                         FilterChip(
                             selected = selectedFilter == filter,
                             onClick = { selectedFilter = filter },
@@ -95,13 +89,9 @@ fun AdminProductsScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(placeholders) { (name, status) ->
+                // Solo placeholders visuales — sin productos reales
+                items(4) {
                     ProductAdminPlaceholderCard(
-                        name = name,
-                        brand = "Marca",
-                        price = "S/ --.--",
-                        stock = "Stock: --",
-                        status = status,
                         onEditClick = { onNavigate(Route.AdminProductEdit.path) }
                     )
                 }

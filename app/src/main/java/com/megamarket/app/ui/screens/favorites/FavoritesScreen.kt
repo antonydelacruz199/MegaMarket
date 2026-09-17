@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -19,8 +18,6 @@ fun FavoritesScreen(
     onNavigate: (String) -> Unit,
     onLogout: () -> Unit
 ) {
-    val placeholders = listOf("Producto A", "Producto B", "Producto C", "Producto D")
-
     ClientScaffold(
         currentRoute = Route.Favorites.path,
         onNavigate = onNavigate,
@@ -36,9 +33,9 @@ fun FavoritesScreen(
             horizontalArrangement = Arrangement.spacedBy(12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            items(placeholders) { name ->
+            // Solo placeholders visuales — sin favoritos reales
+            items(4) {
                 ProductPlaceholderCard(
-                    name = name,
                     onClick = { onNavigate(Route.ProductDetail.path) }
                 )
             }

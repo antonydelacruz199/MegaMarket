@@ -39,13 +39,10 @@ fun MegaMarketNavHost(
 
         composable(Route.Login.path) {
             LoginScreen(
-                onEnterAsClient = {
+                onLogin = {
+                    // Temporal: solo navegación de UI. Sin validación ni base de datos.
+                    // TODO: AuthViewModel decidirá Home vs AdminDashboard según el rol.
                     navController.navigate(Route.Home.path) {
-                        popUpTo(Route.Login.path) { inclusive = true }
-                    }
-                },
-                onEnterAsAdmin = {
-                    navController.navigate(Route.AdminDashboard.path) {
                         popUpTo(Route.Login.path) { inclusive = true }
                     }
                 }

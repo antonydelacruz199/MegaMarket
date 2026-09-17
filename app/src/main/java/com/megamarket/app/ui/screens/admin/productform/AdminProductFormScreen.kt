@@ -47,8 +47,8 @@ fun AdminProductFormScreen(
     isEditMode: Boolean,
     onBack: () -> Unit
 ) {
-    var name by rememberSaveable { mutableStateOf(if (isEditMode) "Producto" else "") }
-    var brand by rememberSaveable { mutableStateOf(if (isEditMode) "Marca" else "") }
+    var name by rememberSaveable { mutableStateOf("") }
+    var brand by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf("") }
     var price by rememberSaveable { mutableStateOf("") }

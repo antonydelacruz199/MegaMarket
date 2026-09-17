@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="mega_primary">#FF16883E</color>
+    <color name="mega_primary_dark">#FF0C6630</color>
+    <color name="mega_secondary">#FFFF8A00</color>
+    <color name="mega_background">#FFF7F8F7</color>
+    <color name="mega_surface">#FFFFFFFF</color>
+    <color name="mega_on_surface">#FF1B1B1B</color>
+    <color name="mega_on_surface_variant">#FF6B6B6B</color>
+    <color name="mega_error">#FFBA1A1A</color>
+    <color name="mega_offer">#FFD92D20</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>

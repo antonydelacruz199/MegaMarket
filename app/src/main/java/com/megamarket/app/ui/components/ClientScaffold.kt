@@ -6,16 +6,15 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.ShoppingBag
 import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.ShoppingBag
 import androidx.compose.material.icons.outlined.ShoppingCart
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
@@ -68,17 +67,17 @@ fun ClientScaffold(
 
     val drawerItems = listOf(
         DrawerDestination("Inicio", Route.Home.path, Icons.Default.Home),
-        DrawerDestination("Catálogo", Route.Catalog.path, Icons.Default.ShoppingBag),
-        DrawerDestination("Ofertas", Route.Catalog.path, Icons.Default.LocalOffer),
+        DrawerDestination("Catálogo", Route.Catalog.path, Icons.Default.List),
+        DrawerDestination("Ofertas", Route.Catalog.path, Icons.Default.Star),
         DrawerDestination("Favoritos", Route.Favorites.path, Icons.Default.Favorite),
         DrawerDestination("Mi carrito", Route.Cart.path, Icons.Default.ShoppingCart),
         DrawerDestination("Mi perfil", Route.Profile.path, Icons.Default.Person),
-        DrawerDestination("Cerrar sesión", null, Icons.AutoMirrored.Filled.Logout, isLogout = true)
+        DrawerDestination("Cerrar sesión", null, Icons.Default.Close, isLogout = true)
     )
 
     val bottomItems = listOf(
         BottomDestination("Inicio", Route.Home.path, Icons.Filled.Home, Icons.Outlined.Home),
-        BottomDestination("Catálogo", Route.Catalog.path, Icons.Filled.ShoppingBag, Icons.Outlined.ShoppingBag),
+        BottomDestination("Catálogo", Route.Catalog.path, Icons.Filled.ShoppingCart, Icons.Outlined.ShoppingCart),
         BottomDestination("Favoritos", Route.Favorites.path, Icons.Filled.Favorite, Icons.Outlined.FavoriteBorder),
         BottomDestination("Carrito", Route.Cart.path, Icons.Filled.ShoppingCart, Icons.Outlined.ShoppingCart)
     )

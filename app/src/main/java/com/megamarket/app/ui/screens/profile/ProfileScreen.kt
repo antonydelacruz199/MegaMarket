@@ -17,13 +17,13 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Help
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Receipt
+import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -55,10 +55,10 @@ fun ProfileScreen(
     val upcomingItems = listOf(
         ProfileOption("Datos personales", Icons.Default.Person),
         ProfileOption("Mis direcciones", Icons.Default.Home),
-        ProfileOption("Mis pedidos", Icons.Default.Receipt),
+        ProfileOption("Mis pedidos", Icons.Default.List),
         ProfileOption("Mis favoritos", Icons.Default.Favorite),
         ProfileOption("Configuración", Icons.Default.Settings),
-        ProfileOption("Ayuda", Icons.AutoMirrored.Filled.Help)
+        ProfileOption("Ayuda", Icons.Default.Info)
     )
 
     ClientScaffold(
@@ -129,7 +129,7 @@ fun ProfileScreen(
                 Spacer(modifier = Modifier.height(8.dp))
                 ProfileOptionRow(
                     title = "Cerrar sesión",
-                    icon = Icons.AutoMirrored.Filled.Logout,
+                    icon = Icons.Default.Close,
                     onClick = onLogout,
                     isDestructive = true
                 )

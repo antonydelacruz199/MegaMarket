@@ -13,9 +13,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.LocalOffer
-import androidx.compose.material.icons.filled.RemoveShoppingCart
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -66,13 +66,13 @@ fun AdminDashboardScreen(
                 AdminSummaryCard(
                     title = "Productos",
                     value = "--",
-                    icon = Icons.Default.Inventory2,
+                    icon = Icons.Default.List,
                     modifier = Modifier.weight(1f)
                 )
                 AdminSummaryCard(
                     title = "Ofertas activas",
                     value = "--",
-                    icon = Icons.Default.LocalOffer,
+                    icon = Icons.Default.Star,
                     modifier = Modifier.weight(1f)
                 )
             }
@@ -90,7 +90,7 @@ fun AdminDashboardScreen(
                 AdminSummaryCard(
                     title = "Agotados",
                     value = "--",
-                    icon = Icons.Default.RemoveShoppingCart,
+                    icon = Icons.Default.Delete,
                     modifier = Modifier.weight(1f)
                 )
             }

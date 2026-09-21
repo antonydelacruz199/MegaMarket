@@ -18,7 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Remove
+import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -147,7 +147,7 @@ fun ProductDetailScreen(
                     onClick = { if (quantity > 1) quantity-- },
                     modifier = Modifier.size(40.dp)
                 ) {
-                    Icon(Icons.Default.Remove, contentDescription = "Disminuir cantidad")
+                    Icon(Icons.Default.Clear, contentDescription = "Disminuir cantidad")
                 }
                 Text(
                     text = quantity.toString(),

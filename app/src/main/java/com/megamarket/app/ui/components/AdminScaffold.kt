@@ -6,11 +6,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.Dashboard
-import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.LocalOffer
-import androidx.compose.material.icons.filled.Warehouse
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -53,24 +52,24 @@ fun AdminScaffold(
     val scope = rememberCoroutineScope()
 
     val drawerItems = listOf(
-        AdminDrawerItem("Dashboard", Route.AdminDashboard.path, Icons.Default.Dashboard),
-        AdminDrawerItem("Productos", Route.AdminProducts.path, Icons.Default.Inventory2),
+        AdminDrawerItem("Dashboard", Route.AdminDashboard.path, Icons.Default.Home),
+        AdminDrawerItem("Productos", Route.AdminProducts.path, Icons.Default.List),
         AdminDrawerItem(
             label = "Ofertas",
             route = Route.AdminProducts.path,
-            icon = Icons.Default.LocalOffer,
+            icon = Icons.Default.Star,
             snackbarMessage = "Ofertas: disponible en la siguiente fase"
         ),
         AdminDrawerItem(
             label = "Stock",
             route = Route.AdminProducts.path,
-            icon = Icons.Default.Warehouse,
+            icon = Icons.Default.List,
             snackbarMessage = "Stock: disponible en la siguiente fase"
         ),
         AdminDrawerItem(
             label = "Cerrar sesión",
             route = null,
-            icon = Icons.AutoMirrored.Filled.Logout,
+            icon = Icons.Default.Close,
             isLogout = true
         )
     )

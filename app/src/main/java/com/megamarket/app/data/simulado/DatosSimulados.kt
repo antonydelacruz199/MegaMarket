@@ -15,20 +15,11 @@ object DatosSimulados {
 
     private val cuentas = listOf(
         CuentaDemo(
-            clave = "123456",
-            usuario = Usuario(
-                id = 1,
-                nombre = "Cliente demo",
-                correo = "cliente@megamarket.com",
-                rol = RolUsuario.CLIENTE
-            )
-        ),
-        CuentaDemo(
             clave = "admin123",
             usuario = Usuario(
-                id = 2,
-                nombre = "Administrador demo",
-                correo = "admin@megamarket.com",
+                id = 1,
+                nombre = "Administrador Juan",
+                correo = "admin",
                 rol = RolUsuario.ADMINISTRADOR
             )
         )

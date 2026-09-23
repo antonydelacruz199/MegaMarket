@@ -20,7 +20,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,11 +37,15 @@ import com.megamarket.app.ui.componentes.LogoMegaMarket
 
 @Composable
 fun PantallaSesion(
-    alIngresar: () -> Unit
+    cargando: Boolean,
+    error: String?,
+    alIngresar: (correo: String, clave: String) -> Unit
 ) {
-    var usuario by rememberSaveable { mutableStateOf("") }
+    var correo by rememberSaveable { mutableStateOf("") }
     var contrasena by rememberSaveable { mutableStateOf("") }
     var contrasenaVisible by rememberSaveable { mutableStateOf(false) }
+    var errorLocal by rememberSaveable { mutableStateOf<String?>(null) }
+    val mensajeError = errorLocal ?: error
 
     Column(
         modifier = Modifier
@@ -62,7 +65,7 @@ fun PantallaSesion(
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Todo lo que necesitas, en un solo lugar",
+            text = "Administración del catálogo",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -70,20 +73,28 @@ fun PantallaSesion(
         Spacer(modifier = Modifier.height(32.dp))
 
         OutlinedTextField(
-            value = usuario,
-            onValueChange = { usuario = it },
+            value = correo,
+            onValueChange = {
+                correo = it
+                errorLocal = null
+            },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Usuario") },
+            label = { Text("Correo") },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text)
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            isError = mensajeError != null
         )
         Spacer(modifier = Modifier.height(12.dp))
         OutlinedTextField(
             value = contrasena,
-            onValueChange = { contrasena = it },
+            onValueChange = {
+                contrasena = it
+                errorLocal = null
+            },
             modifier = Modifier.fillMaxWidth(),
             label = { Text("Contraseña") },
             singleLine = true,
+            isError = mensajeError != null,
             visualTransformation = if (contrasenaVisible) {
                 VisualTransformation.None
             } else {
@@ -106,23 +117,32 @@ fun PantallaSesion(
                 }
             }
         )
-        TextButton(
-            onClick = { /* Solo visual */ },
-            modifier = Modifier.align(Alignment.End)
-        ) {
-            Text("¿Olvidaste tu contraseña?")
+        if (mensajeError != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = mensajeError,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
-        Spacer(modifier = Modifier.height(8.dp))
-
-        // TODO: Autenticación real con ViewModel de sesión y capa de datos (roles cliente/admin)
+        Spacer(modifier = Modifier.height(16.dp))
         Button(
-            onClick = alIngresar,
+            onClick = {
+                if (correo.isBlank() || contrasena.isBlank()) {
+                    errorLocal = "Completa correo y contraseña"
+                } else {
+                    errorLocal = null
+                    alIngresar(correo.trim(), contrasena)
+                }
+            },
+            enabled = !cargando,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(48.dp),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Text("Iniciar sesión")
+            Text(if (cargando) "Ingresando..." else "Iniciar sesión")
         }
     }
 }

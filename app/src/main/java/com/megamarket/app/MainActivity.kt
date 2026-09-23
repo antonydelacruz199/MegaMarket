@@ -7,17 +7,17 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
-import com.megamarket.app.ui.navigation.MegaMarketNavHost
-import com.megamarket.app.ui.theme.MegaMarketTheme
+import com.megamarket.app.ui.navegacion.NavegacionMegaMarket
+import com.megamarket.app.ui.tema.TemaMegaMarket
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
-            MegaMarketTheme {
+            TemaMegaMarket {
                 Surface(modifier = Modifier.fillMaxSize()) {
-                    MegaMarketNavHost()
+                    NavegacionMegaMarket()
                 }
             }
         }

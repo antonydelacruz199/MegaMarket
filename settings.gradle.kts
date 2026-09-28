@@ -24,3 +24,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "MegaMarket"
 include(":app")
+include(":cliente")
+include(":modelo")

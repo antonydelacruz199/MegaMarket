@@ -11,16 +11,16 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class ViewModelSesion(
-    private val repositorio: RepositorioSesion = RepositorioSesion()
+    private val repositorio: RepositorioSesion
 ) : ViewModel() {
 
     private val _estado = MutableStateFlow(EstadoUiSesion())
     val estado: StateFlow<EstadoUiSesion> = _estado.asStateFlow()
 
-    fun ingresar(correo: String, clave: String) {
+    fun ingresar(nombreUsuario: String, clave: String) {
         viewModelScope.launch {
             _estado.update { it.copy(cargando = true, error = null) }
-            val usuario = repositorio.autenticar(correo, clave)
+            val usuario = repositorio.autenticar(nombreUsuario, clave)
             _estado.update {
                 if (usuario == null) {
                     it.copy(

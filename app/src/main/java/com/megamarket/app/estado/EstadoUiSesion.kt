@@ -1,6 +1,6 @@
 package com.megamarket.app.estado
 
-import com.megamarket.app.modelo.Usuario
+import com.megamarket.modelo.Usuario
 
 data class EstadoUiSesion(
     val cargando: Boolean = false,

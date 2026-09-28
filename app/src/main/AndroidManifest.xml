@@ -2,6 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
      xmlns:tools="http://schemas.android.com/tools">
 
+    <permission
+        android:name="com.megamarket.app.permission.LEER_PRODUCTOS"
+        android:protectionLevel="signature" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -23,6 +27,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <provider
+            android:name=".data.local.ProveedorProductos"
+            android:authorities="com.megamarket.app.proveedor.productos"
+            android:exported="true"
+            android:readPermission="com.megamarket.app.permission.LEER_PRODUCTOS" />
     </application>
 
 </manifest>

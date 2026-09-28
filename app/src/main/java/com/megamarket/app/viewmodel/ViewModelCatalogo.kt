@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.megamarket.app.data.repositorio.RepositorioProducto
 import com.megamarket.app.estado.EstadoUiCatalogo
+import com.megamarket.modelo.Producto
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -11,7 +12,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class ViewModelCatalogo(
-    private val repositorio: RepositorioProducto = RepositorioProducto()
+    private val repositorio: RepositorioProducto
 ) : ViewModel() {
 
     private val _estado = MutableStateFlow(EstadoUiCatalogo())
@@ -28,8 +29,15 @@ class ViewModelCatalogo(
     fun cargarProductos() {
         viewModelScope.launch {
             _estado.update { it.copy(cargando = true, error = null) }
-            val productos = repositorio.obtenerActivos()
+            val productos = repositorio.obtenerTodos()
             _estado.update { it.copy(cargando = false, productos = productos) }
+        }
+    }
+
+    fun guardar(producto: Producto, alTerminar: (Boolean) -> Unit) {
+        viewModelScope.launch {
+            val id = repositorio.insertar(producto)
+            alTerminar(id > 0)
         }
     }
 }

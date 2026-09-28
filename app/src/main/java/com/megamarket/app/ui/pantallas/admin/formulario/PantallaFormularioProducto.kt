@@ -40,11 +40,13 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.megamarket.app.ui.componentes.BarraSuperior
 import com.megamarket.app.ui.tema.MegaMarcadorImagen
+import com.megamarket.modelo.Producto
 import kotlinx.coroutines.launch
 
 @Composable
 fun PantallaFormularioProducto(
     esEdicion: Boolean,
+    alGuardar: (Producto) -> Unit,
     alVolver: () -> Unit
 ) {
     var nombre by rememberSaveable { mutableStateOf("") }
@@ -143,11 +145,23 @@ fun PantallaFormularioProducto(
             Spacer(modifier = Modifier.height(20.dp))
             Button(
                 onClick = {
-                    alcance.launch {
-                        estadoMensaje.showSnackbar(
-                            "Funcionalidad disponible al integrar la capa de datos"
-                        )
-                        alVolver()
+                    val producto = armarProducto(
+                        nombre = nombre,
+                        marca = marca,
+                        descripcion = descripcion,
+                        categoria = categoria,
+                        precio = precio,
+                        precioOferta = precioOferta,
+                        stock = stock,
+                        enOferta = enOferta,
+                        activo = activo
+                    )
+                    if (producto == null) {
+                        alcance.launch {
+                            estadoMensaje.showSnackbar("Completa nombre, precio y stock")
+                        }
+                    } else {
+                        alGuardar(producto)
                     }
                 },
                 modifier = Modifier
@@ -159,6 +173,41 @@ fun PantallaFormularioProducto(
             }
         }
     }
+}
+
+private fun armarProducto(
+    nombre: String,
+    marca: String,
+    descripcion: String,
+    categoria: String,
+    precio: String,
+    precioOferta: String,
+    stock: String,
+    enOferta: Boolean,
+    activo: Boolean
+): Producto? {
+    val precioCentimos = precio.aCentimos()
+    val unidades = stock.trim().toIntOrNull()
+    if (nombre.isBlank() || precioCentimos == null || unidades == null || unidades < 0) return null
+    return Producto(
+        id = 0,
+        nombre = nombre.trim(),
+        marca = marca.trim(),
+        descripcion = descripcion.trim(),
+        categoriaId = categoria.trim().toLongOrNull() ?: 0L,
+        precioCentimos = precioCentimos,
+        precioOfertaCentimos = if (enOferta) precioOferta.aCentimos() else null,
+        stock = unidades,
+        imagenKey = "",
+        esOferta = enOferta,
+        activo = activo
+    )
+}
+
+private fun String.aCentimos(): Long? {
+    val valor = trim().replace(',', '.').toDoubleOrNull() ?: return null
+    if (valor < 0) return null
+    return (valor * 100).toLong()
 }
 
 @Composable

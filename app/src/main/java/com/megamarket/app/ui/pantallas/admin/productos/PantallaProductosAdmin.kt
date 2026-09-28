@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.FilterChip
@@ -24,19 +25,29 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.megamarket.app.ui.componentes.BarraBusqueda
 import com.megamarket.app.ui.componentes.EstructuraAdmin
 import com.megamarket.app.ui.componentes.TarjetaProductoAdmin
 import com.megamarket.app.ui.navegacion.Ruta
+import com.megamarket.app.viewmodel.ViewModelCatalogo
+import com.megamarket.modelo.formatearSoles
 import kotlinx.coroutines.launch
 
 @Composable
 fun PantallaProductosAdmin(
+    viewModel: ViewModelCatalogo,
     alNavegar: (String) -> Unit,
     alCerrarSesion: () -> Unit
 ) {
+    val estado by viewModel.estado.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(Unit) {
+        viewModel.cargarProductos()
+        onPauseOrDispose { }
+    }
     var consulta by rememberSaveable { mutableStateOf("") }
     var filtroSeleccionado by rememberSaveable { mutableStateOf("Todos") }
     val estadoMensaje = remember { SnackbarHostState() }
@@ -84,14 +95,36 @@ fun PantallaProductosAdmin(
                     }
                 }
             }
+            val visibles = estado.productos.filter { producto ->
+                val texto = consulta.trim()
+                val coincideTexto = texto.isEmpty() ||
+                    producto.nombre.contains(texto, ignoreCase = true) ||
+                    producto.marca.contains(texto, ignoreCase = true)
+                val coincideFiltro = when (filtroSeleccionado) {
+                    "Activos" -> producto.activo
+                    "Ofertas" -> producto.esOferta
+                    "Stock bajo" -> producto.stock in 1..5
+                    else -> true
+                }
+                coincideTexto && coincideFiltro
+            }
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                // Solo marcadores visuales: sin productos reales
-                items(4) {
+                items(visibles, key = { it.id }) { producto ->
                     TarjetaProductoAdmin(
+                        nombre = producto.nombre,
+                        marca = producto.marca,
+                        precio = producto.precioVigenteCentimos.formatearSoles(),
+                        stock = "Stock: ${producto.stock}",
+                        estado = when {
+                            !producto.activo -> "Inactivo"
+                            producto.agotado -> "Sin stock"
+                            producto.esOferta -> "Oferta"
+                            else -> "Activo"
+                        },
                         alEditar = { alNavegar(Ruta.EditarProductoAdmin.ruta) }
                     )
                 }

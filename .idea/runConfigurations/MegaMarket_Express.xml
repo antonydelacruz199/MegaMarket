@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="MegaMarket Express" type="CompoundRunConfigurationType">
+    <toRun name="app" type="AndroidRunConfigurationType" />
+    <toRun name="cliente" type="AndroidRunConfigurationType" />
+    <method v="2" />
+  </configuration>
+</component>

@@ -1,16 +1,49 @@
+# Android Studio / IntelliJ (configuración local y cachés)
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+.idea/caches/
+.idea/libraries/
+.idea/modules.xml
+.idea/workspace.xml
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+.idea/tasks.xml
+.idea/gradle.xml
+.idea/dictionaries/
+.idea/shelf/
+.idea/deploymentTargetSelector.xml
+.idea/deviceManager.xml
+.idea/*.xml
+
+# Gradle
+.gradle/
+build/
+**/build/
+.kotlin/
+
+# SDK local (ruta de cada máquina)
 local.properties
+
+# Salidas compiladas
+*.apk
+*.aab
+*.ap_
+*.aar
+*.dex
+*.class
+bin/
+gen/
+out/
+
+# Nativo y capturas
+.externalNativeBuild/
+.cxx/
+captures/
+*.hprof
+
+# Logs y sistema
+*.log
+.DS_Store
+Thumbs.db
+
+# Cursor
 .cursor/

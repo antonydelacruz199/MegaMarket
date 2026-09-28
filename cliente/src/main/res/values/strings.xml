@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">MegaMarket Cliente</string>
+    <string name="catalogo_vacio">Aún no hay productos. Cuando el administrador publique el catálogo, lo verás aquí.</string>
+    <string name="sin_resultados">No se encontraron productos</string>
+    <string name="favoritos_vacios">Todavía no tienes favoritos</string>
+    <string name="carrito_vacio">Tu carrito está vacío</string>
+    <string name="error_catalogo">No se pudo leer el catálogo. Instala MegaMarket Express en este teléfono.</string>
+</resources>

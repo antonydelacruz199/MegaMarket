@@ -39,9 +39,9 @@ import com.megamarket.app.ui.componentes.LogoMegaMarket
 fun PantallaSesion(
     cargando: Boolean,
     error: String?,
-    alIngresar: (correo: String, clave: String) -> Unit
+    alIngresar: (usuario: String, clave: String) -> Unit
 ) {
-    var correo by rememberSaveable { mutableStateOf("") }
+    var usuario by rememberSaveable { mutableStateOf("") }
     var contrasena by rememberSaveable { mutableStateOf("") }
     var contrasenaVisible by rememberSaveable { mutableStateOf(false) }
     var errorLocal by rememberSaveable { mutableStateOf<String?>(null) }
@@ -73,15 +73,15 @@ fun PantallaSesion(
         Spacer(modifier = Modifier.height(32.dp))
 
         OutlinedTextField(
-            value = correo,
+            value = usuario,
             onValueChange = {
-                correo = it
+                usuario = it
                 errorLocal = null
             },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Correo") },
+            label = { Text("Usuario") },
             singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
             isError = mensajeError != null
         )
         Spacer(modifier = Modifier.height(12.dp))
@@ -129,11 +129,11 @@ fun PantallaSesion(
         Spacer(modifier = Modifier.height(16.dp))
         Button(
             onClick = {
-                if (correo.isBlank() || contrasena.isBlank()) {
-                    errorLocal = "Completa correo y contraseña"
+                if (usuario.isBlank() || contrasena.isBlank()) {
+                    errorLocal = "Credenciales incorrectas"
                 } else {
                     errorLocal = null
-                    alIngresar(correo.trim(), contrasena)
+                    alIngresar(usuario.trim(), contrasena)
                 }
             },
             enabled = !cargando,

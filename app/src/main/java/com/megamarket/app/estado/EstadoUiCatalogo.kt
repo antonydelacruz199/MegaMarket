@@ -1,6 +1,6 @@
 package com.megamarket.app.estado
 
-import com.megamarket.app.modelo.Producto
+import com.megamarket.modelo.Producto
 
 data class EstadoUiCatalogo(
     val cargando: Boolean = false,

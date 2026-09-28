@@ -1,14 +1,13 @@
 package com.megamarket.app.data.simulado
 
-import com.megamarket.app.modelo.Producto
-import com.megamarket.app.modelo.RolUsuario
-import com.megamarket.app.modelo.Usuario
+import com.megamarket.modelo.RolUsuario
+import com.megamarket.modelo.Usuario
 
 /**
  * Fuente temporal de datos. El catálogo completo se sembrará al conectar Room.
  */
 object DatosSimulados {
-    private data class CuentaDemo(
+    private data class CuentaAdministrador(
         val clave: String,
         val usuario: Usuario
     )
@@ -18,18 +17,18 @@ object DatosSimulados {
             clave = "admin123",
             usuario = Usuario(
                 id = 1,
-                nombre = "Administrador Juan",
-                correo = "admin",
+                nombre = "Administ  rador Juan",
+                usuario = "admin",
+                correo = "admin@megamarket.com",
                 rol = RolUsuario.ADMINISTRADOR
             )
         )
     )
 
-    val productos: List<Producto> = emptyList()
-
-    fun buscarCuenta(correo: String, clave: String): Usuario? {
+    fun buscarCuenta(usuario: String, clave: String): Usuario? {
+        val buscado = usuario.trim()
         return cuentas.firstOrNull { cuenta ->
-            cuenta.usuario.correo.equals(correo.trim(), ignoreCase = true) &&
+            cuenta.usuario.usuario.equals(buscado, ignoreCase = true) &&
                 cuenta.clave == clave
         }?.usuario
     }

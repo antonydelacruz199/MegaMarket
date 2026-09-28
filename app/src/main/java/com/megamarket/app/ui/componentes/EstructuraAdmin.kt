@@ -9,7 +9,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -33,8 +32,7 @@ private data class ItemMenuAdmin(
     val etiqueta: String,
     val ruta: String?,
     val icono: ImageVector,
-    val esCerrarSesion: Boolean = false,
-    val mensaje: String? = null
+    val esCerrarSesion: Boolean = false
 )
 
 @Composable
@@ -43,7 +41,6 @@ fun EstructuraAdmin(
     alNavegar: (String) -> Unit,
     alCerrarSesion: () -> Unit,
     titulo: String,
-    alMostrarMensaje: (String) -> Unit = {},
     botonFlotante: @Composable () -> Unit = {},
     accionesBarraSuperior: @Composable RowScope.() -> Unit = {},
     contenido: @Composable (PaddingValues) -> Unit
@@ -54,18 +51,6 @@ fun EstructuraAdmin(
     val itemsMenu = listOf(
         ItemMenuAdmin("Panel", Ruta.PanelAdmin.ruta, Icons.Default.Home),
         ItemMenuAdmin("Productos", Ruta.ProductosAdmin.ruta, Icons.Default.List),
-        ItemMenuAdmin(
-            etiqueta = "Ofertas",
-            ruta = Ruta.ProductosAdmin.ruta,
-            icono = Icons.Default.Star,
-            mensaje = "Ofertas: disponible en la siguiente fase"
-        ),
-        ItemMenuAdmin(
-            etiqueta = "Stock",
-            ruta = Ruta.ProductosAdmin.ruta,
-            icono = Icons.Default.List,
-            mensaje = "Stock: disponible en la siguiente fase"
-        ),
         ItemMenuAdmin(
             etiqueta = "Cerrar sesión",
             ruta = null,
@@ -100,17 +85,11 @@ fun EstructuraAdmin(
                     }
                     NavigationDrawerItem(
                         label = { Text(item.etiqueta) },
-                        selected = !item.esCerrarSesion &&
-                            item.mensaje == null &&
-                            item.ruta == rutaActual,
+                        selected = !item.esCerrarSesion && item.ruta == rutaActual,
                         onClick = {
                             alcance.launch { estadoMenu.close() }
                             when {
                                 item.esCerrarSesion -> alCerrarSesion()
-                                item.mensaje != null -> {
-                                    alMostrarMensaje(item.mensaje)
-                                    item.ruta?.let(alNavegar)
-                                }
                                 item.ruta != null -> alNavegar(item.ruta)
                             }
                         },

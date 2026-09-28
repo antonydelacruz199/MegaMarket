@@ -3,7 +3,9 @@ package com.megamarket.app.ui.navegacion
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -11,9 +13,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.CreationExtras
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
 import com.megamarket.app.data.local.BaseDatosMegaMarket
 import com.megamarket.app.data.repositorio.RepositorioProducto
 import com.megamarket.app.data.repositorio.RepositorioSesion
@@ -23,6 +27,7 @@ import com.megamarket.app.ui.pantallas.admin.productos.PantallaProductosAdmin
 import com.megamarket.app.ui.pantallas.presentacion.PantallaPresentacion
 import com.megamarket.app.ui.pantallas.sesion.PantallaSesion
 import com.megamarket.app.viewmodel.ViewModelCatalogo
+import com.megamarket.modelo.Producto
 import com.megamarket.app.viewmodel.ViewModelSesion
 
 @Composable
@@ -75,7 +80,9 @@ fun NavegacionMegaMarket(
         }
 
         composable(Ruta.PanelAdmin.ruta) {
+            val viewModel: ViewModelCatalogo = viewModel(factory = fabricaCatalogo)
             PantallaPanelAdmin(
+                viewModel = viewModel,
                 alNavegar = { ruta -> controlador.navegarAdmin(ruta) },
                 alCerrarSesion = { controlador.cerrarSesion() }
             )
@@ -93,7 +100,6 @@ fun NavegacionMegaMarket(
         composable(Ruta.CrearProductoAdmin.ruta) {
             val viewModel: ViewModelCatalogo = viewModel(factory = fabricaCatalogo)
             PantallaFormularioProducto(
-                esEdicion = false,
                 alGuardar = { producto ->
                     viewModel.guardar(producto) { guardado ->
                         if (guardado) controlador.popBackStack()
@@ -103,17 +109,28 @@ fun NavegacionMegaMarket(
             )
         }
 
-        composable(Ruta.EditarProductoAdmin.ruta) {
+        composable(
+            route = Ruta.EditarProductoAdmin.ruta,
+            arguments = listOf(navArgument("productoId") { type = NavType.LongType })
+        ) { entrada ->
+            val id = entrada.arguments?.getLong("productoId") ?: 0L
             val viewModel: ViewModelCatalogo = viewModel(factory = fabricaCatalogo)
-            PantallaFormularioProducto(
-                esEdicion = true,
-                alGuardar = { producto ->
-                    viewModel.guardar(producto) { guardado ->
-                        if (guardado) controlador.popBackStack()
-                    }
-                },
-                alVolver = { controlador.popBackStack() }
-            )
+            var producto by remember { mutableStateOf<Producto?>(null) }
+            LaunchedEffect(id) {
+                producto = viewModel.buscar(id)
+            }
+            val cargado = producto
+            if (cargado != null) {
+                PantallaFormularioProducto(
+                    producto = cargado,
+                    alGuardar = { actualizado ->
+                        viewModel.guardar(actualizado) { guardado ->
+                            if (guardado) controlador.popBackStack()
+                        }
+                    },
+                    alVolver = { controlador.popBackStack() }
+                )
+            }
         }
     }
 }

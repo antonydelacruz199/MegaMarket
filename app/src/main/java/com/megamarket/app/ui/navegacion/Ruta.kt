@@ -6,5 +6,7 @@ sealed class Ruta(val ruta: String) {
     data object PanelAdmin : Ruta("panel_admin")
     data object ProductosAdmin : Ruta("productos_admin")
     data object CrearProductoAdmin : Ruta("crear_producto_admin")
-    data object EditarProductoAdmin : Ruta("editar_producto_admin")
+    data object EditarProductoAdmin : Ruta("editar_producto_admin/{productoId}") {
+        fun crear(id: Long) = "editar_producto_admin/$id"
+    }
 }

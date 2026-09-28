@@ -1,9 +1,6 @@
 package com.megamarket.app.ui.pantallas.admin.formulario
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -15,10 +12,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -35,34 +29,36 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.megamarket.app.ui.componentes.BarraSuperior
-import com.megamarket.app.ui.tema.MegaMarcadorImagen
 import com.megamarket.modelo.Producto
 import kotlinx.coroutines.launch
 
 @Composable
 fun PantallaFormularioProducto(
-    esEdicion: Boolean,
+    producto: Producto? = null,
     alGuardar: (Producto) -> Unit,
     alVolver: () -> Unit
 ) {
-    var nombre by rememberSaveable { mutableStateOf("") }
-    var marca by rememberSaveable { mutableStateOf("") }
-    var descripcion by rememberSaveable { mutableStateOf("") }
-    var categoria by rememberSaveable { mutableStateOf("") }
-    var precio by rememberSaveable { mutableStateOf("") }
-    var precioOferta by rememberSaveable { mutableStateOf("") }
-    var stock by rememberSaveable { mutableStateOf("") }
-    var activo by rememberSaveable { mutableStateOf(true) }
-    var enOferta by rememberSaveable { mutableStateOf(false) }
+    var nombre by rememberSaveable { mutableStateOf(producto?.nombre.orEmpty()) }
+    var marca by rememberSaveable { mutableStateOf(producto?.marca.orEmpty()) }
+    var descripcion by rememberSaveable { mutableStateOf(producto?.descripcion.orEmpty()) }
+    var categoria by rememberSaveable {
+        mutableStateOf(if (producto == null || producto.categoriaId == 0L) "" else producto.categoriaId.toString())
+    }
+    var precio by rememberSaveable { mutableStateOf(producto?.precioCentimos?.aTextoDecimal().orEmpty()) }
+    var precioOferta by rememberSaveable {
+        mutableStateOf(producto?.precioOfertaCentimos?.aTextoDecimal().orEmpty())
+    }
+    var stock by rememberSaveable { mutableStateOf(producto?.stock?.toString().orEmpty()) }
+    var activo by rememberSaveable { mutableStateOf(producto?.activo ?: true) }
+    var enOferta by rememberSaveable { mutableStateOf(producto?.esOferta ?: false) }
 
     val estadoMensaje = remember { SnackbarHostState() }
     val alcance = rememberCoroutineScope()
-    val titulo = if (esEdicion) "Editar producto" else "Nuevo producto"
-    val etiquetaAccion = if (esEdicion) "Guardar cambios" else "Crear producto"
+    val titulo = if (producto == null) "Nuevo producto" else "Editar producto"
+    val etiquetaAccion = if (producto == null) "Crear producto" else "Guardar cambios"
 
     Scaffold(
         topBar = {
@@ -80,30 +76,6 @@ fun PantallaFormularioProducto(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(160.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MegaMarcadorImagen)
-                    .clickable { /* Selector de imagen pendiente */ },
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.Add,
-                        contentDescription = "Agregar imagen",
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "Agregar imagen",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp))
             CampoFormulario(valor = nombre, alCambiarValor = { nombre = it }, etiqueta = "Nombre")
             CampoFormulario(valor = marca, alCambiarValor = { marca = it }, etiqueta = "Marca")
             CampoFormulario(
@@ -145,7 +117,17 @@ fun PantallaFormularioProducto(
             Spacer(modifier = Modifier.height(20.dp))
             Button(
                 onClick = {
-                    val producto = armarProducto(
+                    val mensaje = validarProducto(
+                        nombre = nombre,
+                        marca = marca,
+                        precio = precio,
+                        precioOferta = precioOferta,
+                        stock = stock,
+                        enOferta = enOferta
+                    )
+                    val guardado = if (mensaje != null) null else armarProducto(
+                        id = producto?.id ?: 0L,
+                        imagenKey = producto?.imagenKey.orEmpty(),
                         nombre = nombre,
                         marca = marca,
                         descripcion = descripcion,
@@ -156,12 +138,12 @@ fun PantallaFormularioProducto(
                         enOferta = enOferta,
                         activo = activo
                     )
-                    if (producto == null) {
+                    if (guardado == null) {
                         alcance.launch {
-                            estadoMensaje.showSnackbar("Completa nombre, precio y stock")
+                            estadoMensaje.showSnackbar(mensaje ?: "Revisa los datos del producto")
                         }
                     } else {
-                        alGuardar(producto)
+                        alGuardar(guardado)
                     }
                 },
                 modifier = Modifier
@@ -175,7 +157,31 @@ fun PantallaFormularioProducto(
     }
 }
 
+private fun validarProducto(
+    nombre: String,
+    marca: String,
+    precio: String,
+    precioOferta: String,
+    stock: String,
+    enOferta: Boolean
+): String? {
+    val precioCentimos = precio.aCentimos()
+    val ofertaCentimos = precioOferta.aCentimos()
+    val unidades = stock.trim().toIntOrNull()
+    return when {
+        nombre.isBlank() || marca.isBlank() -> "Completa nombre y marca"
+        precioCentimos == null -> "Ingresa un precio válido"
+        unidades == null || unidades < 0 -> "Ingresa un stock válido"
+        enOferta && ofertaCentimos == null -> "Ingresa el precio de oferta"
+        enOferta && ofertaCentimos != null && ofertaCentimos >= precioCentimos ->
+            "La oferta debe ser menor al precio"
+        else -> null
+    }
+}
+
 private fun armarProducto(
+    id: Long,
+    imagenKey: String,
     nombre: String,
     marca: String,
     descripcion: String,
@@ -190,7 +196,7 @@ private fun armarProducto(
     val unidades = stock.trim().toIntOrNull()
     if (nombre.isBlank() || precioCentimos == null || unidades == null || unidades < 0) return null
     return Producto(
-        id = 0,
+        id = id,
         nombre = nombre.trim(),
         marca = marca.trim(),
         descripcion = descripcion.trim(),
@@ -198,10 +204,16 @@ private fun armarProducto(
         precioCentimos = precioCentimos,
         precioOfertaCentimos = if (enOferta) precioOferta.aCentimos() else null,
         stock = unidades,
-        imagenKey = "",
+        imagenKey = imagenKey,
         esOferta = enOferta,
         activo = activo
     )
+}
+
+private fun Long.aTextoDecimal(): String {
+    val soles = this / 100
+    val centimos = (this % 100).toString().padStart(2, '0')
+    return "$soles.$centimos"
 }
 
 private fun String.aCentimos(): Long? {

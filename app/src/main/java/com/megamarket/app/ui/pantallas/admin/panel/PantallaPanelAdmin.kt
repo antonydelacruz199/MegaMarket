@@ -20,37 +20,36 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.getValue
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.megamarket.app.ui.componentes.EncabezadoSeccion
 import com.megamarket.app.ui.componentes.EstructuraAdmin
 import com.megamarket.app.ui.componentes.TarjetaResumenAdmin
 import com.megamarket.app.ui.navegacion.Ruta
-import kotlinx.coroutines.launch
+import com.megamarket.app.viewmodel.ViewModelCatalogo
 
 @Composable
 fun PantallaPanelAdmin(
+    viewModel: ViewModelCatalogo,
     alNavegar: (String) -> Unit,
     alCerrarSesion: () -> Unit
 ) {
-    val estadoMensaje = remember { SnackbarHostState() }
-    val alcance = rememberCoroutineScope()
+    val estado by viewModel.estado.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(Unit) {
+        viewModel.cargarProductos()
+        onPauseOrDispose { }
+    }
 
     EstructuraAdmin(
         rutaActual = Ruta.PanelAdmin.ruta,
         alNavegar = alNavegar,
         alCerrarSesion = alCerrarSesion,
-        titulo = "Administración",
-        alMostrarMensaje = { mensaje ->
-            alcance.launch { estadoMensaje.showSnackbar(mensaje) }
-        }
+        titulo = "Administración"
     ) { relleno ->
         Column(
             modifier = Modifier
@@ -65,13 +64,13 @@ fun PantallaPanelAdmin(
             ) {
                 TarjetaResumenAdmin(
                     titulo = "Productos",
-                    valor = "--",
+                    valor = estado.totalProductos.toString(),
                     icono = Icons.Default.List,
                     modifier = Modifier.weight(1f)
                 )
                 TarjetaResumenAdmin(
                     titulo = "Ofertas activas",
-                    valor = "--",
+                    valor = estado.ofertasActivas.toString(),
                     icono = Icons.Default.Star,
                     modifier = Modifier.weight(1f)
                 )
@@ -83,48 +82,23 @@ fun PantallaPanelAdmin(
             ) {
                 TarjetaResumenAdmin(
                     titulo = "Stock bajo",
-                    valor = "--",
+                    valor = estado.stockBajo.toString(),
                     icono = Icons.Default.Warning,
                     modifier = Modifier.weight(1f)
                 )
                 TarjetaResumenAdmin(
                     titulo = "Agotados",
-                    valor = "--",
+                    valor = estado.agotados.toString(),
                     icono = Icons.Default.Delete,
                     modifier = Modifier.weight(1f)
                 )
             }
-
             Spacer(modifier = Modifier.height(24.dp))
-            EncabezadoSeccion(titulo = "Gestión rápida")
-            Spacer(modifier = Modifier.height(8.dp))
             TarjetaAccionRapida(
                 titulo = "Gestionar productos",
-                descripcion = "Crear, editar y revisar el catálogo",
+                descripcion = "Crear y revisar el catálogo",
                 alPulsar = { alNavegar(Ruta.ProductosAdmin.ruta) }
             )
-            Spacer(modifier = Modifier.height(10.dp))
-            TarjetaAccionRapida(
-                titulo = "Gestionar ofertas",
-                descripcion = "Disponible en la siguiente fase",
-                alPulsar = {
-                    alcance.launch {
-                        estadoMensaje.showSnackbar("Disponible próximamente")
-                    }
-                }
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            TarjetaAccionRapida(
-                titulo = "Revisar stock",
-                descripcion = "Disponible en la siguiente fase",
-                alPulsar = {
-                    alcance.launch {
-                        estadoMensaje.showSnackbar("Disponible próximamente")
-                    }
-                }
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            SnackbarHost(hostState = estadoMensaje)
         }
     }
 }

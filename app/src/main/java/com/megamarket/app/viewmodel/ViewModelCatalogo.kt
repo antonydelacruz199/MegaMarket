@@ -34,10 +34,16 @@ class ViewModelCatalogo(
         }
     }
 
+    suspend fun buscar(id: Long): Producto? = repositorio.obtenerPorId(id)
+
     fun guardar(producto: Producto, alTerminar: (Boolean) -> Unit) {
         viewModelScope.launch {
-            val id = repositorio.insertar(producto)
-            alTerminar(id > 0)
+            if (producto.id == 0L) {
+                alTerminar(repositorio.insertar(producto) > 0)
+            } else {
+                repositorio.actualizar(producto)
+                alTerminar(true)
+            }
         }
     }
 }

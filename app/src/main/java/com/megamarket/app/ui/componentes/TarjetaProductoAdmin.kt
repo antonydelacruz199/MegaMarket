@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Edit
@@ -21,8 +22,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.megamarket.app.data.local.AlmacenImagenes
 
 @Composable
 fun TarjetaProductoAdmin(
@@ -32,8 +35,10 @@ fun TarjetaProductoAdmin(
     precio: String,
     stock: String,
     estado: String,
+    imagenKey: String = "",
     alEditar: () -> Unit
 ) {
+    val contexto = LocalContext.current
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -46,6 +51,14 @@ fun TarjetaProductoAdmin(
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            ImagenProducto(
+                identificador = imagenKey,
+                modifier = Modifier
+                    .padding(end = 12.dp)
+                    .size(72.dp),
+                descripcion = nombre,
+                cargar = { AlmacenImagenes.bitmap(contexto, imagenKey, 200) }
+            )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = nombre,

@@ -7,7 +7,9 @@ import android.content.UriMatcher
 import android.database.Cursor
 import android.database.MatrixCursor
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import com.megamarket.modelo.ContratoCatalogo
+import java.io.FileNotFoundException
 
 /**
  * Publica el catálogo de Room para que el aplicativo del cliente lo lea
@@ -57,7 +59,22 @@ class ProveedorProductos : ContentProvider() {
     override fun getType(uri: Uri): String = when (COMPARADOR.match(uri)) {
         LISTA -> "vnd.android.cursor.dir/vnd.${ContratoCatalogo.AUTORIDAD}.producto"
         ITEM -> "vnd.android.cursor.item/vnd.${ContratoCatalogo.AUTORIDAD}.producto"
+        IMAGEN -> "image/jpeg"
         else -> throw IllegalArgumentException("URI no válida: $uri")
+    }
+
+    override fun openFile(uri: Uri, mode: String): ParcelFileDescriptor {
+        if (COMPARADOR.match(uri) != IMAGEN || mode.contains("w")) {
+            throw FileNotFoundException("Imagen no disponible")
+        }
+        val contexto = checkNotNull(context)
+        val id = uri.pathSegments.getOrNull(1)?.toLongOrNull()
+            ?: throw FileNotFoundException("Imagen no disponible")
+        val producto = BaseDatosMegaMarket.obtener(contexto).productoDao().obtenerPorId(id)
+            ?: throw FileNotFoundException("Imagen no disponible")
+        val archivo = AlmacenImagenes.archivo(contexto, producto.imagenKey)
+            ?: throw FileNotFoundException("Imagen no disponible")
+        return ParcelFileDescriptor.open(archivo, ParcelFileDescriptor.MODE_READ_ONLY)
     }
 
     override fun insert(uri: Uri, values: ContentValues?): Uri? = null
@@ -74,10 +91,12 @@ class ProveedorProductos : ContentProvider() {
     private companion object {
         const val LISTA = 1
         const val ITEM = 2
+        const val IMAGEN = 3
 
         val COMPARADOR = UriMatcher(UriMatcher.NO_MATCH).apply {
             addURI(ContratoCatalogo.AUTORIDAD, ContratoCatalogo.RUTA_PRODUCTOS, LISTA)
             addURI(ContratoCatalogo.AUTORIDAD, "${ContratoCatalogo.RUTA_PRODUCTOS}/#", ITEM)
+            addURI(ContratoCatalogo.AUTORIDAD, "${ContratoCatalogo.RUTA_PRODUCTOS}/#/imagen", IMAGEN)
         }
     }
 }

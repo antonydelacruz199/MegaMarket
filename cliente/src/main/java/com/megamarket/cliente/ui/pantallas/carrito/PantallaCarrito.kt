@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -30,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.megamarket.cliente.ui.componentes.EstadoVacio
 import com.megamarket.cliente.ui.componentes.EstructuraCliente
+import com.megamarket.cliente.ui.componentes.ImagenProducto
 import com.megamarket.cliente.ui.componentes.TextoPrecio
 import com.megamarket.cliente.ui.navegacion.Ruta
 import com.megamarket.cliente.viewmodel.ViewModelCarrito
@@ -80,6 +82,15 @@ fun PantallaCarrito(
                     Card(shape = RoundedCornerShape(12.dp)) {
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
+                                ImagenProducto(
+                                    productoId = linea.producto.id,
+                                    imagenKey = linea.producto.imagenKey,
+                                    modifier = Modifier
+                                        .padding(end = 12.dp)
+                                        .size(56.dp),
+                                    lado = 160,
+                                    descripcion = linea.producto.nombre
+                                )
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(linea.producto.nombre, fontWeight = FontWeight.SemiBold)
                                     TextoPrecio(linea.producto)

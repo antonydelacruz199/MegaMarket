@@ -127,6 +127,7 @@ fun PantallaProductosAdmin(
                             producto.esOferta -> "Oferta"
                             else -> "Activo"
                         },
+                        imagenKey = producto.imagenKey,
                         alEditar = { alNavegar(Ruta.EditarProductoAdmin.crear(producto.id)) }
                     )
                 }

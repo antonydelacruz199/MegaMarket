@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
@@ -41,6 +42,15 @@ fun TarjetaProducto(
             modifier = Modifier.padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            ImagenProducto(
+                productoId = producto.id,
+                imagenKey = producto.imagenKey,
+                modifier = Modifier
+                    .padding(end = 12.dp)
+                    .size(72.dp),
+                lado = 200,
+                descripcion = producto.nombre
+            )
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = producto.nombre,

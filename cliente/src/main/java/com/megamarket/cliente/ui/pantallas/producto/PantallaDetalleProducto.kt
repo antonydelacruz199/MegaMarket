@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.megamarket.cliente.modelo.nombreCategoria
 import com.megamarket.cliente.ui.componentes.BarraSuperior
+import com.megamarket.cliente.ui.componentes.ImagenProducto
 import com.megamarket.cliente.ui.componentes.EstadoVacio
 import com.megamarket.cliente.ui.componentes.TextoPrecio
 import com.megamarket.cliente.viewmodel.ViewModelDetalle
@@ -92,6 +93,18 @@ fun PantallaDetalleProducto(
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp)
             ) {
+                ImagenProducto(
+                    productoId = producto.id,
+                    imagenKey = producto.imagenKey,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(200.dp),
+                    lado = 1080,
+                    descripcion = producto.nombre
+                )
+                if (producto.imagenKey.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
                 Text(producto.nombre, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text(producto.marca, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(

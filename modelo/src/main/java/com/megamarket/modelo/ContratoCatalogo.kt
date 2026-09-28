@@ -41,4 +41,6 @@ object ContratoCatalogo {
     )
 
     fun uriProducto(id: Long): Uri = ContentUris.withAppendedId(URI_PRODUCTOS, id)
+
+    fun uriImagen(id: Long): Uri = Uri.withAppendedPath(uriProducto(id), "imagen")
 }

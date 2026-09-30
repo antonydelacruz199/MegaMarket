@@ -24,15 +24,18 @@ class ViewModelCatalogo(
 
     fun cargar() {
         viewModelScope.launch {
-            _estado.update { it.copy(cargando = true, error = null) }
+            val habiaProductos = _estado.value.productos.isNotEmpty()
+            if (!habiaProductos) {
+                _estado.update { it.copy(cargando = true, error = null) }
+            }
             _estado.update {
                 try {
                     it.copy(cargando = false, productos = catalogo.obtenerActivos(), error = null)
                 } catch (error: Exception) {
                     it.copy(
                         cargando = false,
-                        productos = emptyList(),
-                        error = error.message ?: "No se pudo cargar el catálogo"
+                        productos = if (habiaProductos) it.productos else emptyList(),
+                        error = if (habiaProductos) null else error.message ?: "No se pudo cargar el catálogo"
                     )
                 }
             }

@@ -20,8 +20,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.megamarket.cliente.modelo.nombreCategoria
+import com.megamarket.cliente.ui.componentes.BannerFeriaPrimavera
 import com.megamarket.cliente.ui.componentes.EstadoVacio
 import com.megamarket.cliente.ui.componentes.EstructuraCliente
 import com.megamarket.cliente.ui.componentes.TarjetaProducto
@@ -36,6 +38,10 @@ fun PantallaCatalogo(
     alAbrirProducto: (Long) -> Unit
 ) {
     val estado by viewModel.estado.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(Unit) {
+        viewModel.cargar()
+        onPauseOrDispose { }
+    }
     val ruta = if (estado.soloOfertas) Ruta.Ofertas.ruta else Ruta.Catalogo.ruta
     val titulo = if (estado.soloOfertas) "Ofertas" else "Catálogo"
 
@@ -75,6 +81,12 @@ fun PantallaCatalogo(
                     .fillMaxSize()
                     .padding(relleno)
             ) {
+                if (estado.soloOfertas) {
+                    BannerFeriaPrimavera(
+                        compacto = true,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                }
                 OutlinedTextField(
                     value = estado.consulta,
                     onValueChange = viewModel::actualizarConsulta,

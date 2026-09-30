@@ -1,36 +1,56 @@
 package com.megamarket.app.ui.pantallas.admin.formulario
 
-import android.net.Uri
+import android.app.Activity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import com.megamarket.app.ui.tema.MegaContenedorSecundario
+import com.megamarket.app.ui.tema.MegaSecundario
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -42,12 +62,14 @@ import com.megamarket.app.data.local.AlmacenImagenes
 import com.megamarket.app.ui.componentes.BarraSuperior
 import com.megamarket.app.ui.componentes.ImagenProducto
 import com.megamarket.modelo.Producto
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @Composable
 fun PantallaFormularioProducto(
     producto: Producto? = null,
-    alGuardar: (Producto) -> Unit,
+    alGuardar: (Producto, (Boolean) -> Unit) -> Unit,
     alVolver: () -> Unit
 ) {
     var nombre by rememberSaveable { mutableStateOf(producto?.nombre.orEmpty()) }
@@ -63,20 +85,52 @@ fun PantallaFormularioProducto(
     var stock by rememberSaveable { mutableStateOf(producto?.stock?.toString().orEmpty()) }
     var activo by rememberSaveable { mutableStateOf(producto?.activo ?: true) }
     var enOferta by rememberSaveable { mutableStateOf(producto?.esOferta ?: false) }
-    var imagenNueva by rememberSaveable { mutableStateOf<String?>(null) }
+    var clavePendiente by rememberSaveable { mutableStateOf<String?>(null) }
     var imagenQuitada by rememberSaveable { mutableStateOf(false) }
+    var copiando by remember { mutableStateOf(false) }
+    var guardando by remember { mutableStateOf(false) }
+    val conservarPendiente = remember { mutableStateOf(false) }
 
     val contexto = LocalContext.current
+    val estadoMensaje = remember { SnackbarHostState() }
+    val alcance = rememberCoroutineScope()
     val selectorImagen = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()
     ) { uri ->
-        if (uri != null) {
-            imagenNueva = uri.toString()
+        if (uri == null) return@rememberLauncherForActivityResult
+        alcance.launch {
+            copiando = true
+            val clave = withContext(Dispatchers.IO) {
+                AlmacenImagenes.guardar(contexto, uri)
+            }
+            val previa = clavePendiente
+            if (clave == null) {
+                copiando = false
+                estadoMensaje.showSnackbar("No se pudo leer la imagen")
+                return@launch
+            }
+            if (!previa.isNullOrBlank() && previa != clave) {
+                withContext(Dispatchers.IO) { AlmacenImagenes.eliminar(contexto, previa) }
+            }
+            clavePendiente = clave
             imagenQuitada = false
+            copiando = false
         }
     }
-    val estadoMensaje = remember { SnackbarHostState() }
-    val alcance = rememberCoroutineScope()
+    val pendienteActual by rememberUpdatedState(clavePendiente)
+    DisposableEffect(Unit) {
+        onDispose {
+            val actividad = contexto as? Activity
+            val pendiente = pendienteActual
+            if (
+                !pendiente.isNullOrBlank() &&
+                !conservarPendiente.value &&
+                actividad?.isChangingConfigurations != true
+            ) {
+                AlmacenImagenes.eliminar(contexto, pendiente)
+            }
+        }
+    }
     val titulo = if (producto == null) "Nuevo producto" else "Editar producto"
     val etiquetaAccion = if (producto == null) "Crear producto" else "Guardar cambios"
 
@@ -96,79 +150,134 @@ fun PantallaFormularioProducto(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            SelectorImagen(
-                imagenNueva = imagenNueva,
-                claveActual = if (imagenQuitada) "" else producto?.imagenKey.orEmpty(),
-                alElegir = {
-                    selectorImagen.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+            val claveVisible = clavePendiente?.takeIf { it.isNotBlank() }
+                ?: if (imagenQuitada) "" else producto?.imagenKey.orEmpty()
+            SeccionFormulario(
+                titulo = "Imagen",
+                descripcion = "Opcional. El cliente verá esta foto en el catálogo.",
+                colorAcento = MaterialTheme.colorScheme.primary
+            ) {
+                SelectorImagen(
+                    claveVisible = claveVisible,
+                    copiando = copiando,
+                    alElegir = {
+                        selectorImagen.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                    alQuitar = {
+                        val pendiente = clavePendiente
+                        clavePendiente = null
+                        imagenQuitada = true
+                        if (!pendiente.isNullOrBlank()) {
+                            alcance.launch(Dispatchers.IO) {
+                                AlmacenImagenes.eliminar(contexto, pendiente)
+                            }
+                        }
+                    }
+                )
+            }
+            SeccionFormulario(
+                titulo = "Información",
+                descripcion = "Datos que identifican el producto en la tienda.",
+                colorAcento = MaterialTheme.colorScheme.primary
+            ) {
+                CampoFormulario(valor = nombre, alCambiarValor = { nombre = it }, etiqueta = "Nombre")
+                CampoFormulario(valor = marca, alCambiarValor = { marca = it }, etiqueta = "Marca")
+                CampoFormulario(
+                    valor = descripcion,
+                    alCambiarValor = { descripcion = it },
+                    etiqueta = "Descripción",
+                    unaLinea = false
+                )
+                CampoFormulario(
+                    valor = categoria,
+                    alCambiarValor = { categoria = it },
+                    etiqueta = "Categoría",
+                    tipoTeclado = KeyboardType.Number,
+                    ayuda = "Número de categoría. Déjalo vacío si aún no aplica."
+                )
+            }
+            SeccionFormulario(
+                titulo = "Precio y stock",
+                descripcion = "El precio se escribe en soles y el stock en unidades.",
+                colorAcento = MegaSecundario
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    CampoFormulario(
+                        valor = precio,
+                        alCambiarValor = { precio = it },
+                        etiqueta = "Precio",
+                        tipoTeclado = KeyboardType.Decimal,
+                        prefijo = "S/",
+                        modifier = Modifier.weight(1f)
                     )
-                },
-                alQuitar = {
-                    imagenNueva = null
-                    imagenQuitada = true
+                    CampoFormulario(
+                        valor = stock,
+                        alCambiarValor = { stock = it },
+                        etiqueta = "Stock",
+                        tipoTeclado = KeyboardType.Number,
+                        modifier = Modifier.weight(1f)
+                    )
                 }
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-            CampoFormulario(valor = nombre, alCambiarValor = { nombre = it }, etiqueta = "Nombre")
-            CampoFormulario(valor = marca, alCambiarValor = { marca = it }, etiqueta = "Marca")
-            CampoFormulario(
-                valor = descripcion,
-                alCambiarValor = { descripcion = it },
-                etiqueta = "Descripción",
-                unaLinea = false
-            )
-            CampoFormulario(valor = categoria, alCambiarValor = { categoria = it }, etiqueta = "Categoría")
-            CampoFormulario(
-                valor = precio,
-                alCambiarValor = { precio = it },
-                etiqueta = "Precio",
-                tipoTeclado = KeyboardType.Decimal
-            )
-            CampoFormulario(
-                valor = precioOferta,
-                alCambiarValor = { precioOferta = it },
-                etiqueta = "Precio de oferta",
-                tipoTeclado = KeyboardType.Decimal
-            )
-            CampoFormulario(
-                valor = stock,
-                alCambiarValor = { stock = it },
-                etiqueta = "Stock",
-                tipoTeclado = KeyboardType.Number
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            FilaInterruptor(
-                etiqueta = "Producto activo",
-                activado = activo,
-                alCambiar = { activo = it }
-            )
-            FilaInterruptor(
-                etiqueta = "Producto en oferta",
-                activado = enOferta,
-                alCambiar = { enOferta = it }
-            )
-            Spacer(modifier = Modifier.height(20.dp))
+                FilaInterruptor(
+                    etiqueta = "Producto en oferta",
+                    descripcion = "Muestra un precio rebajado junto al precio normal.",
+                    activado = enOferta,
+                    alCambiar = { enOferta = it }
+                )
+                if (enOferta) {
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        color = MegaContenedorSecundario
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            CampoFormulario(
+                                valor = precioOferta,
+                                alCambiarValor = { precioOferta = it },
+                                etiqueta = "Precio de oferta",
+                                tipoTeclado = KeyboardType.Decimal,
+                                prefijo = "S/",
+                                colorAcento = MegaSecundario,
+                                ayuda = "Debe ser menor que el precio normal."
+                            )
+                        }
+                    }
+                }
+            }
+            SeccionFormulario(
+                titulo = "Publicación",
+                descripcion = "Controla si el producto aparece en el catálogo.",
+                colorAcento = MaterialTheme.colorScheme.primary
+            ) {
+                FilaInterruptor(
+                    etiqueta = "Producto activo",
+                    descripcion = "Si está apagado, no se publica para el cliente.",
+                    activado = activo,
+                    alCambiar = { activo = it }
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
             Button(
                 onClick = {
-                    val claveImagen = resolverImagen(
-                        contexto = contexto,
-                        imagenNueva = imagenNueva,
-                        imagenQuitada = imagenQuitada,
-                        claveActual = producto?.imagenKey.orEmpty()
+                    if (copiando || guardando) return@Button
+                    val mensaje = validarProducto(
+                        nombre = nombre,
+                        marca = marca,
+                        precio = precio,
+                        precioOferta = precioOferta,
+                        stock = stock,
+                        enOferta = enOferta
                     )
-                    val mensaje = when {
-                        claveImagen == null -> "No se pudo guardar la imagen"
-                        else -> validarProducto(
-                            nombre = nombre,
-                            marca = marca,
-                            precio = precio,
-                            precioOferta = precioOferta,
-                            stock = stock,
-                            enOferta = enOferta
-                        )
+                    if (mensaje != null) {
+                        alcance.launch { estadoMensaje.showSnackbar(mensaje) }
+                        return@Button
                     }
-                    val guardado = if (mensaje != null || claveImagen == null) null else armarProducto(
+                    val claveActual = producto?.imagenKey.orEmpty()
+                    val claveImagen = clavePendiente?.takeIf { it.isNotBlank() }
+                        ?: if (imagenQuitada) "" else claveActual
+                    val armado = armarProducto(
                         id = producto?.id ?: 0L,
                         imagenKey = claveImagen,
                         nombre = nombre,
@@ -181,20 +290,34 @@ fun PantallaFormularioProducto(
                         enOferta = enOferta,
                         activo = activo
                     )
-                    if (guardado == null) {
-                        alcance.launch {
-                            estadoMensaje.showSnackbar(mensaje ?: "Revisa los datos del producto")
+                    if (armado == null) {
+                        alcance.launch { estadoMensaje.showSnackbar("Revisa los datos del producto") }
+                        return@Button
+                    }
+                    guardando = true
+                    conservarPendiente.value = true
+                    alGuardar(armado) { guardado ->
+                        guardando = false
+                        if (guardado) {
+                            if (claveActual.isNotBlank() && claveActual != claveImagen) {
+                                AlmacenImagenes.eliminar(contexto, claveActual)
+                            }
+                            clavePendiente = null
+                        } else {
+                            conservarPendiente.value = false
+                            alcance.launch {
+                                estadoMensaje.showSnackbar("No se pudo registrar el producto")
+                            }
                         }
-                    } else {
-                        alGuardar(guardado)
                     }
                 },
+                enabled = !copiando && !guardando,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),
                 shape = RoundedCornerShape(12.dp)
             ) {
-                Text(etiquetaAccion)
+                Text(if (guardando) "Guardando..." else etiquetaAccion)
             }
         }
     }
@@ -254,28 +377,79 @@ private fun armarProducto(
 }
 
 @Composable
+private fun SeccionFormulario(
+    titulo: String,
+    descripcion: String,
+    colorAcento: Color,
+    contenido: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 16.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(colorAcento)
+            )
+            Text(
+                text = titulo,
+                modifier = Modifier.padding(start = 8.dp),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+        Text(
+            text = descripcion,
+            modifier = Modifier.padding(start = 16.dp, top = 2.dp, bottom = 8.dp),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+                content = contenido
+            )
+        }
+    }
+}
+
+@Composable
 private fun SelectorImagen(
-    imagenNueva: String?,
-    claveActual: String,
+    claveVisible: String,
+    copiando: Boolean,
     alElegir: () -> Unit,
     alQuitar: () -> Unit
 ) {
     val contexto = LocalContext.current
-    val identificador = imagenNueva ?: claveActual
-    val tieneImagen = identificador.isNotBlank()
-    if (tieneImagen) {
-        ImagenProducto(
-            identificador = identificador,
+    if (copiando) {
+        Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(180.dp),
-            cargar = {
-                if (imagenNueva != null) {
-                    AlmacenImagenes.bitmap(contexto, Uri.parse(imagenNueva), 720)
-                } else {
-                    AlmacenImagenes.bitmap(contexto, claveActual, 720)
-                }
-            }
+            contentAlignment = Alignment.Center
+        ) {
+            CircularProgressIndicator()
+        }
+        return
+    }
+    if (claveVisible.isNotBlank()) {
+        ImagenProducto(
+            identificador = claveVisible,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(180.dp),
+            descripcion = "Imagen seleccionada",
+            cargar = { AlmacenImagenes.bitmap(contexto, claveVisible, 720) }
         )
         Spacer(modifier = Modifier.height(8.dp))
         Row(
@@ -290,37 +464,32 @@ private fun SelectorImagen(
             }
         }
     } else {
-        OutlinedButton(onClick = alElegir, modifier = Modifier.fillMaxWidth()) {
-            Text("Añadir imagen")
-        }
-        Text(
-            text = "Opcional. El producto se puede registrar sin imagen.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(top = 4.dp)
-        )
-    }
-}
-
-private fun resolverImagen(
-    contexto: android.content.Context,
-    imagenNueva: String?,
-    imagenQuitada: Boolean,
-    claveActual: String
-): String? {
-    return when {
-        imagenNueva != null -> {
-            val nueva = AlmacenImagenes.guardar(contexto, Uri.parse(imagenNueva)) ?: return null
-            if (claveActual.isNotBlank() && claveActual != nueva) {
-                AlmacenImagenes.eliminar(contexto, claveActual)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(MaterialTheme.colorScheme.primaryContainer)
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Icon(
+                imageVector = Icons.Default.Add,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(32.dp)
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Sin imagen",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Spacer(modifier = Modifier.height(12.dp))
+            OutlinedButton(onClick = alElegir) {
+                Text("Elegir de la galería")
             }
-            nueva
         }
-        imagenQuitada -> {
-            AlmacenImagenes.eliminar(contexto, claveActual)
-            ""
-        }
-        else -> claveActual
     }
 }
 
@@ -341,19 +510,29 @@ private fun CampoFormulario(
     valor: String,
     alCambiarValor: (String) -> Unit,
     etiqueta: String,
+    modifier: Modifier = Modifier,
     unaLinea: Boolean = true,
-    tipoTeclado: KeyboardType = KeyboardType.Text
+    tipoTeclado: KeyboardType = KeyboardType.Text,
+    prefijo: String? = null,
+    ayuda: String? = null,
+    colorAcento: Color = MaterialTheme.colorScheme.primary
 ) {
     OutlinedTextField(
         value = valor,
         onValueChange = alCambiarValor,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(bottom = 10.dp),
+        modifier = modifier.fillMaxWidth(),
         label = { Text(etiqueta) },
+        prefix = prefijo?.let { texto -> { Text(texto) } },
+        supportingText = ayuda?.let { texto -> { Text(texto) } },
         singleLine = unaLinea,
         minLines = if (unaLinea) 1 else 3,
-        keyboardOptions = KeyboardOptions(keyboardType = tipoTeclado)
+        keyboardOptions = KeyboardOptions(keyboardType = tipoTeclado),
+        shape = RoundedCornerShape(12.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = colorAcento,
+            focusedLabelColor = colorAcento,
+            cursorColor = colorAcento
+        )
     )
 }
 
@@ -361,16 +540,24 @@ private fun CampoFormulario(
 private fun FilaInterruptor(
     etiqueta: String,
     activado: Boolean,
-    alCambiar: (Boolean) -> Unit
+    alCambiar: (Boolean) -> Unit,
+    descripcion: String? = null
 ) {
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
+        modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(text = etiqueta, style = MaterialTheme.typography.bodyLarge)
+        Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+            Text(text = etiqueta, style = MaterialTheme.typography.bodyLarge)
+            if (descripcion != null) {
+                Text(
+                    text = descripcion,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
         Switch(checked = activado, onCheckedChange = alCambiar)
     }
 }

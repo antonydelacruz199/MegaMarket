@@ -2,10 +2,15 @@ package com.megamarket.app.ui.componentes
 
 import android.graphics.Bitmap
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
@@ -21,17 +26,29 @@ fun ImagenProducto(
     descripcion: String = "Imagen del producto",
     cargar: () -> Bitmap?
 ) {
-    if (identificador.isBlank()) return
     val bitmap by produceState<Bitmap?>(initialValue = null, identificador) {
-        value = withContext(Dispatchers.IO) {
-            runCatching { cargar() }.getOrNull()
+        value = if (identificador.isBlank()) {
+            null
+        } else {
+            withContext(Dispatchers.IO) {
+                runCatching { cargar() }.getOrNull()
+            }
         }
     }
-    val imagen = bitmap ?: return
-    Image(
-        bitmap = imagen.asImageBitmap(),
-        contentDescription = descripcion,
-        modifier = modifier.clip(RoundedCornerShape(8.dp)),
-        contentScale = ContentScale.Crop
-    )
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant),
+        contentAlignment = Alignment.Center
+    ) {
+        val imagen = bitmap
+        if (imagen != null) {
+            Image(
+                bitmap = imagen.asImageBitmap(),
+                contentDescription = descripcion,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        }
+    }
 }

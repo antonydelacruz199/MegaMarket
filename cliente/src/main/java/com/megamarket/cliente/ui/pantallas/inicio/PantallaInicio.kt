@@ -9,6 +9,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material3.Button
@@ -21,7 +23,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.megamarket.cliente.ui.componentes.BannerFeriaPrimavera
 import com.megamarket.cliente.ui.componentes.EstadoVacio
 import com.megamarket.cliente.ui.componentes.EstructuraCliente
 import com.megamarket.cliente.ui.componentes.TarjetaProducto
@@ -36,6 +40,10 @@ fun PantallaInicio(
     alAbrirProducto: (Long) -> Unit
 ) {
     val estado by viewModel.estado.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(Unit) {
+        viewModel.cargar()
+        onPauseOrDispose { }
+    }
 
     EstructuraCliente(
         rutaActual = Ruta.Inicio.ruta,
@@ -63,21 +71,31 @@ fun PantallaInicio(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(relleno)
+                    .verticalScroll(rememberScrollState())
                     .padding(16.dp)
             ) {
-                Text(
-                    text = "Hola",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
+                val hayOfertas = estado.ofertas.isNotEmpty()
+                BannerFeriaPrimavera(
+                    etiquetaAccion = if (hayOfertas) "Ver ofertas de la feria" else "Recorrer el catálogo",
+                    alPulsar = {
+                        alNavegar(if (hayOfertas) Ruta.Ofertas.ruta else Ruta.Catalogo.ruta)
+                    }
                 )
                 Text(
-                    text = "Ofertas de la semana",
+                    text = "La yapa de esta semana",
                     style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(top = 20.dp, bottom = 4.dp)
                 )
-                if (estado.ofertas.isEmpty()) {
+                Text(
+                    text = "Toca un producto y llévatelo con precio de feria.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
+                if (!hayOfertas) {
                     Text(
-                        text = "Por ahora no hay ofertas.",
+                        text = "La feria abre cuando haya ofertas. Mientras tanto, recorre el catálogo del barrio.",
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
@@ -86,7 +104,7 @@ fun PantallaInicio(
                             TarjetaProducto(
                                 producto = producto,
                                 alPulsar = { alAbrirProducto(producto.id) },
-                                modifier = Modifier.fillParentMaxWidth(0.8f)
+                                modifier = Modifier.fillParentMaxWidth(0.86f)
                             )
                         }
                     }

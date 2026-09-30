@@ -15,7 +15,10 @@ data class EstadoUiCatalogo(
         get() = productos.count { it.ofertaValida }
 
     val stockBajo: Int
-        get() = productos.count { it.stock in 1..5 }
+        get() = productosStockBajo.size
+
+    val productosStockBajo: List<Producto>
+        get() = productos.filter { it.stock in 1..5 }.sortedBy { it.stock }
 
     val agotados: Int
         get() = productos.count { it.agotado }

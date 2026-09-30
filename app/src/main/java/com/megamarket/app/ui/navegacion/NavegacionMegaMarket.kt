@@ -100,8 +100,9 @@ fun NavegacionMegaMarket(
         composable(Ruta.CrearProductoAdmin.ruta) {
             val viewModel: ViewModelCatalogo = viewModel(factory = fabricaCatalogo)
             PantallaFormularioProducto(
-                alGuardar = { producto ->
+                alGuardar = { producto, alTerminar ->
                     viewModel.guardar(producto) { guardado ->
+                        alTerminar(guardado)
                         if (guardado) controlador.popBackStack()
                     }
                 },
@@ -123,8 +124,9 @@ fun NavegacionMegaMarket(
             if (cargado != null) {
                 PantallaFormularioProducto(
                     producto = cargado,
-                    alGuardar = { actualizado ->
+                    alGuardar = { actualizado, alTerminar ->
                         viewModel.guardar(actualizado) { guardado ->
+                            alTerminar(guardado)
                             if (guardado) controlador.popBackStack()
                         }
                     },

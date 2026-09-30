@@ -22,7 +22,10 @@ class ViewModelInicio(
 
     fun cargar() {
         viewModelScope.launch {
-            _estado.value = EstadoUiInicio(cargando = true)
+            val actual = _estado.value
+            if (!actual.hayProductos) {
+                _estado.value = actual.copy(cargando = true, error = null)
+            }
             _estado.value = try {
                 val productos = catalogo.obtenerActivos()
                 EstadoUiInicio(
@@ -31,9 +34,9 @@ class ViewModelInicio(
                     hayProductos = productos.isNotEmpty()
                 )
             } catch (error: Exception) {
-                EstadoUiInicio(
+                actual.copy(
                     cargando = false,
-                    error = error.message ?: "No se pudo cargar el inicio"
+                    error = if (actual.hayProductos) null else error.message ?: "No se pudo cargar el inicio"
                 )
             }
         }

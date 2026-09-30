@@ -2,6 +2,9 @@ package com.megamarket.modelo
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.media.ExifInterface
+import java.io.ByteArrayInputStream
 
 fun ByteArray.decodificarImagen(ladoMaximo: Int): Bitmap? {
     if (isEmpty() || ladoMaximo <= 0) return null
@@ -17,5 +20,37 @@ fun ByteArray.decodificarImagen(ladoMaximo: Int): Bitmap? {
         muestra *= 2
     }
     val opciones = BitmapFactory.Options().apply { inSampleSize = muestra }
-    return BitmapFactory.decodeByteArray(this, 0, size, opciones)
+    val bitmap = BitmapFactory.decodeByteArray(this, 0, size, opciones) ?: return null
+    return bitmap.orientar(this)
+}
+
+private fun Bitmap.orientar(origen: ByteArray): Bitmap {
+    val grados = runCatching {
+        val exif = ExifInterface(ByteArrayInputStream(origen))
+        when (
+            exif.getAttributeInt(
+                ExifInterface.TAG_ORIENTATION,
+                ExifInterface.ORIENTATION_NORMAL
+            )
+        ) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+            ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+            ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+            else -> 0f
+        }
+    }.getOrDefault(0f)
+    if (grados == 0f) return this
+    val rotado = runCatching {
+        Bitmap.createBitmap(
+            this,
+            0,
+            0,
+            width,
+            height,
+            Matrix().apply { postRotate(grados) },
+            true
+        )
+    }.getOrNull() ?: return this
+    if (rotado != this) recycle()
+    return rotado
 }

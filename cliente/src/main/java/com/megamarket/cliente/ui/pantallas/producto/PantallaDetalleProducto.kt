@@ -30,10 +30,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.megamarket.cliente.modelo.nombreCategoria
 import com.megamarket.cliente.ui.componentes.BarraSuperior
+import com.megamarket.cliente.ui.componentes.CintaFeria
 import com.megamarket.cliente.ui.componentes.ImagenProducto
 import com.megamarket.cliente.ui.componentes.EstadoVacio
 import com.megamarket.cliente.ui.componentes.TextoPrecio
 import com.megamarket.cliente.viewmodel.ViewModelDetalle
+import com.megamarket.modelo.Producto
 
 @Composable
 fun PantallaDetalleProducto(
@@ -102,9 +104,11 @@ fun PantallaDetalleProducto(
                     lado = 1080,
                     descripcion = producto.nombre
                 )
-                if (producto.imagenKey.isNotBlank()) {
+                if (producto.ofertaValida) {
                     Spacer(modifier = Modifier.height(12.dp))
+                    CintaFeria(descuento = porcentajeYapa(producto))
                 }
+                Spacer(modifier = Modifier.height(12.dp))
                 Text(producto.nombre, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text(producto.marca, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
@@ -157,4 +161,10 @@ fun PantallaDetalleProducto(
             }
         }
     }
+}
+
+private fun porcentajeYapa(producto: Producto): Int? {
+    val oferta = producto.precioOfertaCentimos
+    if (!producto.ofertaValida || oferta == null || producto.precioCentimos <= 0L) return null
+    return ((producto.precioCentimos - oferta) * 100 / producto.precioCentimos).toInt()
 }

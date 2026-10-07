@@ -1,0 +1,15 @@
+package com.megamarket.app.ui.navigation
+
+import com.megamarket.app.viewmodel.ProductoFormViewModel
+
+sealed class Ruta(val ruta: String) {
+    data object Presentacion : Ruta("presentacion")
+    data object Sesion : Ruta("sesion")
+    data object PanelAdmin : Ruta("panel_admin")
+    data object ProductosAdmin : Ruta("productos_admin")
+    data object CrearProductoAdmin : Ruta("crear_producto_admin")
+    data object EditarProductoAdmin :
+        Ruta("editar_producto_admin/{${ProductoFormViewModel.ARG_PRODUCTO_ID}}") {
+        fun crear(id: Long) = "editar_producto_admin/$id"
+    }
+}

@@ -31,4 +31,11 @@ data class Producto(
 
     val agotado: Boolean
         get() = stock <= 0
+
+    val stockBajo: Boolean
+        get() = stock in 1..STOCK_BAJO_MAXIMO
+
+    companion object {
+        const val STOCK_BAJO_MAXIMO = 5
+    }
 }

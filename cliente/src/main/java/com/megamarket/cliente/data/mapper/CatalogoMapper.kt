@@ -1,5 +1,6 @@
 package com.megamarket.cliente.data.mapper
 
+import com.megamarket.cliente.data.local.ProductoProviderSnapshot
 import com.megamarket.cliente.data.local.entities.CategoriaEntity
 import com.megamarket.cliente.data.local.entities.ProductoEntity
 import com.megamarket.cliente.data.remote.dto.CategoriaDto
@@ -16,6 +17,7 @@ fun CategoriaEntity.toModel(): Categoria = Categoria(
     remoteDeletedAt = remoteDeletedAt
 )
 
+/** [Producto.id] es siempre la PK local del cliente, nunca providerId. */
 fun ProductoEntity.toModel(): Producto = Producto(
     id = id,
     nombre = nombre,
@@ -34,47 +36,59 @@ fun ProductoEntity.toModel(): Producto = Producto(
     remoteDeletedAt = remoteDeletedAt
 )
 
-fun Producto.toEntity(): ProductoEntity = ProductoEntity(
-    id = id,
+/**
+ * Snapshot Provider → entidad Room.
+ * [idLocal] 0 = insert (AUTOINCREMENT); si hay fila existente, conservar su id.
+ * Nunca: id = snapshot.providerId (salvo migración histórica v5→v6).
+ */
+fun ProductoProviderSnapshot.toEntity(
+    idLocal: Long = 0,
+    categoriaIdLocal: Long
+): ProductoEntity = ProductoEntity(
+    id = idLocal,
+    providerId = providerId,
     remoteId = remoteId,
     nombre = nombre,
     marca = marca,
     descripcion = descripcion,
-    categoriaId = categoriaId,
+    categoriaId = categoriaIdLocal,
     precioCentimos = precioCentimos,
     precioOfertaCentimos = precioOfertaCentimos,
     stock = stock,
     imagenKey = imagenKey,
     esOferta = esOferta,
-    activo = activo,
+    activo = activo && remoteDeletedAt.isNullOrBlank(),
     remoteVersion = remoteVersion,
     remoteUpdatedAt = remoteUpdatedAt,
     remoteDeletedAt = remoteDeletedAt
 )
 
 /**
- * Mapea DTO remoto → entidad local.
- * [categoriaIdLocal] debe resolverse antes buscando por remoteId de categoría.
- * Nunca inventa UUID: remoteId = dto.id.
+ * DTO remoto → entidad local.
+ * [providerIdExistente] se conserva en merge Provider+API; null si es solo API.
  */
-fun ProductoDto.aEntidad(categoriaIdLocal: Long, idLocal: Long? = null): ProductoEntity =
-    ProductoEntity(
-        id = idLocal ?: 0L,
-        remoteId = id,
-        nombre = nombre,
-        marca = marca,
-        descripcion = descripcion,
-        categoriaId = categoriaIdLocal,
-        precioCentimos = precioCentimos,
-        precioOfertaCentimos = precioOfertaCentimos,
-        stock = stock,
-        imagenKey = imagenKey,
-        esOferta = esOferta,
-        activo = activo && deletedAt.isNullOrBlank(),
-        remoteVersion = version,
-        remoteUpdatedAt = updatedAt,
-        remoteDeletedAt = deletedAt
-    )
+fun ProductoDto.aEntidad(
+    categoriaIdLocal: Long,
+    idLocal: Long = 0,
+    providerIdExistente: Long? = null
+): ProductoEntity = ProductoEntity(
+    id = idLocal,
+    providerId = providerIdExistente,
+    remoteId = id,
+    nombre = nombre,
+    marca = marca,
+    descripcion = descripcion,
+    categoriaId = categoriaIdLocal,
+    precioCentimos = precioCentimos,
+    precioOfertaCentimos = precioOfertaCentimos,
+    stock = stock,
+    imagenKey = imagenKey,
+    esOferta = esOferta,
+    activo = activo && deletedAt.isNullOrBlank(),
+    remoteVersion = version,
+    remoteUpdatedAt = updatedAt,
+    remoteDeletedAt = deletedAt
+)
 
 fun CategoriaDto.aEntidad(idLocal: Long? = null): CategoriaEntity = CategoriaEntity(
     id = idLocal ?: 0L,

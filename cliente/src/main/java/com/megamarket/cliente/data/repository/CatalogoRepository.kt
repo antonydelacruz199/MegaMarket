@@ -8,6 +8,7 @@ import android.graphics.Bitmap
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import com.megamarket.cliente.data.local.ProductoProviderSnapshot
 import com.megamarket.cliente.data.local.dao.CategoriaDao
 import com.megamarket.cliente.data.local.dao.ProductoDao
 import com.megamarket.cliente.data.local.entities.CategoriaEntity
@@ -39,8 +40,8 @@ import java.io.IOException
 
 /**
  * Catálogo offline-first:
- * Room local es la fuente de la UI.
- * ContentProvider del admin es bootstrap / sincronización de stock durante la transición.
+ * Room local es la fuente de la UI (Producto.id = PK cliente).
+ * ContentProvider usa ProductoEntity.providerId durante la transición.
  */
 class CatalogoRepository(
     private val resolver: ContentResolver,
@@ -61,7 +62,6 @@ class CatalogoRepository(
     fun observarProducto(id: Long): Flow<Producto?> =
         productoDao.observarPorId(id).map { it?.toModel() }
 
-    /** Emite cambios del Provider para que el repositorio actualice Room (no la UI). */
     fun observarCambiosCatalogo(): Flow<Unit> = callbackFlow {
         val handler = Handler(Looper.getMainLooper())
         val observer = object : ContentObserver(handler) {
@@ -77,10 +77,6 @@ class CatalogoRepository(
         awaitClose { resolver.unregisterContentObserver(observer) }
     }.flowOn(Dispatchers.Main.immediate)
 
-    /**
-     * Arranca bootstrap + ContentObserver → Room.
-     * Idempotente; llamar desde [AppContainer] / Application.
-     */
     fun iniciar() {
         if (observacionIniciada) return
         observacionIniciada = true
@@ -119,7 +115,6 @@ class CatalogoRepository(
         categoriaDao.obtenerActivas().map { it.toModel() }
     }
 
-    /** Lectura bloqueante desde Room (checkout / carrito en hilo IO). */
     fun leerActivos(): List<Producto> =
         runBlockingIo { productoDao.obtenerActivos().map { it.toModel() } }
 
@@ -127,12 +122,8 @@ class CatalogoRepository(
         runBlockingIo { productoDao.obtenerPorId(id)?.toModel() }
 
     /**
-     * Importa/actualiza Room desde el Provider del administrador.
-     * Segunda llamada hace upsert por id local; no duplica filas.
-     */
-    /**
      * Orden futuro cuando exista API: categorías → productos.
-     * No se invoca automáticamente; evita romper la app sin backend.
+     * Insert con id=0 (AUTOINCREMENT). Conserva providerId en merge.
      */
     suspend fun sincronizarRemotoSiDisponible(
         categoriasRemotas: List<CategoriaDto>,
@@ -140,49 +131,63 @@ class CatalogoRepository(
     ) = withContext(Dispatchers.IO) {
         for (dto in categoriasRemotas) {
             val existente = categoriaDao.obtenerPorRemoteId(dto.id)
-            categoriaDao.upsert(dto.aEntidad(idLocal = existente?.id))
+            if (existente != null) {
+                categoriaDao.actualizar(dto.aEntidad(idLocal = existente.id))
+            } else {
+                categoriaDao.insertar(dto.aEntidad(idLocal = 0))
+            }
         }
         val categorias = categoriaDao.obtenerActivas()
         for (dto in productosRemotos) {
             val categoriaLocal = resolverCategoriaIdLocal(dto.categoriaId, categorias) ?: continue
             val existente = productoDao.obtenerPorRemoteId(dto.id)
-            val idLocal = existente?.id ?: (productoDao.maxId() + 1)
-            productoDao.upsert(dto.aEntidad(categoriaIdLocal = categoriaLocal, idLocal = idLocal))
+            if (existente != null) {
+                productoDao.actualizar(
+                    dto.aEntidad(
+                        categoriaIdLocal = categoriaLocal,
+                        idLocal = existente.id,
+                        providerIdExistente = existente.providerId
+                    )
+                )
+            } else {
+                productoDao.insertar(
+                    dto.aEntidad(
+                        categoriaIdLocal = categoriaLocal,
+                        idLocal = 0,
+                        providerIdExistente = null
+                    )
+                )
+            }
         }
     }
 
+    /**
+     * Importa/actualiza Room desde Provider por [ProductoProviderSnapshot.providerId].
+     * No usa el id admin como PK local.
+     */
     suspend fun importarDesdeProvider(silencioso: Boolean = true): Int = mutexImportacion.withLock {
         withContext(Dispatchers.IO) {
             asegurarCategoriasBootstrap()
-            val remotos = try {
-                leerDesdeProvider(ContratoCatalogo.URI_PRODUCTOS)
+            val snapshots = try {
+                leerSnapshotsDesdeProvider(ContratoCatalogo.URI_PRODUCTOS)
             } catch (error: CatalogoNoDisponibleException) {
                 if (silencioso) return@withContext 0
                 throw error
             }
-            if (remotos.isEmpty()) return@withContext 0
+            if (snapshots.isEmpty()) return@withContext 0
 
-            val categorias = categoriaDao.obtenerActivas()
-            val primeraCategoria = categorias.minByOrNull { it.id }?.id
-                ?: return@withContext 0
-            val idsCategoria = categorias.map { it.id }.toSet()
-
-            val entidades = remotos.map { producto ->
-                val categoriaId = if (producto.categoriaId in idsCategoria) {
-                    producto.categoriaId
-                } else {
-                    primeraCategoria
-                }
-                producto.copy(categoriaId = categoriaId).toEntity()
+            var importados = 0
+            for (snapshot in snapshots) {
+                if (persistirDesdeSnapshot(snapshot)) importados++
             }
-            productoDao.upsertVarios(entidades)
-            entidades.size
+            importados
         }
     }
 
-    suspend fun cargarImagen(productoId: Long, lado: Int): Bitmap? = withContext(Dispatchers.IO) {
+    suspend fun cargarImagen(productoIdLocal: Long, lado: Int): Bitmap? = withContext(Dispatchers.IO) {
+        val providerId = obtenerProviderId(productoIdLocal) ?: return@withContext null
         try {
-            resolver.openInputStream(ContratoCatalogo.uriImagen(productoId))
+            resolver.openInputStream(ContratoCatalogo.uriImagen(providerId))
                 ?.use { entrada -> entrada.readBytes().decodificarImagen(lado) }
         } catch (_: IOException) {
             null
@@ -191,13 +196,10 @@ class CatalogoRepository(
         }
     }
 
-    /**
-     * Descuenta stock en admin vía Provider y refleja el stock final en Room cliente.
-     */
-    suspend fun descontarStock(productoId: Long, cantidad: Int): ResultadoDescuentoStock =
+    suspend fun descontarStock(productoIdLocal: Long, cantidad: Int): ResultadoDescuentoStock =
         withContext(Dispatchers.IO) {
             mutarStock(
-                productoId = productoId,
+                productoIdLocal = productoIdLocal,
                 cantidad = cantidad,
                 operacion = ContratoCatalogo.OPERACION_DESCONTAR,
                 nombreParaError = { "Stock insuficiente para $it." },
@@ -205,16 +207,19 @@ class CatalogoRepository(
             )
         }
 
-    suspend fun restaurarStock(productoId: Long, cantidad: Int): ResultadoDescuentoStock =
+    suspend fun restaurarStock(productoIdLocal: Long, cantidad: Int): ResultadoDescuentoStock =
         withContext(Dispatchers.IO) {
             mutarStock(
-                productoId = productoId,
+                productoIdLocal = productoIdLocal,
                 cantidad = cantidad,
                 operacion = ContratoCatalogo.OPERACION_RESTAURAR,
                 nombreParaError = { "No se pudo restaurar el stock de $it." },
                 errorGenerico = "No se pudo restaurar el stock."
             )
         }
+
+    private suspend fun obtenerProviderId(productoIdLocal: Long): Long? =
+        productoDao.obtenerPorId(productoIdLocal)?.providerId
 
     private suspend fun asegurarCategoriasBootstrap() {
         if (categoriaDao.contar() > 0) return
@@ -223,8 +228,36 @@ class CatalogoRepository(
         )
     }
 
+    /**
+     * Limitación de transición: el Provider publica categoria_id de Room admin.
+     * Mientras ambas apps inserten [CategoriasBootstrap] en el mismo orden, los Long coinciden.
+     * Si no existe, se usa la primera categoría local.
+     */
+    private suspend fun resolverCategoriaLocal(categoriaProviderId: Long): Long {
+        val categorias = categoriaDao.obtenerActivas()
+        if (categorias.any { it.id == categoriaProviderId }) return categoriaProviderId
+        return categorias.minByOrNull { it.id }?.id
+            ?: error("No hay categorías locales")
+    }
+
+    private suspend fun persistirDesdeSnapshot(snapshot: ProductoProviderSnapshot): Boolean {
+        val categoriaId = resolverCategoriaLocal(snapshot.categoriaProviderId)
+        val existente = productoDao.obtenerPorProviderId(snapshot.providerId)
+            ?: snapshot.remoteId?.takeIf { it.isNotBlank() }?.let { productoDao.obtenerPorRemoteId(it) }
+
+        return if (existente != null) {
+            productoDao.actualizar(
+                snapshot.toEntity(idLocal = existente.id, categoriaIdLocal = categoriaId)
+            ) > 0
+        } else {
+            productoDao.insertar(
+                snapshot.toEntity(idLocal = 0, categoriaIdLocal = categoriaId)
+            ) > 0
+        }
+    }
+
     private suspend fun mutarStock(
-        productoId: Long,
+        productoIdLocal: Long,
         cantidad: Int,
         operacion: String,
         nombreParaError: (String) -> String,
@@ -233,45 +266,39 @@ class CatalogoRepository(
         if (cantidad <= 0) {
             return ResultadoDescuentoStock.Fallo("La cantidad no es válida")
         }
+        val local = productoDao.obtenerPorId(productoIdLocal)
+            ?: return ResultadoDescuentoStock.Fallo(errorGenerico)
+        val providerId = local.providerId
+            ?: return ResultadoDescuentoStock.Fallo(
+                "El producto todavía no está disponible para actualización local de stock."
+            )
+
         val values = ContentValues().apply {
             put(ContratoCatalogo.COL_CANTIDAD, cantidad)
             put(ContratoCatalogo.COL_OPERACION, operacion)
         }
         val filas = try {
-            resolver.update(ContratoCatalogo.uriStock(productoId), values, null, null)
+            resolver.update(ContratoCatalogo.uriStock(providerId), values, null, null)
         } catch (error: SecurityException) {
             throw CatalogoNoDisponibleException(error)
         } catch (error: IllegalArgumentException) {
             throw CatalogoNoDisponibleException(error)
         }
         if (filas <= 0) {
-            val nombre = productoDao.obtenerPorId(productoId)?.nombre
-                ?: leerDesdeProvider(ContratoCatalogo.uriProducto(productoId)).firstOrNull()?.nombre
-            return ResultadoDescuentoStock.Fallo(
-                if (nombre != null) nombreParaError(nombre) else errorGenerico
-            )
+            return ResultadoDescuentoStock.Fallo(nombreParaError(local.nombre))
         }
 
         val desdeProvider = try {
-            leerDesdeProvider(ContratoCatalogo.uriProducto(productoId)).firstOrNull()
+            leerSnapshotsDesdeProvider(ContratoCatalogo.uriProducto(providerId)).firstOrNull()
         } catch (_: CatalogoNoDisponibleException) {
             null
         } ?: return ResultadoDescuentoStock.Fallo(errorGenerico)
 
-        sincronizarProductoLocal(desdeProvider)
+        persistirDesdeSnapshot(desdeProvider)
         return ResultadoDescuentoStock.Exito(desdeProvider.stock)
     }
 
-    private suspend fun sincronizarProductoLocal(producto: Producto) {
-        asegurarCategoriasBootstrap()
-        val categorias = categoriaDao.obtenerActivas()
-        val ids = categorias.map { it.id }.toSet()
-        val primera = categorias.minByOrNull { it.id }?.id ?: return
-        val categoriaId = if (producto.categoriaId in ids) producto.categoriaId else primera
-        productoDao.upsert(producto.copy(categoriaId = categoriaId).toEntity())
-    }
-
-    private fun leerDesdeProvider(uri: Uri): List<Producto> {
+    private fun leerSnapshotsDesdeProvider(uri: Uri): List<ProductoProviderSnapshot> {
         val cursor = try {
             resolver.query(uri, ContratoCatalogo.COLUMNAS, null, null, null)
                 ?: resolver.query(uri, null, null, null, null)
@@ -281,11 +308,11 @@ class CatalogoRepository(
             throw CatalogoNoDisponibleException(error)
         } ?: throw CatalogoNoDisponibleException()
 
-        cursor.use { return it.aProductos().filter { producto -> producto.activo } }
+        cursor.use { return it.aSnapshots().filter { snap -> snap.activo } }
     }
 
-    private fun Cursor.aProductos(): List<Producto> {
-        val productos = mutableListOf<Producto>()
+    private fun Cursor.aSnapshots(): List<ProductoProviderSnapshot> {
+        val productos = mutableListOf<ProductoProviderSnapshot>()
         val id = getColumnIndexOrThrow(ContratoCatalogo.COL_ID)
         val nombre = getColumnIndexOrThrow(ContratoCatalogo.COL_NOMBRE)
         val marca = getColumnIndexOrThrow(ContratoCatalogo.COL_MARCA)
@@ -303,19 +330,19 @@ class CatalogoRepository(
         val remoteDeletedIdx = getColumnIndex(ContratoCatalogo.COL_REMOTE_DELETED_AT)
 
         while (moveToNext()) {
-            productos += Producto(
-                id = getLong(id),
+            productos += ProductoProviderSnapshot(
+                providerId = getLong(id),
+                remoteId = stringOpcional(remoteIdIdx),
                 nombre = getString(nombre).orEmpty(),
                 marca = getString(marca).orEmpty(),
                 descripcion = getString(descripcion).orEmpty(),
-                categoriaId = getLong(categoria),
+                categoriaProviderId = getLong(categoria),
                 precioCentimos = getLong(precio),
                 precioOfertaCentimos = if (isNull(oferta)) null else getLong(oferta),
                 stock = getInt(stock),
                 imagenKey = getString(imagen).orEmpty(),
                 esOferta = getInt(esOferta) != 0,
                 activo = getInt(activo) != 0,
-                remoteId = stringOpcional(remoteIdIdx),
                 remoteVersion = longOpcional(remoteVersionIdx),
                 remoteUpdatedAt = stringOpcional(remoteUpdatedIdx),
                 remoteDeletedAt = stringOpcional(remoteDeletedIdx)
@@ -334,16 +361,16 @@ class CatalogoRepository(
         return getLong(indice)
     }
 
-    /** Evita exponer runBlocking en la API pública; solo helpers de lectura síncrona en IO. */
     private fun <T> runBlockingIo(bloque: suspend () -> T): T =
         kotlinx.coroutines.runBlocking(Dispatchers.IO) { bloque() }
 
     companion object {
         const val MENSAJE_ERROR =
             "No se pudo leer el catálogo. Instala MegaMarket Express en este teléfono."
+        const val MENSAJE_SIN_PROVIDER_ID =
+            "El producto todavía no está disponible para actualización local de stock."
     }
 }
 
-/** El ContentProvider del administrador no respondió (app no instalada o sin permiso). */
 class CatalogoNoDisponibleException(causa: Throwable? = null) :
     IllegalStateException(CatalogoRepository.MENSAJE_ERROR, causa)

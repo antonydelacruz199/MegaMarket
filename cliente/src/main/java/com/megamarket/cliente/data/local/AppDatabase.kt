@@ -36,7 +36,7 @@ import com.megamarket.modelo.CategoriasBootstrap
         CategoriaEntity::class,
         ProductoEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -117,6 +117,16 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Desacopla PK local del ID del Provider.
+         * Conserva id existente y copia id → provider_id para no romper carrito/favoritos/pedidos/ops.
+         */
+        val MIGRACION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                migrarProductosProviderId(db)
+            }
+        }
+
         fun crearTablaOperacionesPendientes(db: SupportSQLiteDatabase) {
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS `operaciones_pendientes` (" +
@@ -194,6 +204,53 @@ abstract class AppDatabase : RoomDatabase() {
             )
         }
 
+        fun migrarProductosProviderId(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `productos_nueva` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`provider_id` INTEGER, " +
+                    "`remote_id` TEXT, " +
+                    "`nombre` TEXT NOT NULL, " +
+                    "`marca` TEXT NOT NULL, " +
+                    "`descripcion` TEXT NOT NULL, " +
+                    "`categoriaId` INTEGER NOT NULL, " +
+                    "`precioCentimos` INTEGER NOT NULL, " +
+                    "`precioOfertaCentimos` INTEGER, " +
+                    "`stock` INTEGER NOT NULL, " +
+                    "`imagenKey` TEXT NOT NULL, " +
+                    "`esOferta` INTEGER NOT NULL, " +
+                    "`activo` INTEGER NOT NULL, " +
+                    "`remote_version` INTEGER, " +
+                    "`remote_updated_at` TEXT, " +
+                    "`remote_deleted_at` TEXT, " +
+                    "FOREIGN KEY(`categoriaId`) REFERENCES `categorias`(`id`) " +
+                    "ON UPDATE CASCADE ON DELETE RESTRICT)"
+            )
+            db.execSQL(
+                "INSERT INTO `productos_nueva` (" +
+                    "`id`, `provider_id`, `remote_id`, `nombre`, `marca`, `descripcion`, " +
+                    "`categoriaId`, `precioCentimos`, `precioOfertaCentimos`, `stock`, " +
+                    "`imagenKey`, `esOferta`, `activo`, `remote_version`, `remote_updated_at`, " +
+                    "`remote_deleted_at`) " +
+                    "SELECT `id`, `id`, `remote_id`, `nombre`, `marca`, `descripcion`, " +
+                    "`categoriaId`, `precioCentimos`, `precioOfertaCentimos`, `stock`, " +
+                    "`imagenKey`, `esOferta`, `activo`, `remote_version`, `remote_updated_at`, " +
+                    "`remote_deleted_at` FROM `productos`"
+            )
+            db.execSQL("DROP TABLE `productos`")
+            db.execSQL("ALTER TABLE `productos_nueva` RENAME TO `productos`")
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_productos_categoriaId` ON `productos` (`categoriaId`)"
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_productos_provider_id` " +
+                    "ON `productos` (`provider_id`)"
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_productos_remote_id` ON `productos` (`remote_id`)"
+            )
+        }
+
         fun getInstance(contexto: Context): AppDatabase {
             return instancia ?: synchronized(this) {
                 instancia ?: Room.databaseBuilder(
@@ -201,7 +258,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     NOMBRE
                 )
-                    .addMigrations(MIGRACION_2_3, MIGRACION_3_4, MIGRACION_4_5)
+                    .addMigrations(MIGRACION_2_3, MIGRACION_3_4, MIGRACION_4_5, MIGRACION_5_6)
                     .fallbackToDestructiveMigrationFrom(true, 1)
                     .build()
                     .also { instancia = it }

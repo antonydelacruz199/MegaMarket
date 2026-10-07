@@ -7,9 +7,12 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /**
- * Copia local del catálogo para offline-first.
- * [id] suele coincidir con el id del administrador durante el bootstrap por Provider;
- * [remoteId] es el UUID de Neon cuando exista la API.
+ * Copia local del catálogo (offline-first).
+ *
+ * Identidades:
+ * - [id]: PK local del cliente (autogenerada). Usada por UI, carrito, favoritos, pedidos, sync.
+ * - [providerId]: PK temporal del administrador vía ContentProvider; null si solo viene de API.
+ * - [remoteId]: UUID de Neon; null hasta sincronizar con la API REST.
  */
 @Entity(
     tableName = "productos",
@@ -24,11 +27,13 @@ import androidx.room.PrimaryKey
     ],
     indices = [
         Index(value = ["categoriaId"]),
+        Index(value = ["provider_id"], unique = true),
         Index(value = ["remote_id"], unique = true)
     ]
 )
 data class ProductoEntity(
-    @PrimaryKey(autoGenerate = false) val id: Long,
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    @ColumnInfo(name = "provider_id") val providerId: Long? = null,
     @ColumnInfo(name = "remote_id") val remoteId: String? = null,
     val nombre: String,
     val marca: String,

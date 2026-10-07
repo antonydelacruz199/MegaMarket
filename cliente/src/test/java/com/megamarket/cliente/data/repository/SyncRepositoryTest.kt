@@ -18,10 +18,11 @@ import retrofit2.Response
 class SyncRepositoryTest {
 
     @Test
-    fun resuelveUuidDesdeRoom() = runBlocking {
+    fun resuelveUuidDesdeRoom_porIdLocalNoProviderId() = runBlocking {
         val productoDao = FakeProductoDao(
             ProductoEntity(
                 id = 15,
+                providerId = 99,
                 remoteId = "550e8400-e29b-41d4-a716-446655440000",
                 nombre = "Arroz",
                 marca = "X",
@@ -69,6 +70,7 @@ class SyncRepositoryTest {
         val productoDao = FakeProductoDao(
             ProductoEntity(
                 id = 15,
+                providerId = 7,
                 remoteId = null,
                 nombre = "Arroz",
                 marca = "X",
@@ -111,27 +113,21 @@ class SyncRepositoryTest {
         override fun observarActivos() = flowOf(listOfNotNull(producto))
         override suspend fun obtenerActivos() = listOfNotNull(producto)
         override suspend fun contar() = if (producto == null) 0 else 1
-        override suspend fun maxId() = producto?.id ?: 0
         override suspend fun obtenerPorId(id: Long) = producto?.takeIf { it.id == id }
         override fun observarPorId(id: Long): Flow<ProductoEntity?> =
             flowOf(producto?.takeIf { it.id == id })
+        override suspend fun obtenerPorProviderId(providerId: Long) =
+            producto?.takeIf { it.providerId == providerId }
         override suspend fun obtenerPorRemoteId(remoteId: String) =
             producto?.takeIf { it.remoteId == remoteId }
-        override suspend fun upsert(entidad: ProductoEntity) {
+        override suspend fun insertar(entidad: ProductoEntity): Long {
+            producto = entidad.copy(id = if (entidad.id == 0L) 1L else entidad.id)
+            return producto!!.id
+        }
+        override suspend fun actualizar(entidad: ProductoEntity): Int {
             producto = entidad
+            return 1
         }
-        override suspend fun upsertVarios(entidades: List<ProductoEntity>) {
-            producto = entidades.firstOrNull()
-        }
-        override suspend fun actualizar(entidad: ProductoEntity) = 1
-        override suspend fun actualizarDesdeCatalogo(
-            id: Long,
-            stock: Int,
-            remoteId: String?,
-            remoteVersion: Long?,
-            remoteUpdatedAt: String?,
-            remoteDeletedAt: String?
-        ) = 1
     }
 
     private class FakeOperacionDao(

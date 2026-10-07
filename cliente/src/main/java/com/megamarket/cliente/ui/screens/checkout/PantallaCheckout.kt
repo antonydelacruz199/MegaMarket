@@ -21,9 +21,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.megamarket.cliente.R
 import com.megamarket.cliente.ui.components.BarraSuperior
 import com.megamarket.cliente.viewmodel.CheckoutViewModel
 
@@ -41,7 +43,14 @@ fun PantallaCheckout(
         alConfirmar(pedidoId)
     }
 
-    Scaffold(topBar = { BarraSuperior(titulo = "Dirección de entrega", alPulsarNavegacion = alVolver) }) { relleno ->
+    Scaffold(
+        topBar = {
+            BarraSuperior(
+                titulo = stringResource(R.string.direccion_entrega),
+                alPulsarNavegacion = alVolver
+            )
+        }
+    ) { relleno ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -49,12 +58,12 @@ fun PantallaCheckout(
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
         ) {
-            Campo("Departamento", estado.departamento, viewModel::actualizarDepartamento, !estado.cargando)
-            Campo("Provincia", estado.provincia, viewModel::actualizarProvincia, !estado.cargando)
-            Campo("Distrito", estado.distrito, viewModel::actualizarDistrito, !estado.cargando)
-            Campo("Dirección", estado.direccion, viewModel::actualizarDireccion, !estado.cargando)
+            Campo(stringResource(R.string.departamento), estado.departamento, viewModel::actualizarDepartamento, !estado.cargando)
+            Campo(stringResource(R.string.provincia), estado.provincia, viewModel::actualizarProvincia, !estado.cargando)
+            Campo(stringResource(R.string.distrito), estado.distrito, viewModel::actualizarDistrito, !estado.cargando)
+            Campo(stringResource(R.string.direccion), estado.direccion, viewModel::actualizarDireccion, !estado.cargando)
             Campo(
-                etiqueta = "Teléfono",
+                etiqueta = stringResource(R.string.telefono),
                 valor = estado.telefono,
                 alCambiar = viewModel::actualizarTelefono,
                 habilitado = !estado.cargando,
@@ -82,7 +91,7 @@ fun PantallaCheckout(
                         strokeWidth = 2.dp
                     )
                 } else {
-                    Text("Confirmar compra")
+                    Text(stringResource(R.string.confirmar_compra))
                 }
             }
         }

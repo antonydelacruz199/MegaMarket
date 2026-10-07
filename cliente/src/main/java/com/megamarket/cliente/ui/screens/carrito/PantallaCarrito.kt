@@ -26,9 +26,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.megamarket.cliente.R
 import com.megamarket.cliente.ui.components.EstadoVacio
 import com.megamarket.cliente.ui.components.EstructuraCliente
 import com.megamarket.cliente.ui.components.ImagenProducto
@@ -68,8 +70,8 @@ fun PantallaCarrito(
 
             estado.lineas.isEmpty() -> EstadoVacio(
                 icono = Icons.Default.ShoppingCart,
-                titulo = "Carrito vacío",
-                descripcion = "Tu carrito está vacío",
+                titulo = stringResource(R.string.carrito_vacio_titulo),
+                descripcion = stringResource(R.string.carrito_vacio),
                 modifier = Modifier.padding(relleno)
             )
 

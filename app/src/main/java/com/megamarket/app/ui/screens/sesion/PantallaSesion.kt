@@ -27,12 +27,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.megamarket.app.R
 import com.megamarket.app.ui.components.LogoMegaMarket
 
 @Composable
@@ -65,7 +67,7 @@ fun PantallaSesion(
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Administración del catálogo",
+            text = stringResource(R.string.administracion_catalogo),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center
@@ -79,7 +81,7 @@ fun PantallaSesion(
                 errorLocal = null
             },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Usuario") },
+            label = { Text(stringResource(R.string.usuario)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
             isError = mensajeError != null
@@ -92,7 +94,7 @@ fun PantallaSesion(
                 errorLocal = null
             },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Contraseña") },
+            label = { Text(stringResource(R.string.contrasena)) },
             singleLine = true,
             isError = mensajeError != null,
             visualTransformation = if (contrasenaVisible) {
@@ -142,7 +144,13 @@ fun PantallaSesion(
                 .height(48.dp),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Text(if (cargando) "Ingresando..." else "Iniciar sesión")
+            Text(
+                if (cargando) {
+                    stringResource(R.string.ingresando)
+                } else {
+                    stringResource(R.string.iniciar_sesion)
+                }
+            )
         }
     }
 }

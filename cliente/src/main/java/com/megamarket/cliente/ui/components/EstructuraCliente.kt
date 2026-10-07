@@ -30,7 +30,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.megamarket.cliente.R
 import com.megamarket.cliente.ui.navigation.Ruta
 import kotlinx.coroutines.launch
 
@@ -51,14 +53,17 @@ fun EstructuraCliente(
 ) {
     val estadoMenu = rememberDrawerState(initialValue = DrawerValue.Closed)
     val alcance = rememberCoroutineScope()
+    val etiquetaCatalogo = stringResource(R.string.catalogo)
+    val etiquetaCerrar = stringResource(R.string.cerrar_sesion)
+    val etiquetaOfertas = stringResource(R.string.ofertas)
     val menu = listOf(
         ItemMenu("Inicio", Ruta.Inicio.ruta, Icons.Default.Home),
-        ItemMenu("Catálogo", Ruta.Catalogo.ruta, Icons.AutoMirrored.Filled.List),
-        ItemMenu("Ofertas", Ruta.Ofertas.ruta, Icons.Default.Star),
+        ItemMenu(etiquetaCatalogo, Ruta.Catalogo.ruta, Icons.AutoMirrored.Filled.List),
+        ItemMenu(etiquetaOfertas, Ruta.Ofertas.ruta, Icons.Default.Star),
         ItemMenu("Favoritos", Ruta.Favoritos.ruta, Icons.Default.Favorite),
         ItemMenu("Carrito", Ruta.Carrito.ruta, Icons.Default.ShoppingCart),
         ItemMenu("Perfil", Ruta.Perfil.ruta, Icons.Default.Person),
-        ItemMenu("Cerrar sesión", Ruta.Sesion.ruta, Icons.Default.Close, esCerrarSesion = true)
+        ItemMenu(etiquetaCerrar, Ruta.Sesion.ruta, Icons.Default.Close, esCerrarSesion = true)
     )
 
     ModalNavigationDrawer(
@@ -104,7 +109,7 @@ fun EstructuraCliente(
             bottomBar = {
                 NavigationBar {
                     BarraItem("Inicio", Ruta.Inicio.ruta, Icons.Default.Home, rutaActual, alNavegar)
-                    BarraItem("Catálogo", Ruta.Catalogo.ruta, Icons.AutoMirrored.Filled.List, rutaActual, alNavegar)
+                    BarraItem(etiquetaCatalogo, Ruta.Catalogo.ruta, Icons.AutoMirrored.Filled.List, rutaActual, alNavegar)
                     BarraItem("Favoritos", Ruta.Favoritos.ruta, Icons.Default.Favorite, rutaActual, alNavegar)
                     BarraItem("Carrito", Ruta.Carrito.ruta, Icons.Default.ShoppingCart, rutaActual, alNavegar)
                 }

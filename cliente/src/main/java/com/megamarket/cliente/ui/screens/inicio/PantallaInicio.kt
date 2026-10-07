@@ -21,10 +21,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.megamarket.cliente.R
 import com.megamarket.cliente.ui.components.BannerFeriaPrimavera
 import com.megamarket.cliente.ui.components.EstadoVacio
 import com.megamarket.cliente.ui.components.EstructuraCliente
@@ -63,8 +65,8 @@ fun PantallaInicio(
             )
             !estado.hayProductos -> EstadoVacio(
                 icono = Icons.AutoMirrored.Filled.List,
-                titulo = "Catálogo vacío",
-                descripcion = "Aún no hay productos. Cuando el administrador publique el catálogo, lo verás aquí.",
+                titulo = stringResource(R.string.catalogo_vacio_titulo),
+                descripcion = stringResource(R.string.catalogo_vacio),
                 modifier = Modifier.padding(relleno)
             )
             else -> Column(
@@ -112,7 +114,7 @@ fun PantallaInicio(
                 }
                 Spacer(modifier = Modifier.height(24.dp))
                 Button(onClick = { alNavegar(Ruta.Catalogo.ruta) }) {
-                    Text("Ver catálogo")
+                    Text(stringResource(R.string.ver_catalogo))
                 }
             }
         }

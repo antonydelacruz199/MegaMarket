@@ -1,3 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MegaMarket Express</string>
+    <string name="contrasena">Contraseña</string>
+    <string name="usuario">Usuario</string>
+    <string name="iniciar_sesion">Iniciar sesión</string>
+    <string name="ingresando">Ingresando…</string>
+    <string name="cerrar_sesion">Cerrar sesión</string>
+    <string name="administracion">Administración</string>
+    <string name="administracion_catalogo">Administración del catálogo</string>
+    <string name="administracion_megamarket">Administración MegaMarket</string>
+    <string name="catalogo">Catálogo</string>
+    <string name="confirmacion">Confirmación</string>
+    <string name="categoria">Categoría</string>
+    <string name="descripcion">Descripción</string>
+    <string name="telefono">Teléfono</string>
+    <string name="direccion">Dirección</string>
+    <string name="producto_no_disponible">Producto no disponible</string>
+    <string name="sesion">Sesión</string>
 </resources>

@@ -130,7 +130,9 @@ fun NavegacionCliente(
         ) {
             PantallaDetalleProducto(
                 viewModel = viewModel<DetalleProductoViewModel>(factory = fabrica),
-                alVolver = { controlador.popBackStack() }
+                alVolver = { controlador.popBackStack() },
+                alIrAlCarrito = { controlador.irARaiz(Ruta.Carrito.ruta) },
+                alSeguirComprando = { controlador.irARaiz(Ruta.Catalogo.ruta) }
             )
         }
 

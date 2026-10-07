@@ -6,11 +6,16 @@ import android.net.Uri
 /**
  * Contrato del catálogo publicado por el administrador.
  * El cliente lee estos mismos nombres con ContentResolver.
+ *
+ * Escritura restringida: solo descuento/restauración de stock vía
+ * [uriStock], nunca un CRUD genérico de productos.
  */
 object ContratoCatalogo {
     const val AUTORIDAD = "com.megamarket.app.proveedor.productos"
     const val PERMISO_LECTURA = "com.megamarket.app.permission.LEER_PRODUCTOS"
+    const val PERMISO_ACTUALIZAR_STOCK = "com.megamarket.app.permission.ACTUALIZAR_STOCK"
     const val RUTA_PRODUCTOS = "productos"
+    const val RUTA_STOCK = "stock"
 
     val URI_PRODUCTOS: Uri = Uri.parse("content://$AUTORIDAD/$RUTA_PRODUCTOS")
 
@@ -25,6 +30,14 @@ object ContratoCatalogo {
     const val COL_IMAGEN_KEY = "imagen_key"
     const val COL_ES_OFERTA = "es_oferta"
     const val COL_ACTIVO = "activo"
+
+    /** Cantidad a descontar o restaurar en la URI de stock. */
+    const val COL_CANTIDAD = "cantidad"
+
+    /** Valores: [OPERACION_DESCONTAR] o [OPERACION_RESTAURAR]. */
+    const val COL_OPERACION = "operacion"
+    const val OPERACION_DESCONTAR = "descontar"
+    const val OPERACION_RESTAURAR = "restaurar"
 
     val COLUMNAS: Array<String> = arrayOf(
         COL_ID,
@@ -43,4 +56,7 @@ object ContratoCatalogo {
     fun uriProducto(id: Long): Uri = ContentUris.withAppendedId(URI_PRODUCTOS, id)
 
     fun uriImagen(id: Long): Uri = Uri.withAppendedPath(uriProducto(id), "imagen")
+
+    /** Operación controlada de stock: content://…/productos/{id}/stock */
+    fun uriStock(id: Long): Uri = Uri.withAppendedPath(uriProducto(id), RUTA_STOCK)
 }

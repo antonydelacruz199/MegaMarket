@@ -1,13 +1,22 @@
 package com.megamarket.cliente.data.repository
 
 import android.content.ContentResolver
+import android.content.ContentValues
+import android.database.ContentObserver
 import android.database.Cursor
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Handler
+import android.os.Looper
+import com.megamarket.cliente.model.ResultadoDescuentoStock
 import com.megamarket.modelo.ContratoCatalogo
 import com.megamarket.modelo.Producto
 import com.megamarket.modelo.decodificarImagen
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import java.io.IOException
 
@@ -28,16 +37,94 @@ class CatalogoRepository(
 
     fun leerPorId(id: Long): Producto? = leer(ContratoCatalogo.uriProducto(id)).firstOrNull()
 
+    /**
+     * Emite cuando el administrador notifica cambios del catálogo (p. ej. stock).
+     * No se registra en Composables: lo consumen repositorios / ViewModels.
+     */
+    fun observarCambiosCatalogo(): Flow<Unit> = callbackFlow {
+        val handler = Handler(Looper.getMainLooper())
+        val observer = object : ContentObserver(handler) {
+            override fun onChange(selfChange: Boolean) {
+                trySend(Unit)
+            }
+
+            override fun onChange(selfChange: Boolean, uri: Uri?) {
+                trySend(Unit)
+            }
+        }
+        resolver.registerContentObserver(ContratoCatalogo.URI_PRODUCTOS, true, observer)
+        awaitClose { resolver.unregisterContentObserver(observer) }
+    }.flowOn(Dispatchers.Main.immediate)
+
     /** Devuelve null si el producto no tiene imagen o el administrador no la publica. */
     suspend fun cargarImagen(productoId: Long, lado: Int): Bitmap? = withContext(Dispatchers.IO) {
         try {
             resolver.openInputStream(ContratoCatalogo.uriImagen(productoId))
                 ?.use { entrada -> entrada.readBytes().decodificarImagen(lado) }
-        } catch (error: IOException) {
+        } catch (_: IOException) {
             null
-        } catch (error: SecurityException) {
+        } catch (_: SecurityException) {
             null
         }
+    }
+
+    /**
+     * Pide al administrador descontar stock. Solo vía URI de operación controlada.
+     * @return stock final si tuvo éxito.
+     */
+    suspend fun descontarStock(productoId: Long, cantidad: Int): ResultadoDescuentoStock =
+        withContext(Dispatchers.IO) {
+            mutarStock(
+                productoId = productoId,
+                cantidad = cantidad,
+                operacion = ContratoCatalogo.OPERACION_DESCONTAR,
+                nombreParaError = { "Stock insuficiente para $it." },
+                errorGenerico = "No se pudo actualizar el stock."
+            )
+        }
+
+    /** Compensación interna: restaura unidades ya descontadas. */
+    suspend fun restaurarStock(productoId: Long, cantidad: Int): ResultadoDescuentoStock =
+        withContext(Dispatchers.IO) {
+            mutarStock(
+                productoId = productoId,
+                cantidad = cantidad,
+                operacion = ContratoCatalogo.OPERACION_RESTAURAR,
+                nombreParaError = { "No se pudo restaurar el stock de $it." },
+                errorGenerico = "No se pudo restaurar el stock."
+            )
+        }
+
+    private fun mutarStock(
+        productoId: Long,
+        cantidad: Int,
+        operacion: String,
+        nombreParaError: (String) -> String,
+        errorGenerico: String
+    ): ResultadoDescuentoStock {
+        if (cantidad <= 0) {
+            return ResultadoDescuentoStock.Fallo("La cantidad no es válida")
+        }
+        val values = ContentValues().apply {
+            put(ContratoCatalogo.COL_CANTIDAD, cantidad)
+            put(ContratoCatalogo.COL_OPERACION, operacion)
+        }
+        val filas = try {
+            resolver.update(ContratoCatalogo.uriStock(productoId), values, null, null)
+        } catch (error: SecurityException) {
+            throw CatalogoNoDisponibleException(error)
+        } catch (error: IllegalArgumentException) {
+            throw CatalogoNoDisponibleException(error)
+        }
+        if (filas <= 0) {
+            val nombre = leerPorId(productoId)?.nombre
+            return ResultadoDescuentoStock.Fallo(
+                if (nombre != null) nombreParaError(nombre) else errorGenerico
+            )
+        }
+        val stockFinal = leerPorId(productoId)?.stock
+            ?: return ResultadoDescuentoStock.Fallo(errorGenerico)
+        return ResultadoDescuentoStock.Exito(stockFinal)
     }
 
     private fun leer(uri: Uri): List<Producto> {

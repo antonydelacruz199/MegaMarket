@@ -34,10 +34,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.megamarket.app.R
 import com.megamarket.app.ui.components.EncabezadoSeccion
 import com.megamarket.app.ui.components.EstructuraAdmin
 import com.megamarket.app.ui.components.ImagenProducto
@@ -67,7 +69,7 @@ fun PantallaPanelAdmin(
         rutaActual = Ruta.PanelAdmin.ruta,
         alNavegar = alNavegar,
         alCerrarSesion = alCerrarSesion,
-        titulo = "Administración"
+        titulo = stringResource(R.string.administracion)
     ) { relleno ->
         Column(
             modifier = Modifier

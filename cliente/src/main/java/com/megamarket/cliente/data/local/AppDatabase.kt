@@ -9,11 +9,13 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import com.megamarket.cliente.data.local.dao.CarritoDao
 import com.megamarket.cliente.data.local.dao.ClienteDao
 import com.megamarket.cliente.data.local.dao.FavoritoDao
+import com.megamarket.cliente.data.local.dao.OperacionPendienteDao
 import com.megamarket.cliente.data.local.dao.PedidoDao
 import com.megamarket.cliente.data.local.entities.CarritoEntity
 import com.megamarket.cliente.data.local.entities.ClienteEntity
 import com.megamarket.cliente.data.local.entities.DireccionEntity
 import com.megamarket.cliente.data.local.entities.FavoritoEntity
+import com.megamarket.cliente.data.local.entities.OperacionPendienteEntity
 import com.megamarket.cliente.data.local.entities.PedidoDetalleEntity
 import com.megamarket.cliente.data.local.entities.PedidoEntity
 
@@ -24,9 +26,10 @@ import com.megamarket.cliente.data.local.entities.PedidoEntity
         ClienteEntity::class,
         PedidoEntity::class,
         PedidoDetalleEntity::class,
-        DireccionEntity::class
+        DireccionEntity::class,
+        OperacionPendienteEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -34,6 +37,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun favoritoDao(): FavoritoDao
     abstract fun clienteDao(): ClienteDao
     abstract fun pedidoDao(): PedidoDao
+    abstract fun operacionPendienteDao(): OperacionPendienteDao
 
     companion object {
         private const val NOMBRE = "megamarket_cliente.db"
@@ -92,6 +96,40 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Crea la cola de sincronización sin destruir datos existentes.
+         * Conserva clientes, carrito, favoritos, pedidos, pedido_detalle y direcciones.
+         */
+        val MIGRACION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                crearTablaOperacionesPendientes(db)
+            }
+        }
+
+        fun crearTablaOperacionesPendientes(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `operaciones_pendientes` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`tipoEntidad` TEXT NOT NULL, " +
+                    "`entidadIdLocal` INTEGER NOT NULL, " +
+                    "`operacion` TEXT NOT NULL, " +
+                    "`payload` TEXT NOT NULL, " +
+                    "`fechaCreacion` INTEGER NOT NULL, " +
+                    "`intentos` INTEGER NOT NULL, " +
+                    "`ultimoError` TEXT, " +
+                    "`estado` TEXT NOT NULL)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_operaciones_pendientes_estado` " +
+                    "ON `operaciones_pendientes` (`estado`)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS " +
+                    "`index_operaciones_pendientes_tipoEntidad_entidadIdLocal_operacion` " +
+                    "ON `operaciones_pendientes` (`tipoEntidad`, `entidadIdLocal`, `operacion`)"
+            )
+        }
+
         fun getInstance(contexto: Context): AppDatabase {
             return instancia ?: synchronized(this) {
                 instancia ?: Room.databaseBuilder(
@@ -99,7 +137,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     NOMBRE
                 )
-                    .addMigrations(MIGRACION_2_3)
+                    .addMigrations(MIGRACION_2_3, MIGRACION_3_4)
                     // La versión 1 fue un prototipo sin migración conocida.
                     .fallbackToDestructiveMigrationFrom(true, 1)
                     .build()

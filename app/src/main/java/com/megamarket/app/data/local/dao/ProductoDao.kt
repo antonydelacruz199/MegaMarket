@@ -25,4 +25,30 @@ interface ProductoDao {
 
     @Query("DELETE FROM productos WHERE trim(nombre) = ''")
     suspend fun eliminarSinDatos()
+
+    /**
+     * Descuenta stock de forma atómica. Devuelve 1 si se aplicó; 0 si el producto
+     * no existe, está inactivo o no hay unidades suficientes (nunca deja stock negativo).
+     */
+    @Query(
+        """
+        UPDATE productos
+        SET stock = stock - :cantidad
+        WHERE id = :productoId
+          AND activo = 1
+          AND stock >= :cantidad
+        """
+    )
+    fun descontarStock(productoId: Long, cantidad: Int): Int
+
+    /** Compensación interna tras un descuento ya aplicado. No es un CRUD genérico. */
+    @Query(
+        """
+        UPDATE productos
+        SET stock = stock + :cantidad
+        WHERE id = :productoId
+          AND :cantidad > 0
+        """
+    )
+    fun incrementarStock(productoId: Long, cantidad: Int): Int
 }

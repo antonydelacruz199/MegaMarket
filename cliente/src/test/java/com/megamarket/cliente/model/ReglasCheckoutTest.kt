@@ -2,6 +2,7 @@ package com.megamarket.cliente.model
 
 import com.megamarket.modelo.Producto
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Test
 
@@ -35,6 +36,8 @@ class ReglasCheckoutTest {
             armarDetallesPedido(listOf(ProductoSolicitado(1, 5)), catalogo)
         }
         assertEquals("El stock de Arroz Costeño cambió. Disponible: 2 unidades.", error.message)
+        // El descuento atómico del admin tampoco aplicaría: stock 2 < 3.
+        assertNull(StockLocal.stockTrasDescuento(2, 3))
     }
 
     @Test

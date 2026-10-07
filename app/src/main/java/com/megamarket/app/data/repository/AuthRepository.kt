@@ -26,7 +26,7 @@ class AuthRepository(
                 nombre = "Administrador Juan",
                 usuario = "admin",
                 correo = "admin@megamarket.com",
-                claveHash = ClaveAcceso.generar("admin123")
+                claveHash = ClaveAcceso.generar("admin")
             )
         )
     }

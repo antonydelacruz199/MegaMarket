@@ -21,12 +21,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.megamarket.cliente.R
 import com.megamarket.cliente.ui.components.LogoMegaMarket
 import com.megamarket.cliente.viewmodel.AuthViewModel
 
@@ -62,7 +64,7 @@ fun PantallaSesion(viewModel: AuthViewModel) {
             value = usuario,
             onValueChange = { usuario = it },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("Usuario") },
+            label = { Text(stringResource(R.string.usuario)) },
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
             isError = estado.error != null
@@ -72,7 +74,7 @@ fun PantallaSesion(viewModel: AuthViewModel) {
             value = clave,
             onValueChange = { clave = it },
             modifier = Modifier.fillMaxWidth(),
-            label = { Text("ContraseÃ±a") },
+            label = { Text(stringResource(R.string.contrasena)) },
             singleLine = true,
             visualTransformation = PasswordVisualTransformation(),
             isError = estado.error != null
@@ -95,7 +97,13 @@ fun PantallaSesion(viewModel: AuthViewModel) {
                 .height(48.dp),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Text(if (estado.cargando) "Ingresando..." else "Iniciar sesiÃ³n")
+            Text(
+                if (estado.cargando) {
+                    stringResource(R.string.ingresando)
+                } else {
+                    stringResource(R.string.iniciar_sesion)
+                }
+            )
         }
     }
 }

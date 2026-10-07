@@ -1,8 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">MegaMarket Cliente</string>
+    <string name="contrasena">Contraseña</string>
+    <string name="usuario">Usuario</string>
+    <string name="iniciar_sesion">Iniciar sesión</string>
+    <string name="ingresando">Ingresando…</string>
+    <string name="cerrar_sesion">Cerrar sesión</string>
+    <string name="catalogo">Catálogo</string>
+    <string name="catalogo_vacio_titulo">Catálogo vacío</string>
     <string name="catalogo_vacio">Aún no hay productos. Cuando el administrador publique el catálogo, lo verás aquí.</string>
-    <string name="sin_resultados">No se encontraron productos</string>
-    <string name="favoritos_vacios">Todavía no tienes favoritos</string>
+    <string name="ver_catalogo">Ver catálogo</string>
+    <string name="confirmacion">Confirmación</string>
+    <string name="compra_registrada">Compra registrada</string>
+    <string name="direccion">Dirección</string>
+    <string name="direccion_entrega">Dirección de entrega</string>
+    <string name="confirmar_compra">Confirmar compra</string>
+    <string name="telefono">Teléfono</string>
+    <string name="categoria">Categoría</string>
+    <string name="descripcion">Descripción</string>
+    <string name="sesion">Sesión</string>
+    <string name="administracion">Administración</string>
+    <string name="producto_no_disponible">Producto no disponible</string>
+    <string name="carrito_vacio_titulo">Carrito vacío</string>
     <string name="carrito_vacio">Tu carrito está vacío</string>
+    <string name="favoritos_vacios">Todavía no tienes favoritos</string>
+    <string name="sin_resultados">No se encontraron productos con esa búsqueda o filtro.</string>
     <string name="error_catalogo">No se pudo leer el catálogo. Instala MegaMarket Express en este teléfono.</string>
+    <string name="departamento">Departamento</string>
+    <string name="provincia">Provincia</string>
+    <string name="distrito">Distrito</string>
+    <string name="volver_inicio">Volver al inicio</string>
+    <string name="ofertas">Ofertas</string>
+    <string name="carrito">Carrito</string>
+    <string name="seguir_comprando">Seguir comprando</string>
+    <string name="agregar_al_carrito">Agregar al carrito</string>
+    <string name="en_el_carrito">En el carrito</string>
 </resources>

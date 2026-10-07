@@ -52,6 +52,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.megamarket.app.model.estado.ProductoFormUiState
+import androidx.compose.ui.res.stringResource
+import com.megamarket.app.R
 import com.megamarket.app.ui.components.BarraSuperior
 import com.megamarket.app.ui.components.EstadoVacio
 import com.megamarket.app.ui.components.ImagenProducto
@@ -104,7 +106,7 @@ fun PantallaFormularioProducto(
 
             estado.noDisponible -> EstadoVacio(
                 icono = Icons.Default.Add,
-                titulo = "Producto no disponible",
+                titulo = stringResource(R.string.producto_no_disponible),
                 descripcion = "No se encontró el producto que intentas editar.",
                 modifier = Modifier.padding(relleno),
                 etiquetaAccion = "Volver",
@@ -163,13 +165,13 @@ private fun ContenidoFormulario(
             CampoFormulario(
                 valor = estado.descripcion,
                 alCambiarValor = viewModel::actualizarDescripcion,
-                etiqueta = "Descripción",
+                etiqueta = stringResource(R.string.descripcion),
                 unaLinea = false
             )
             CampoFormulario(
                 valor = estado.categoria,
                 alCambiarValor = viewModel::actualizarCategoria,
-                etiqueta = "Categoría",
+                etiqueta = stringResource(R.string.categoria),
                 tipoTeclado = KeyboardType.Number,
                 ayuda = "Número de categoría. Déjalo vacío si aún no aplica."
             )

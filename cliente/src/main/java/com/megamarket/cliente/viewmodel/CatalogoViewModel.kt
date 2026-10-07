@@ -22,6 +22,9 @@ class CatalogoViewModel(
 
     init {
         cargar()
+        viewModelScope.launch {
+            catalogo.observarCambiosCatalogo().collect { cargar() }
+        }
     }
 
     fun cargar() {

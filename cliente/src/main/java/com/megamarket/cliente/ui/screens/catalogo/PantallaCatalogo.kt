@@ -19,9 +19,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.megamarket.cliente.R
 import com.megamarket.cliente.model.nombreCategoria
 import com.megamarket.cliente.ui.components.BannerFeriaPrimavera
 import com.megamarket.cliente.ui.components.EstadoVacio
@@ -43,7 +45,11 @@ fun PantallaCatalogo(
         onPauseOrDispose { }
     }
     val ruta = if (estado.soloOfertas) Ruta.Ofertas.ruta else Ruta.Catalogo.ruta
-    val titulo = if (estado.soloOfertas) "Ofertas" else "Catálogo"
+    val titulo = if (estado.soloOfertas) {
+        stringResource(R.string.ofertas)
+    } else {
+        stringResource(R.string.catalogo)
+    }
 
     EstructuraCliente(
         rutaActual = ruta,
@@ -71,8 +77,8 @@ fun PantallaCatalogo(
 
             estado.vacio -> EstadoVacio(
                 icono = Icons.Default.Search,
-                titulo = "Catálogo vacío",
-                descripcion = "Aún no hay productos. Cuando el administrador publique el catálogo, lo verás aquí.",
+                titulo = stringResource(R.string.catalogo_vacio_titulo),
+                descripcion = stringResource(R.string.catalogo_vacio),
                 modifier = Modifier.padding(relleno)
             )
 
@@ -119,7 +125,7 @@ fun PantallaCatalogo(
                     EstadoVacio(
                         icono = Icons.Default.Search,
                         titulo = "Sin resultados",
-                        descripcion = "No se encontraron productos con esa búsqueda o filtro.",
+                        descripcion = stringResource(R.string.sin_resultados),
                         etiquetaAccion = "Limpiar filtros",
                         alPulsarAccion = viewModel::limpiarFiltros
                     )

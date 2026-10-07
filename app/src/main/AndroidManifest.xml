@@ -1,9 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-     xmlns:tools="http://schemas.android.com/tools">
+    xmlns:tools="http://schemas.android.com/tools">
 
     <permission
         android:name="com.megamarket.app.permission.LEER_PRODUCTOS"
+        android:protectionLevel="signature" />
+
+    <permission
+        android:name="com.megamarket.app.permission.ACTUALIZAR_STOCK"
         android:protectionLevel="signature" />
 
     <application
@@ -33,7 +37,8 @@
             android:name=".data.local.ProductoProvider"
             android:authorities="com.megamarket.app.proveedor.productos"
             android:exported="true"
-            android:readPermission="com.megamarket.app.permission.LEER_PRODUCTOS" />
+            android:readPermission="com.megamarket.app.permission.LEER_PRODUCTOS"
+            android:writePermission="com.megamarket.app.permission.ACTUALIZAR_STOCK" />
     </application>
 
 </manifest>

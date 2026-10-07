@@ -24,7 +24,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.megamarket.app.R
 import com.megamarket.app.ui.navigation.Ruta
 import kotlinx.coroutines.launch
 
@@ -52,7 +54,7 @@ fun EstructuraAdmin(
         ItemMenuAdmin("Panel", Ruta.PanelAdmin.ruta, Icons.Default.Home),
         ItemMenuAdmin("Productos", Ruta.ProductosAdmin.ruta, Icons.Default.List),
         ItemMenuAdmin(
-            etiqueta = "Cerrar sesión",
+            etiqueta = stringResource(R.string.cerrar_sesion),
             ruta = null,
             icono = Icons.Default.Close,
             esCerrarSesion = true
@@ -65,7 +67,7 @@ fun EstructuraAdmin(
             ModalDrawerSheet {
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "Administración MegaMarket",
+                    text = stringResource(R.string.administracion_megamarket),
                     style = MaterialTheme.typography.titleLarge,
                     color = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp)

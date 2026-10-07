@@ -5,8 +5,9 @@ import com.megamarket.cliente.data.local.entities.CarritoEntity
 import com.megamarket.cliente.model.LineaCarrito
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.withContext
 
 class CarritoRepository(
@@ -16,8 +17,12 @@ class CarritoRepository(
     /**
      * Muestra la cantidad guardada tal cual, aunque el stock haya bajado, para que el
      * cliente vea el exceso y lo corrija; el checkout rechaza las cantidades que no alcanzan.
+     * Se refresca también cuando el ContentProvider notifica cambios de stock.
      */
-    fun observar(): Flow<List<LineaCarrito>> = dao.observar().map { entidades ->
+    fun observar(): Flow<List<LineaCarrito>> = combine(
+        dao.observar(),
+        catalogo.observarCambiosCatalogo().onStart { emit(Unit) }
+    ) { entidades, _ ->
         val productos = catalogo.leerActivos().associateBy { it.id }
         entidades.mapNotNull { entidad ->
             val producto = productos[entidad.productoId] ?: return@mapNotNull null

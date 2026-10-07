@@ -19,15 +19,18 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.megamarket.cliente.R
 import com.megamarket.cliente.model.nombreCategoria
 import com.megamarket.cliente.ui.components.BarraSuperior
 import com.megamarket.cliente.ui.components.CintaFeria
@@ -40,7 +43,9 @@ import com.megamarket.modelo.Producto
 @Composable
 fun PantallaDetalleProducto(
     viewModel: DetalleProductoViewModel,
-    alVolver: () -> Unit
+    alVolver: () -> Unit,
+    alIrAlCarrito: () -> Unit,
+    alSeguirComprando: () -> Unit
 ) {
     val estado by viewModel.estado.collectAsStateWithLifecycle()
     val producto = estado.producto
@@ -83,7 +88,7 @@ fun PantallaDetalleProducto(
 
             producto == null -> EstadoVacio(
                 icono = Icons.Default.Add,
-                titulo = "Producto no disponible",
+                titulo = stringResource(R.string.producto_no_disponible),
                 descripcion = estado.error ?: "No se encontró el producto",
                 modifier = Modifier.padding(relleno)
             )
@@ -138,14 +143,17 @@ fun PantallaDetalleProducto(
                             .fillMaxWidth()
                             .height(48.dp),
                         shape = RoundedCornerShape(12.dp)
-                    ) { Text("Agregar al carrito") }
+                    ) { Text(stringResource(R.string.agregar_al_carrito)) }
                 } else {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("En el carrito", style = MaterialTheme.typography.titleMedium)
+                        Text(
+                            text = stringResource(R.string.en_el_carrito),
+                            style = MaterialTheme.typography.titleMedium
+                        )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(
                                 onClick = { viewModel.cambiarCantidad(estado.cantidadEnCarrito - 1) },
@@ -158,6 +166,22 @@ fun PantallaDetalleProducto(
                             ) { Text("+", style = MaterialTheme.typography.titleLarge) }
                         }
                     }
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(
+                        onClick = alIrAlCarrito,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) { Text(stringResource(R.string.carrito)) }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = alSeguirComprando,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) { Text(stringResource(R.string.seguir_comprando)) }
                 }
             }
         }

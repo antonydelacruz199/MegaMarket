@@ -20,10 +20,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.megamarket.cliente.R
 import com.megamarket.cliente.model.Pedido
 import com.megamarket.cliente.ui.components.BarraSuperior
 import com.megamarket.cliente.ui.components.EstadoVacio
@@ -38,7 +40,7 @@ fun PantallaConfirmacion(
     val estado by viewModel.estado.collectAsStateWithLifecycle()
     val pedido = estado.pedido
 
-    Scaffold(topBar = { BarraSuperior(titulo = "Confirmación") }) { relleno ->
+    Scaffold(topBar = { BarraSuperior(titulo = stringResource(R.string.confirmacion)) }) { relleno ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -62,7 +64,7 @@ fun PantallaConfirmacion(
                 onClick = alIrAlInicio,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
-            ) { Text("Volver al inicio") }
+            ) { Text(stringResource(R.string.volver_inicio)) }
         }
     }
 }
@@ -76,7 +78,7 @@ private fun ResumenPedido(pedido: Pedido) {
     )
     Spacer(modifier = Modifier.height(16.dp))
     Text(
-        text = "Compra registrada",
+        text = stringResource(R.string.compra_registrada),
         style = MaterialTheme.typography.headlineSmall,
         fontWeight = FontWeight.Bold,
         textAlign = TextAlign.Center

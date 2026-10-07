@@ -12,8 +12,9 @@ import com.megamarket.modelo.ContratoCatalogo
 import java.io.FileNotFoundException
 
 /**
- * Publica el catálogo de Room para que el aplicativo del cliente lo lea
- * con ContentResolver. No acepta escrituras desde otras aplicaciones.
+ * Publica el catálogo de Room para el cliente.
+ * Lectura general + única escritura controlada: descontar/restaurar stock.
+ * No acepta insert/update/delete genéricos de productos.
  */
 class ProductoProvider : ContentProvider() {
 
@@ -60,6 +61,7 @@ class ProductoProvider : ContentProvider() {
         LISTA -> "vnd.android.cursor.dir/vnd.${ContratoCatalogo.AUTORIDAD}.producto"
         ITEM -> "vnd.android.cursor.item/vnd.${ContratoCatalogo.AUTORIDAD}.producto"
         IMAGEN -> "image/jpeg"
+        STOCK -> "vnd.android.cursor.item/vnd.${ContratoCatalogo.AUTORIDAD}.stock"
         else -> throw IllegalArgumentException("URI no válida: $uri")
     }
 
@@ -82,22 +84,56 @@ class ProductoProvider : ContentProvider() {
 
     override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int = 0
 
+    /**
+     * Solo acepta [ContratoCatalogo.uriStock].
+     * ContentValues: operacion = descontar|restaurar, cantidad > 0.
+     */
     override fun update(
         uri: Uri,
         values: ContentValues?,
         selection: String?,
         selectionArgs: Array<out String>?
-    ): Int = 0
+    ): Int {
+        if (COMPARADOR.match(uri) != STOCK) return 0
+        if (values == null) return 0
+
+        val productoId = uri.pathSegments.getOrNull(1)?.toLongOrNull() ?: return 0
+        val cantidad = values.getAsInteger(ContratoCatalogo.COL_CANTIDAD) ?: return 0
+        if (cantidad <= 0) return 0
+
+        val operacion = values.getAsString(ContratoCatalogo.COL_OPERACION)
+            ?: ContratoCatalogo.OPERACION_DESCONTAR
+        val contexto = checkNotNull(context)
+        val dao = AppDatabase.getInstance(contexto).productoDao()
+
+        val filas = when (operacion) {
+            ContratoCatalogo.OPERACION_DESCONTAR -> dao.descontarStock(productoId, cantidad)
+            ContratoCatalogo.OPERACION_RESTAURAR -> dao.incrementarStock(productoId, cantidad)
+            else -> 0
+        }
+        if (filas > 0) {
+            contexto.contentResolver.notifyChange(ContratoCatalogo.URI_PRODUCTOS, null)
+            contexto.contentResolver.notifyChange(ContratoCatalogo.uriProducto(productoId), null)
+            contexto.contentResolver.notifyChange(ContratoCatalogo.uriStock(productoId), null)
+        }
+        return filas
+    }
 
     private companion object {
         const val LISTA = 1
         const val ITEM = 2
         const val IMAGEN = 3
+        const val STOCK = 4
 
         val COMPARADOR = UriMatcher(UriMatcher.NO_MATCH).apply {
             addURI(ContratoCatalogo.AUTORIDAD, ContratoCatalogo.RUTA_PRODUCTOS, LISTA)
             addURI(ContratoCatalogo.AUTORIDAD, "${ContratoCatalogo.RUTA_PRODUCTOS}/#", ITEM)
             addURI(ContratoCatalogo.AUTORIDAD, "${ContratoCatalogo.RUTA_PRODUCTOS}/#/imagen", IMAGEN)
+            addURI(
+                ContratoCatalogo.AUTORIDAD,
+                "${ContratoCatalogo.RUTA_PRODUCTOS}/#/${ContratoCatalogo.RUTA_STOCK}",
+                STOCK
+            )
         }
     }
 }

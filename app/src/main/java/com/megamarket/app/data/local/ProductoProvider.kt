@@ -14,7 +14,6 @@ import java.io.FileNotFoundException
 /**
  * Publica el catálogo de Room para el cliente.
  * Lectura general + única escritura controlada: descontar/restaurar stock.
- * No acepta insert/update/delete genéricos de productos.
  */
 class ProductoProvider : ContentProvider() {
 
@@ -36,23 +35,29 @@ class ProductoProvider : ContentProvider() {
         }
 
         val cursor = MatrixCursor(ContratoCatalogo.COLUMNAS)
-        productos.filter { it.activo }.forEach { producto ->
-            cursor.addRow(
-                arrayOf<Any?>(
-                    producto.id,
-                    producto.nombre,
-                    producto.marca,
-                    producto.descripcion,
-                    producto.categoriaId,
-                    producto.precioCentimos,
-                    producto.precioOfertaCentimos,
-                    producto.stock,
-                    producto.imagenKey,
-                    if (producto.esOferta) 1 else 0,
-                    if (producto.activo) 1 else 0
+        productos
+            .filter { it.activo && it.remoteDeletedAt.isNullOrBlank() }
+            .forEach { producto ->
+                cursor.addRow(
+                    arrayOf<Any?>(
+                        producto.id,
+                        producto.remoteId,
+                        producto.nombre,
+                        producto.marca,
+                        producto.descripcion,
+                        producto.categoriaId,
+                        producto.precioCentimos,
+                        producto.precioOfertaCentimos,
+                        producto.stock,
+                        producto.imagenKey,
+                        if (producto.esOferta) 1 else 0,
+                        if (producto.activo) 1 else 0,
+                        producto.remoteVersion,
+                        producto.remoteUpdatedAt,
+                        producto.remoteDeletedAt
+                    )
                 )
-            )
-        }
+            }
         cursor.setNotificationUri(contexto.contentResolver, uri)
         return cursor
     }
@@ -73,7 +78,7 @@ class ProductoProvider : ContentProvider() {
         val id = uri.pathSegments.getOrNull(1)?.toLongOrNull()
             ?: throw FileNotFoundException("Imagen no disponible")
         val producto = AppDatabase.getInstance(contexto).productoDao().obtenerPorId(id)
-            ?.takeIf { it.activo }
+            ?.takeIf { it.activo && it.remoteDeletedAt.isNullOrBlank() }
             ?: throw FileNotFoundException("Imagen no disponible")
         val archivo = AlmacenImagenes.archivo(contexto, producto.imagenKey)
             ?: throw FileNotFoundException("Imagen no disponible")
@@ -84,10 +89,6 @@ class ProductoProvider : ContentProvider() {
 
     override fun delete(uri: Uri, selection: String?, selectionArgs: Array<out String>?): Int = 0
 
-    /**
-     * Solo acepta [ContratoCatalogo.uriStock].
-     * ContentValues: operacion = descontar|restaurar, cantidad > 0.
-     */
     override fun update(
         uri: Uri,
         values: ContentValues?,

@@ -7,9 +7,10 @@ import com.megamarket.cliente.data.repository.CatalogoRepository
 import com.megamarket.cliente.model.estado.CatalogoUiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class CatalogoViewModel(
@@ -17,51 +18,68 @@ class CatalogoViewModel(
     soloOfertas: Boolean
 ) : ViewModel() {
 
-    private val _estado = MutableStateFlow(CatalogoUiState(soloOfertas = soloOfertas))
-    val estado: StateFlow<CatalogoUiState> = _estado.asStateFlow()
+    private val filtros = MutableStateFlow(
+        FiltrosCatalogo(soloOfertas = soloOfertas)
+    )
+    private val bootstrapListo = MutableStateFlow(false)
+
+    val estado: StateFlow<CatalogoUiState> = combine(
+        catalogo.observarProductos(),
+        catalogo.observarCategorias(),
+        filtros,
+        bootstrapListo
+    ) { productos, categorias, filtro, listo ->
+        CatalogoUiState(
+            cargando = !listo,
+            productos = productos,
+            categorias = categorias,
+            consulta = filtro.consulta,
+            categoriaId = filtro.categoriaId,
+            soloOfertas = filtro.soloOfertas,
+            error = null
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = CatalogoUiState(soloOfertas = soloOfertas)
+    )
 
     init {
         cargar()
-        viewModelScope.launch {
-            catalogo.observarCambiosCatalogo().collect { cargar() }
-        }
     }
 
     fun cargar() {
         viewModelScope.launch {
-            val habiaProductos = _estado.value.productos.isNotEmpty()
-            if (!habiaProductos) {
-                _estado.update { it.copy(cargando = true, error = null) }
-            }
             try {
-                val productos = catalogo.obtenerActivos()
-                _estado.update { it.copy(cargando = false, productos = productos, error = null) }
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Exception) {
-                _estado.update {
-                    it.copy(
-                        cargando = false,
-                        productos = if (habiaProductos) it.productos else emptyList(),
-                        error = if (habiaProductos) null else error.message ?: "No se pudo cargar el catálogo"
-                    )
-                }
+                catalogo.asegurarCatalogoLocal()
+                catalogo.importarDesdeProvider(silencioso = true)
+            } catch (_: CancellationException) {
+                throw CancellationException()
+            } catch (_: Exception) {
+            } finally {
+                bootstrapListo.value = true
             }
         }
     }
 
     fun actualizarConsulta(consulta: String) {
-        _estado.update { it.copy(consulta = consulta) }
+        filtros.value = filtros.value.copy(consulta = consulta)
     }
 
     fun seleccionarCategoria(categoriaId: Long?) {
-        _estado.update { it.copy(categoriaId = categoriaId) }
+        filtros.value = filtros.value.copy(categoriaId = categoriaId)
     }
 
     fun limpiarFiltros() {
-        _estado.update { it.copy(consulta = "", categoriaId = null) }
+        filtros.value = filtros.value.copy(consulta = "", categoriaId = null)
     }
 
     suspend fun cargarImagen(productoId: Long, lado: Int): Bitmap? =
         catalogo.cargarImagen(productoId, lado)
+
+    private data class FiltrosCatalogo(
+        val consulta: String = "",
+        val categoriaId: Long? = null,
+        val soloOfertas: Boolean = false
+    )
 }

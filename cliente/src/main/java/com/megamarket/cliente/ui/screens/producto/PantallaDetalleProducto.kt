@@ -31,7 +31,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.megamarket.cliente.R
-import com.megamarket.cliente.model.nombreCategoria
 import com.megamarket.cliente.ui.components.BarraSuperior
 import com.megamarket.cliente.ui.components.CintaFeria
 import com.megamarket.cliente.ui.components.ImagenProducto
@@ -118,7 +117,7 @@ fun PantallaDetalleProducto(
                 Text(producto.nombre, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 Text(producto.marca, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Text(
-                    text = nombreCategoria(producto.categoriaId),
+                    text = estado.nombreCategoria,
                     style = MaterialTheme.typography.labelLarge,
                     modifier = Modifier.padding(top = 8.dp)
                 )

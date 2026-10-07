@@ -30,7 +30,7 @@ interface OperacionPendienteDao {
         WHERE tipoEntidad = :tipoEntidad
           AND entidadIdLocal = :entidadIdLocal
           AND operacion = :operacion
-          AND estado IN ('PENDIENTE', 'ERROR')
+          AND estado IN ('PENDIENTE', 'ERROR', 'SINCRONIZANDO')
         LIMIT 1
         """
     )
@@ -39,6 +39,16 @@ interface OperacionPendienteDao {
         entidadIdLocal: Long,
         operacion: String
     ): OperacionPendienteEntity?
+
+    /** Recupera operaciones atascadas si el proceso murió a mitad de sync. */
+    @Query(
+        """
+        UPDATE operaciones_pendientes
+        SET estado = 'PENDIENTE'
+        WHERE estado = 'SINCRONIZANDO'
+        """
+    )
+    suspend fun recuperarSincronizandoAtascadas(): Int
 
     @Query(
         """

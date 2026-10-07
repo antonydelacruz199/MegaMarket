@@ -17,14 +17,13 @@ object ValidacionProducto {
         val marca = formulario.marca.trim()
         val precio = formulario.precio.aCentimos()
         val stock = formulario.stock.trim().toIntOrNull()
-        val textoCategoria = formulario.categoria.trim()
-        val categoria = if (textoCategoria.isEmpty()) 0L else textoCategoria.toLongOrNull()
+        val categoriaId = formulario.categoriaId
         val oferta = formulario.precioOferta.aCentimos()
 
         val mensaje = when {
             nombre.isEmpty() -> "Ingresa el nombre del producto"
             marca.isEmpty() -> "Ingresa la marca del producto"
-            categoria == null || categoria < 0 -> "La categoría debe ser un número entero positivo"
+            categoriaId <= 0L -> "Selecciona una categoría"
             precio == null -> "Ingresa un precio válido"
             precio <= 0L -> "El precio debe ser mayor a 0"
             stock == null -> "El stock debe ser un número entero"
@@ -43,19 +42,22 @@ object ValidacionProducto {
                 nombre = nombre,
                 marca = marca,
                 descripcion = formulario.descripcion.trim(),
-                categoriaId = checkNotNull(categoria),
+                categoriaId = categoriaId,
                 precioCentimos = checkNotNull(precio),
                 precioOfertaCentimos = if (formulario.esOferta) oferta else null,
                 stock = checkNotNull(stock),
                 imagenKey = formulario.imagenVisibleKey,
                 esOferta = formulario.esOferta,
-                activo = formulario.activo
+                activo = formulario.activo,
+                remoteId = formulario.remoteId,
+                remoteVersion = formulario.remoteVersion,
+                remoteUpdatedAt = formulario.remoteUpdatedAt,
+                remoteDeletedAt = formulario.remoteDeletedAt
             )
         )
     }
 }
 
-/** Convierte el texto en soles ("4.80" o "4,80") a céntimos sin pasar por Double. */
 fun String.aCentimos(): Long? {
     val valor = trim().replace(',', '.').toBigDecimalOrNull() ?: return null
     if (valor.signum() < 0) return null

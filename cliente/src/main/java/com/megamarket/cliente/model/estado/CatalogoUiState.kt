@@ -1,18 +1,17 @@
 package com.megamarket.cliente.model.estado
 
+import com.megamarket.modelo.Categoria
 import com.megamarket.modelo.Producto
 
 data class CatalogoUiState(
     val cargando: Boolean = true,
     val productos: List<Producto> = emptyList(),
+    val categorias: List<Categoria> = emptyList(),
     val consulta: String = "",
     val categoriaId: Long? = null,
     val soloOfertas: Boolean = false,
     val error: String? = null
 ) {
-    val categorias: List<Long>
-        get() = productos.map { it.categoriaId }.distinct().sorted()
-
     val visibles: List<Producto>
         get() {
             val texto = consulta.trim()

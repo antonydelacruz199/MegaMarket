@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.megamarket.cliente.R
-import com.megamarket.cliente.model.nombreCategoria
 import com.megamarket.cliente.ui.components.BannerFeriaPrimavera
 import com.megamarket.cliente.ui.components.EstadoVacio
 import com.megamarket.cliente.ui.components.EstructuraCliente
@@ -113,11 +112,11 @@ fun PantallaCatalogo(
                             label = { Text("Todas") }
                         )
                     }
-                    items(estado.categorias) { categoriaId ->
+                    items(estado.categorias, key = { it.id }) { categoria ->
                         FilterChip(
-                            selected = estado.categoriaId == categoriaId,
-                            onClick = { viewModel.seleccionarCategoria(categoriaId) },
-                            label = { Text(nombreCategoria(categoriaId)) }
+                            selected = estado.categoriaId == categoria.id,
+                            onClick = { viewModel.seleccionarCategoria(categoria.id) },
+                            label = { Text(categoria.nombre) }
                         )
                     }
                 }

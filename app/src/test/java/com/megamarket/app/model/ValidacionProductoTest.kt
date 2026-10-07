@@ -11,7 +11,7 @@ class ValidacionProductoTest {
     private val valido = ProductoFormUiState(
         nombre = "Arroz Costeño",
         marca = "Costeño",
-        categoria = "1",
+        categoriaId = 1L,
         precio = "4.80",
         stock = "10"
     )
@@ -27,6 +27,7 @@ class ValidacionProductoTest {
         assertEquals(480L, producto.precioCentimos)
         assertEquals(10, producto.stock)
         assertNull(producto.precioOfertaCentimos)
+        assertNull(producto.remoteId)
     }
 
     @Test
@@ -49,11 +50,17 @@ class ValidacionProductoTest {
     }
 
     @Test
-    fun categoria_debeSerNumerica() {
-        assertEquals(
-            "La categoría debe ser un número entero positivo",
-            mensaje(valido.copy(categoria = "abc"))
+    fun categoria_esObligatoria() {
+        assertEquals("Selecciona una categoría", mensaje(valido.copy(categoriaId = 0L)))
+    }
+
+    @Test
+    fun remoteId_seConservaAlValidar() {
+        val resultado = ValidacionProducto.validar(
+            valido.copy(remoteId = "550e8400-e29b-41d4-a716-446655440000")
         )
+        val producto = (resultado as ValidacionProducto.Resultado.Valido).producto
+        assertEquals("550e8400-e29b-41d4-a716-446655440000", producto.remoteId)
     }
 
     @Test

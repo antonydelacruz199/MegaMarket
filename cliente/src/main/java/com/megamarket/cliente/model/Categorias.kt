@@ -1,3 +1,6 @@
 package com.megamarket.cliente.model
 
-fun nombreCategoria(categoriaId: Long): String = "Categoría $categoriaId"
+import com.megamarket.modelo.Categoria
+
+fun nombreCategoria(categorias: List<Categoria>, categoriaId: Long): String =
+    categorias.firstOrNull { it.id == categoriaId }?.nombre ?: "Categoría"

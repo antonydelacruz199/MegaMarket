@@ -5,10 +5,9 @@ import android.net.Uri
 
 /**
  * Contrato del catálogo publicado por el administrador.
- * El cliente lee estos mismos nombres con ContentResolver.
+ * El cliente lo usa como bootstrap temporal hacia su Room local.
  *
- * Escritura restringida: solo descuento/restauración de stock vía
- * [uriStock], nunca un CRUD genérico de productos.
+ * Escritura restringida: solo descuento/restauración de stock.
  */
 object ContratoCatalogo {
     const val AUTORIDAD = "com.megamarket.app.proveedor.productos"
@@ -20,6 +19,7 @@ object ContratoCatalogo {
     val URI_PRODUCTOS: Uri = Uri.parse("content://$AUTORIDAD/$RUTA_PRODUCTOS")
 
     const val COL_ID = "id"
+    const val COL_REMOTE_ID = "remote_id"
     const val COL_NOMBRE = "nombre"
     const val COL_MARCA = "marca"
     const val COL_DESCRIPCION = "descripcion"
@@ -30,17 +30,18 @@ object ContratoCatalogo {
     const val COL_IMAGEN_KEY = "imagen_key"
     const val COL_ES_OFERTA = "es_oferta"
     const val COL_ACTIVO = "activo"
+    const val COL_REMOTE_VERSION = "remote_version"
+    const val COL_REMOTE_UPDATED_AT = "remote_updated_at"
+    const val COL_REMOTE_DELETED_AT = "remote_deleted_at"
 
-    /** Cantidad a descontar o restaurar en la URI de stock. */
     const val COL_CANTIDAD = "cantidad"
-
-    /** Valores: [OPERACION_DESCONTAR] o [OPERACION_RESTAURAR]. */
     const val COL_OPERACION = "operacion"
     const val OPERACION_DESCONTAR = "descontar"
     const val OPERACION_RESTAURAR = "restaurar"
 
     val COLUMNAS: Array<String> = arrayOf(
         COL_ID,
+        COL_REMOTE_ID,
         COL_NOMBRE,
         COL_MARCA,
         COL_DESCRIPCION,
@@ -50,13 +51,15 @@ object ContratoCatalogo {
         COL_STOCK,
         COL_IMAGEN_KEY,
         COL_ES_OFERTA,
-        COL_ACTIVO
+        COL_ACTIVO,
+        COL_REMOTE_VERSION,
+        COL_REMOTE_UPDATED_AT,
+        COL_REMOTE_DELETED_AT
     )
 
     fun uriProducto(id: Long): Uri = ContentUris.withAppendedId(URI_PRODUCTOS, id)
 
     fun uriImagen(id: Long): Uri = Uri.withAppendedPath(uriProducto(id), "imagen")
 
-    /** Operación controlada de stock: content://…/productos/{id}/stock */
     fun uriStock(id: Long): Uri = Uri.withAppendedPath(uriProducto(id), RUTA_STOCK)
 }

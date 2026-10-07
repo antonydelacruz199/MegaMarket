@@ -20,6 +20,7 @@ class ViewModelFactory(
                 ProductoFormViewModel(
                     extras.createSavedStateHandle(),
                     container.productoRepository,
+                    container.categoriaRepository,
                     container.imagenRepository
                 )
             else -> throw IllegalArgumentException("ViewModel no soportado: ${modelClass.name}")

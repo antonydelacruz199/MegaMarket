@@ -1,19 +1,21 @@
 package com.megamarket.cliente.worker
 
 import android.content.Context
+import androidx.work.BackoffPolicy
+import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
-import androidx.work.Constraints
 import com.megamarket.cliente.MegaMarketClienteApplication
 import com.megamarket.cliente.data.repository.ResultadoSincronizacion
+import java.util.concurrent.TimeUnit
 
 /**
  * Sincroniza operaciones_pendientes cuando hay red.
- * No contiene UI. No marca éxito si la API/UUID no están listos.
+ * Backoff exponencial: evita reintentos agresivos si falta API o remoteId.
  */
 class StockSyncWorker(
     context: Context,
@@ -39,6 +41,7 @@ class StockSyncWorker(
                 .build()
             val trabajo = OneTimeWorkRequestBuilder<StockSyncWorker>()
                 .setConstraints(restricciones)
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
                 .build()
             WorkManager.getInstance(contexto.applicationContext)
                 .enqueueUniqueWork(NOMBRE_UNICO, ExistingWorkPolicy.KEEP, trabajo)

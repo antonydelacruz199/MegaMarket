@@ -189,7 +189,7 @@ private fun EtiquetaProducto(
 
 private fun textoMarca(producto: Producto): String {
     return if (producto.categoriaId > 0L) {
-        "${producto.marca} · Categoría ${producto.categoriaId}"
+        producto.marca
     } else {
         producto.marca
     }

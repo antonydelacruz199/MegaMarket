@@ -5,6 +5,7 @@ import com.megamarket.modelo.Producto
 
 fun Producto.toEntity(): ProductoEntity = ProductoEntity(
     id = id,
+    remoteId = remoteId,
     nombre = nombre,
     marca = marca,
     descripcion = descripcion,
@@ -14,7 +15,10 @@ fun Producto.toEntity(): ProductoEntity = ProductoEntity(
     stock = stock,
     imagenKey = imagenKey,
     esOferta = esOferta,
-    activo = activo
+    activo = activo,
+    remoteVersion = remoteVersion,
+    remoteUpdatedAt = remoteUpdatedAt,
+    remoteDeletedAt = remoteDeletedAt
 )
 
 fun ProductoEntity.toModel(): Producto = Producto(
@@ -28,5 +32,9 @@ fun ProductoEntity.toModel(): Producto = Producto(
     stock = stock,
     imagenKey = imagenKey,
     esOferta = esOferta,
-    activo = activo
+    activo = activo,
+    remoteId = remoteId,
+    remoteVersion = remoteVersion,
+    remoteUpdatedAt = remoteUpdatedAt,
+    remoteDeletedAt = remoteDeletedAt
 )

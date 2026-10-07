@@ -7,44 +7,47 @@ import com.megamarket.cliente.data.repository.CatalogoRepository
 import com.megamarket.cliente.model.estado.HomeUiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class HomeViewModel(
     private val catalogo: CatalogoRepository
 ) : ViewModel() {
 
-    private val _estado = MutableStateFlow(HomeUiState())
-    val estado: StateFlow<HomeUiState> = _estado.asStateFlow()
+    private val bootstrapListo = MutableStateFlow(false)
+
+    val estado: StateFlow<HomeUiState> = combine(
+        catalogo.observarProductos(),
+        bootstrapListo
+    ) { productos, listo ->
+        HomeUiState(
+            cargando = !listo,
+            ofertas = productos.filter { it.ofertaValida }.take(8),
+            hayProductos = productos.isNotEmpty()
+        )
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5_000),
+        initialValue = HomeUiState()
+    )
 
     init {
         cargar()
-        viewModelScope.launch {
-            catalogo.observarCambiosCatalogo().collect { cargar() }
-        }
     }
 
     fun cargar() {
         viewModelScope.launch {
-            val actual = _estado.value
-            if (!actual.hayProductos) {
-                _estado.value = actual.copy(cargando = true, error = null)
-            }
-            _estado.value = try {
-                val productos = catalogo.obtenerActivos()
-                HomeUiState(
-                    cargando = false,
-                    ofertas = productos.filter { it.ofertaValida }.take(8),
-                    hayProductos = productos.isNotEmpty()
-                )
-            } catch (error: CancellationException) {
-                throw error
-            } catch (error: Exception) {
-                actual.copy(
-                    cargando = false,
-                    error = if (actual.hayProductos) null else error.message ?: "No se pudo cargar el inicio"
-                )
+            try {
+                catalogo.asegurarCatalogoLocal()
+                catalogo.importarDesdeProvider(silencioso = true)
+            } catch (_: CancellationException) {
+                throw CancellationException()
+            } catch (_: Exception) {
+            } finally {
+                bootstrapListo.value = true
             }
         }
     }

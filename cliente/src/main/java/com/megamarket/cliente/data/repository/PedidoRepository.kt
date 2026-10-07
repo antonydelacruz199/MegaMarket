@@ -36,10 +36,11 @@ class PedidoRepository(
 
         val solicitados = carritoDao.obtenerTodos()
             .map { ProductoSolicitado(it.productoId, it.cantidad) }
-        val catalogoActual = try {
-            catalogo.leerActivos().associateBy { it.id }
-        } catch (error: CatalogoNoDisponibleException) {
-            throw CheckoutException(error.message ?: CatalogoRepository.MENSAJE_ERROR)
+        catalogo.asegurarCatalogoLocal()
+        catalogo.importarDesdeProvider(silencioso = true)
+        val catalogoActual = catalogo.leerActivos().associateBy { it.id }
+        if (catalogoActual.isEmpty()) {
+            throw CheckoutException(CatalogoRepository.MENSAJE_ERROR)
         }
 
         val detalles = try {

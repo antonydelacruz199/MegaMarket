@@ -5,18 +5,21 @@ import com.megamarket.cliente.data.local.entities.FavoritoEntity
 import com.megamarket.modelo.Producto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 
 class FavoritosRepository(
     private val dao: FavoritoDao,
     private val catalogo: CatalogoRepository
 ) {
-    fun observar(): Flow<List<Producto>> = dao.observar().map { favoritos ->
-        val productos = catalogo.leerActivos().associateBy { it.id }
+    fun observar(): Flow<List<Producto>> = combine(
+        dao.observar(),
+        catalogo.observarProductos()
+    ) { favoritos, productos ->
+        val mapa = productos.associateBy { it.id }
         favoritos.mapNotNull { favorito ->
-            productos[favorito.productoId]?.takeIf { it.activo }
+            mapa[favorito.productoId]?.takeIf { it.activo }
         }
     }.flowOn(Dispatchers.IO)
 

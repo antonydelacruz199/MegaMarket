@@ -7,17 +7,22 @@ import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import com.megamarket.cliente.data.local.dao.CarritoDao
+import com.megamarket.cliente.data.local.dao.CategoriaDao
 import com.megamarket.cliente.data.local.dao.ClienteDao
 import com.megamarket.cliente.data.local.dao.FavoritoDao
 import com.megamarket.cliente.data.local.dao.OperacionPendienteDao
 import com.megamarket.cliente.data.local.dao.PedidoDao
+import com.megamarket.cliente.data.local.dao.ProductoDao
 import com.megamarket.cliente.data.local.entities.CarritoEntity
+import com.megamarket.cliente.data.local.entities.CategoriaEntity
 import com.megamarket.cliente.data.local.entities.ClienteEntity
 import com.megamarket.cliente.data.local.entities.DireccionEntity
 import com.megamarket.cliente.data.local.entities.FavoritoEntity
 import com.megamarket.cliente.data.local.entities.OperacionPendienteEntity
 import com.megamarket.cliente.data.local.entities.PedidoDetalleEntity
 import com.megamarket.cliente.data.local.entities.PedidoEntity
+import com.megamarket.cliente.data.local.entities.ProductoEntity
+import com.megamarket.modelo.CategoriasBootstrap
 
 @Database(
     entities = [
@@ -27,9 +32,11 @@ import com.megamarket.cliente.data.local.entities.PedidoEntity
         PedidoEntity::class,
         PedidoDetalleEntity::class,
         DireccionEntity::class,
-        OperacionPendienteEntity::class
+        OperacionPendienteEntity::class,
+        CategoriaEntity::class,
+        ProductoEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -38,6 +45,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun clienteDao(): ClienteDao
     abstract fun pedidoDao(): PedidoDao
     abstract fun operacionPendienteDao(): OperacionPendienteDao
+    abstract fun categoriaDao(): CategoriaDao
+    abstract fun productoDao(): ProductoDao
 
     companion object {
         private const val NOMBRE = "megamarket_cliente.db"
@@ -45,7 +54,6 @@ abstract class AppDatabase : RoomDatabase() {
         @Volatile
         private var instancia: AppDatabase? = null
 
-        /** Agrega pedidos, su detalle y su dirección sin tocar clientes, carrito ni favoritos. */
         val MIGRACION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL(
@@ -96,13 +104,16 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        /**
-         * Crea la cola de sincronización sin destruir datos existentes.
-         * Conserva clientes, carrito, favoritos, pedidos, pedido_detalle y direcciones.
-         */
         val MIGRACION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 crearTablaOperacionesPendientes(db)
+            }
+        }
+
+        /** Catálogo local offline-first. Conserva carrito, pedidos y cola de sync. */
+        val MIGRACION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                crearCatalogoLocal(db)
             }
         }
 
@@ -130,6 +141,59 @@ abstract class AppDatabase : RoomDatabase() {
             )
         }
 
+        fun crearCatalogoLocal(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `categorias` (" +
+                    "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`remote_id` TEXT, " +
+                    "`nombre` TEXT NOT NULL, " +
+                    "`remote_version` INTEGER, " +
+                    "`remote_updated_at` TEXT, " +
+                    "`remote_deleted_at` TEXT)"
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_categorias_nombre` ON `categorias` (`nombre`)"
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_categorias_remote_id` ON `categorias` (`remote_id`)"
+            )
+            CategoriasBootstrap.NOMBRES.forEach { nombre ->
+                db.execSQL(
+                    "INSERT OR IGNORE INTO `categorias` " +
+                        "(`nombre`, `remote_id`, `remote_version`, `remote_updated_at`, `remote_deleted_at`) " +
+                        "VALUES (?, NULL, NULL, NULL, NULL)",
+                    arrayOf(nombre)
+                )
+            }
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `productos` (" +
+                    "`id` INTEGER NOT NULL, " +
+                    "`remote_id` TEXT, " +
+                    "`nombre` TEXT NOT NULL, " +
+                    "`marca` TEXT NOT NULL, " +
+                    "`descripcion` TEXT NOT NULL, " +
+                    "`categoriaId` INTEGER NOT NULL, " +
+                    "`precioCentimos` INTEGER NOT NULL, " +
+                    "`precioOfertaCentimos` INTEGER, " +
+                    "`stock` INTEGER NOT NULL, " +
+                    "`imagenKey` TEXT NOT NULL, " +
+                    "`esOferta` INTEGER NOT NULL, " +
+                    "`activo` INTEGER NOT NULL, " +
+                    "`remote_version` INTEGER, " +
+                    "`remote_updated_at` TEXT, " +
+                    "`remote_deleted_at` TEXT, " +
+                    "PRIMARY KEY(`id`), " +
+                    "FOREIGN KEY(`categoriaId`) REFERENCES `categorias`(`id`) " +
+                    "ON UPDATE CASCADE ON DELETE RESTRICT)"
+            )
+            db.execSQL(
+                "CREATE INDEX IF NOT EXISTS `index_productos_categoriaId` ON `productos` (`categoriaId`)"
+            )
+            db.execSQL(
+                "CREATE UNIQUE INDEX IF NOT EXISTS `index_productos_remote_id` ON `productos` (`remote_id`)"
+            )
+        }
+
         fun getInstance(contexto: Context): AppDatabase {
             return instancia ?: synchronized(this) {
                 instancia ?: Room.databaseBuilder(
@@ -137,8 +201,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     NOMBRE
                 )
-                    .addMigrations(MIGRACION_2_3, MIGRACION_3_4)
-                    // La versión 1 fue un prototipo sin migración conocida.
+                    .addMigrations(MIGRACION_2_3, MIGRACION_3_4, MIGRACION_4_5)
                     .fallbackToDestructiveMigrationFrom(true, 1)
                     .build()
                     .also { instancia = it }

@@ -1,5 +1,10 @@
 package com.megamarket.modelo
 
+/**
+ * Producto de catálogo. [id] es la PK local Room (Long).
+ * [remoteId] es el UUID de Neon; null hasta sincronizar con la API REST.
+ * Android nunca genera UUID locales para mapear productos remotos existentes.
+ */
 data class Producto(
     val id: Long,
     val nombre: String,
@@ -11,7 +16,11 @@ data class Producto(
     val stock: Int,
     val imagenKey: String,
     val esOferta: Boolean,
-    val activo: Boolean = true
+    val activo: Boolean = true,
+    val remoteId: String? = null,
+    val remoteVersion: Long? = null,
+    val remoteUpdatedAt: String? = null,
+    val remoteDeletedAt: String? = null
 ) {
     val ofertaValida: Boolean
         get() {
@@ -34,6 +43,9 @@ data class Producto(
 
     val stockBajo: Boolean
         get() = stock in 1..STOCK_BAJO_MAXIMO
+
+    val eliminadoRemotamente: Boolean
+        get() = !remoteDeletedAt.isNullOrBlank()
 
     companion object {
         const val STOCK_BAJO_MAXIMO = 5

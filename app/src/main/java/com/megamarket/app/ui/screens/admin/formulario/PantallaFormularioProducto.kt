@@ -27,8 +27,13 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -42,7 +47,9 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.megamarket.app.model.estado.ProductoFormUiState
 import androidx.compose.ui.res.stringResource
+import com.megamarket.modelo.Categoria
 import com.megamarket.app.R
 import com.megamarket.app.ui.components.BarraSuperior
 import com.megamarket.app.ui.components.EstadoVacio
@@ -168,12 +176,11 @@ private fun ContenidoFormulario(
                 etiqueta = stringResource(R.string.descripcion),
                 unaLinea = false
             )
-            CampoFormulario(
-                valor = estado.categoria,
-                alCambiarValor = viewModel::actualizarCategoria,
-                etiqueta = stringResource(R.string.categoria),
-                tipoTeclado = KeyboardType.Number,
-                ayuda = "Número de categoría. Déjalo vacío si aún no aplica."
+            SelectorCategoria(
+                categorias = estado.categorias,
+                categoriaId = estado.categoriaId,
+                alSeleccionar = viewModel::actualizarCategoriaId,
+                habilitado = !estado.ocupado
             )
         }
         SeccionFormulario(
@@ -362,6 +369,49 @@ private fun SelectorImagen(
             Spacer(modifier = Modifier.height(12.dp))
             OutlinedButton(onClick = alElegir) {
                 Text("Elegir de la galería")
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SelectorCategoria(
+    categorias: List<Categoria>,
+    categoriaId: Long,
+    alSeleccionar: (Long) -> Unit,
+    habilitado: Boolean
+) {
+    var expandido by remember { mutableStateOf(false) }
+    val seleccionada = categorias.firstOrNull { it.id == categoriaId }?.nombre.orEmpty()
+    ExposedDropdownMenuBox(
+        expanded = expandido,
+        onExpandedChange = { if (habilitado) expandido = !expandido }
+    ) {
+        OutlinedTextField(
+            value = seleccionada.ifEmpty { "Selecciona una categoría" },
+            onValueChange = {},
+            readOnly = true,
+            enabled = habilitado,
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(MenuAnchorType.PrimaryNotEditable),
+            label = { Text(stringResource(R.string.categoria)) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandido) },
+            shape = RoundedCornerShape(12.dp)
+        )
+        ExposedDropdownMenu(
+            expanded = expandido,
+            onDismissRequest = { expandido = false }
+        ) {
+            categorias.forEach { categoria ->
+                DropdownMenuItem(
+                    text = { Text(categoria.nombre) },
+                    onClick = {
+                        alSeleccionar(categoria.id)
+                        expandido = false
+                    }
+                )
             }
         }
     }

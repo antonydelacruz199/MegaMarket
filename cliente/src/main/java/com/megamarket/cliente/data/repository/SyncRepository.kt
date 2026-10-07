@@ -1,6 +1,7 @@
 package com.megamarket.cliente.data.repository
 
 import com.megamarket.cliente.data.local.dao.OperacionPendienteDao
+import com.megamarket.cliente.data.local.dao.ProductoDao
 import com.megamarket.cliente.data.local.entities.OperacionPendienteEntity
 import com.megamarket.cliente.data.remote.RetrofitProvider
 import com.megamarket.cliente.data.remote.StockSyncPayload
@@ -11,16 +12,17 @@ import kotlinx.coroutines.withContext
 
 /**
  * Cola local + envío a API REST.
- *
- * Falta para Neon: API desplegada + BASE_URL + mapeo entidadIdLocal (Long) → UUID remoto.
- * Sin eso, [sincronizarPendientes] pide reintento y no borra operaciones.
+ * Resuelve UUID desde [ProductoDao.remoteId]; nunca inventa UUID ni usa el nombre.
  */
 class SyncRepository(
     private val dao: OperacionPendienteDao,
+    private val productoDao: ProductoDao,
     private val baseUrlApi: String,
-    private val resolverUuidRemoto: (productoIdLocal: Long) -> String? = { null }
+    private val stockApiOverride: StockApi? = null
 ) {
-    private val api: StockApi? by lazy { RetrofitProvider.crearStockApi(baseUrlApi) }
+    private val api: StockApi? by lazy {
+        stockApiOverride ?: RetrofitProvider.crear(baseUrlApi)?.stockApi
+    }
 
     /**
      * Una sola operación PENDIENTE de stock por producto; el payload siempre es el stock final.
@@ -56,6 +58,7 @@ class SyncRepository(
     }
 
     suspend fun sincronizarPendientes(): ResultadoSincronizacion = withContext(Dispatchers.IO) {
+        dao.recuperarSincronizandoAtascadas()
         val pendientes = dao.obtenerPendientes()
         if (pendientes.isEmpty()) return@withContext ResultadoSincronizacion.SinTrabajo
 
@@ -76,15 +79,15 @@ class SyncRepository(
                 debeReintentar = true
                 continue
             }
-            val uuid = resolverUuidRemoto(operacion.entidadIdLocal)
+            val uuid = obtenerUuid(operacion.entidadIdLocal)
             if (uuid.isNullOrBlank()) {
+                // No borrar ni marcar éxito: queda recuperable para cuando llegue remoteId.
                 dao.marcarError(
                     operacion.id,
-                    "Falta UUID remoto del producto ${operacion.entidadIdLocal}. " +
-                        "No se marca como sincronizado."
+                    "Falta UUID remoto del producto ${operacion.entidadIdLocal}."
                 )
                 debeReintentar = true
-                ultimoMensaje = "No se pudo sincronizar todavía. Se reintentará cuando haya conexión."
+                ultimoMensaje = "No se pudo sincronizar todavía. Se reintentará cuando haya remoteId/API."
                 continue
             }
 
@@ -116,6 +119,9 @@ class SyncRepository(
             else -> ResultadoSincronizacion.SinTrabajo
         }
     }
+
+    private suspend fun obtenerUuid(productoIdLocal: Long): String? =
+        productoDao.obtenerPorId(productoIdLocal)?.remoteId?.takeIf { it.isNotBlank() }
 }
 
 sealed class ResultadoSincronizacion {

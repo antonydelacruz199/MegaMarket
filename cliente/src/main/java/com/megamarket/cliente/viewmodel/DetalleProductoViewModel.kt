@@ -9,14 +9,11 @@ import com.megamarket.cliente.data.repository.CatalogoRepository
 import com.megamarket.cliente.data.repository.FavoritosRepository
 import com.megamarket.cliente.model.estado.DetalleProductoUiState
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.onStart
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class DetalleProductoViewModel(
@@ -30,48 +27,52 @@ class DetalleProductoViewModel(
         ?: savedStateHandle.get<String>(ARG_PRODUCTO)?.toLongOrNull()
         ?: 0L
 
-    private val _estado = MutableStateFlow(DetalleProductoUiState())
-    val estado: StateFlow<DetalleProductoUiState> = _estado.asStateFlow()
+    val estado: StateFlow<DetalleProductoUiState> = combine(
+        catalogo.observarProducto(productoId),
+        catalogo.observarCategorias(),
+        favoritos.observarEsFavorito(productoId),
+        carrito.observar()
+    ) { producto, categorias, esFavorito, lineas ->
+        if (producto == null || !producto.activo || producto.eliminadoRemotamente) {
+            DetalleProductoUiState(
+                cargando = false,
+                error = "Este producto no está disponible"
+            )
+        } else {
+            val cantidad = lineas.firstOrNull { it.producto.id == productoId }?.cantidad ?: 0
+            DetalleProductoUiState(
+                cargando = false,
+                producto = producto,
+                nombreCategoria = categorias.firstOrNull { it.id == producto.categoriaId }?.nombre
+                    ?: "Categoría",
+                esFavorito = esFavorito,
+                cantidadEnCarrito = cantidad
+            )
+        }
+    }
+        .catch { error ->
+            if (error is CancellationException) throw error
+            emit(
+                DetalleProductoUiState(
+                    cargando = false,
+                    error = error.message ?: "No se pudo abrir el producto"
+                )
+            )
+        }
+        .stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5_000),
+            initialValue = DetalleProductoUiState()
+        )
 
     init {
         viewModelScope.launch {
-            combine(
-                favoritos.observarEsFavorito(productoId),
-                carrito.observar(),
-                catalogo.observarCambiosCatalogo().onStart { emit(Unit) }
-            ) { esFavorito, lineas, _ ->
-                val producto = try {
-                    catalogo.leerPorId(productoId)
-                } catch (error: Exception) {
-                    return@combine DetalleProductoUiState(
-                        cargando = false,
-                        error = error.message ?: "No se pudo abrir el producto"
-                    )
-                }
-                if (producto == null || !producto.activo) {
-                    DetalleProductoUiState(
-                        cargando = false,
-                        error = "Este producto no está disponible"
-                    )
-                } else {
-                    val cantidad = lineas.firstOrNull { it.producto.id == productoId }?.cantidad ?: 0
-                    DetalleProductoUiState(
-                        cargando = false,
-                        producto = producto,
-                        esFavorito = esFavorito,
-                        cantidadEnCarrito = cantidad
-                    )
-                }
+            try {
+                catalogo.asegurarCatalogoLocal()
+            } catch (_: CancellationException) {
+                throw CancellationException()
+            } catch (_: Exception) {
             }
-                .flowOn(Dispatchers.IO)
-                .catch { error ->
-                    if (error is CancellationException) throw error
-                    _estado.value = DetalleProductoUiState(
-                        cargando = false,
-                        error = error.message ?: "No se pudo abrir el producto"
-                    )
-                }
-                .collect { _estado.value = it }
         }
     }
 
@@ -95,8 +96,9 @@ class DetalleProductoViewModel(
             accion()
         } catch (error: CancellationException) {
             throw error
-        } catch (error: Exception) {
-            _estado.value = _estado.value.copy(error = error.message ?: "No se pudo actualizar el producto")
+        } catch (_: Exception) {
+            // El Flow de estado refleja el catálogo; errores de carrito se omiten aquí
+            // para no pisar el producto mostrado. CarritoRepository es silencioso en stock.
         }
     }
 

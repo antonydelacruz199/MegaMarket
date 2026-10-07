@@ -7,7 +7,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
-import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.withContext
 
 class CarritoRepository(
@@ -15,17 +14,15 @@ class CarritoRepository(
     private val catalogo: CatalogoRepository
 ) {
     /**
-     * Muestra la cantidad guardada tal cual, aunque el stock haya bajado, para que el
-     * cliente vea el exceso y lo corrija; el checkout rechaza las cantidades que no alcanzan.
-     * Se refresca también cuando el ContentProvider notifica cambios de stock.
+     * Combina carrito Room + productos Room. Se actualiza cuando cambia el stock cacheado.
      */
     fun observar(): Flow<List<LineaCarrito>> = combine(
         dao.observar(),
-        catalogo.observarCambiosCatalogo().onStart { emit(Unit) }
-    ) { entidades, _ ->
-        val productos = catalogo.leerActivos().associateBy { it.id }
+        catalogo.observarProductos()
+    ) { entidades, productos ->
+        val mapa = productos.associateBy { it.id }
         entidades.mapNotNull { entidad ->
-            val producto = productos[entidad.productoId] ?: return@mapNotNull null
+            val producto = mapa[entidad.productoId] ?: return@mapNotNull null
             if (!producto.activo) return@mapNotNull null
             LineaCarrito(producto = producto, cantidad = entidad.cantidad.coerceAtLeast(1))
         }

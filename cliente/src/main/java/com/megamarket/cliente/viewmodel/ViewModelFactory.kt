@@ -36,6 +36,12 @@ class ViewModelFactory(
                 ConfirmacionViewModel(extras.createSavedStateHandle(), container.pedidoRepository)
             modelClass.isAssignableFrom(PerfilViewModel::class.java) ->
                 PerfilViewModel(container.authRepository)
+            modelClass.isAssignableFrom(SyncViewModel::class.java) ->
+                SyncViewModel(
+                    container.appContext,
+                    container.syncRepository,
+                    container.connectivityObserver
+                )
             else -> throw IllegalArgumentException("ViewModel no registrado: ${modelClass.name}")
         }
         @Suppress("UNCHECKED_CAST")

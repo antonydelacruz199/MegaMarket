@@ -10,7 +10,7 @@ data class ProductoFormUiState(
     val categoriaId: Long = 0,
     val categorias: List<Categoria> = emptyList(),
     val precio: String = "",
-    val precioOferta: String = "",
+    val descuentoPorcentaje: String = "",
     val stock: String = "",
     val esOferta: Boolean = false,
     val activo: Boolean = true,
@@ -19,7 +19,6 @@ data class ProductoFormUiState(
     val imagenPendienteKey: String? = null,
     val imagenQuitada: Boolean = false,
 
-    /** Metadatos remotos conservados al editar; no se inventan UUID. */
     val remoteId: String? = null,
     val remoteVersion: Long? = null,
     val remoteUpdatedAt: String? = null,

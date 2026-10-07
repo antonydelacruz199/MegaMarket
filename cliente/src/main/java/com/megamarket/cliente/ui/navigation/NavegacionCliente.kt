@@ -31,6 +31,7 @@ import com.megamarket.cliente.viewmodel.DetalleProductoViewModel
 import com.megamarket.cliente.viewmodel.FavoritosViewModel
 import com.megamarket.cliente.viewmodel.HomeViewModel
 import com.megamarket.cliente.viewmodel.PerfilViewModel
+import com.megamarket.cliente.viewmodel.SyncViewModel
 import com.megamarket.cliente.viewmodel.ViewModelFactory
 
 @Composable
@@ -74,6 +75,7 @@ fun NavegacionCliente(
         composable(Ruta.Inicio.ruta) {
             PantallaInicio(
                 viewModel = viewModel<HomeViewModel>(factory = fabrica),
+                syncViewModel = viewModel<SyncViewModel>(factory = fabrica),
                 alNavegar = controlador::irARaiz,
                 alCerrarSesion = cerrarSesion,
                 alAbrirProducto = { id -> controlador.navigate(Ruta.Detalle.crear(id)) }

@@ -22,6 +22,7 @@ import com.megamarket.app.ui.screens.sesion.PantallaSesion
 import com.megamarket.app.viewmodel.AuthViewModel
 import com.megamarket.app.viewmodel.ProductoFormViewModel
 import com.megamarket.app.viewmodel.ProductoViewModel
+import com.megamarket.app.viewmodel.SyncViewModel
 import com.megamarket.app.viewmodel.ViewModelFactory
 
 @Composable
@@ -67,6 +68,7 @@ fun NavegacionMegaMarket(
         composable(Ruta.PanelAdmin.ruta) {
             PantallaPanelAdmin(
                 viewModel = viewModel<ProductoViewModel>(factory = fabrica),
+                syncViewModel = viewModel<SyncViewModel>(factory = fabrica),
                 alNavegar = { ruta -> controlador.navegarAdmin(ruta) },
                 alCerrarSesion = { controlador.cerrarSesion() }
             )

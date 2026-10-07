@@ -23,6 +23,12 @@ class ViewModelFactory(
                     container.categoriaRepository,
                     container.imagenRepository
                 )
+            modelClass.isAssignableFrom(SyncViewModel::class.java) ->
+                SyncViewModel(
+                    container.appContext,
+                    container.syncRepository,
+                    container.connectivityObserver
+                )
             else -> throw IllegalArgumentException("ViewModel no soportado: ${modelClass.name}")
         }
         @Suppress("UNCHECKED_CAST")

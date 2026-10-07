@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
 import com.megamarket.cliente.data.local.entities.OperacionPendienteEntity
+import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface OperacionPendienteDao {
@@ -22,7 +23,44 @@ interface OperacionPendienteDao {
         ORDER BY fechaCreacion ASC
         """
     )
-    suspend fun obtenerPendientes(): List<OperacionPendienteEntity>
+    suspend fun obtenerParaEnviar(): List<OperacionPendienteEntity>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM operaciones_pendientes
+        WHERE estado IN ('PENDIENTE', 'ENVIANDO', 'ERROR', 'SINCRONIZANDO')
+        """
+    )
+    fun observarPendientesActivos(): Flow<Int>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM operaciones_pendientes
+        WHERE estado = 'ERROR'
+        """
+    )
+    fun observarErrores(): Flow<Int>
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM operaciones_pendientes
+        WHERE estado IN ('PENDIENTE', 'ENVIANDO', 'ERROR', 'SINCRONIZANDO')
+        """
+    )
+    suspend fun contarPendientesActivos(): Int
+
+    @Query("SELECT COUNT(*) FROM operaciones_pendientes WHERE estado = 'ERROR'")
+    suspend fun contarErrores(): Int
+
+    @Query(
+        """
+        SELECT COUNT(*) FROM operaciones_pendientes
+        WHERE tipoEntidad = :tipoEntidad
+          AND entidadIdLocal = :entidadIdLocal
+          AND estado IN ('PENDIENTE', 'ENVIANDO', 'ERROR', 'SINCRONIZANDO')
+        """
+    )
+    suspend fun contarActivasDeEntidad(tipoEntidad: String, entidadIdLocal: Long): Int
 
     @Query(
         """
@@ -30,7 +68,7 @@ interface OperacionPendienteDao {
         WHERE tipoEntidad = :tipoEntidad
           AND entidadIdLocal = :entidadIdLocal
           AND operacion = :operacion
-          AND estado IN ('PENDIENTE', 'ERROR', 'SINCRONIZANDO')
+          AND estado IN ('PENDIENTE', 'ENVIANDO', 'ERROR', 'SINCRONIZANDO')
         LIMIT 1
         """
     )
@@ -40,43 +78,57 @@ interface OperacionPendienteDao {
         operacion: String
     ): OperacionPendienteEntity?
 
-    /** Recupera operaciones atascadas si el proceso murió a mitad de sync. */
     @Query(
         """
         UPDATE operaciones_pendientes
-        SET estado = 'PENDIENTE'
-        WHERE estado = 'SINCRONIZANDO'
+        SET estado = 'PENDIENTE', fechaActualizacion = :ahora
+        WHERE estado IN ('ENVIANDO', 'SINCRONIZANDO')
         """
     )
-    suspend fun recuperarSincronizandoAtascadas(): Int
+    suspend fun recuperarEnviandoAtascadas(ahora: Long): Int
 
     @Query(
         """
         UPDATE operaciones_pendientes
-        SET estado = 'SINCRONIZANDO'
+        SET estado = 'ENVIANDO', fechaActualizacion = :ahora
         WHERE id = :id
         """
     )
-    suspend fun marcarSincronizando(id: Long): Int
+    suspend fun marcarEnviando(id: Long, ahora: Long): Int
 
     @Query(
         """
         UPDATE operaciones_pendientes
-        SET estado = 'ERROR', ultimoError = :error, intentos = intentos + 1
+        SET estado = 'SINCRONIZADO',
+            sincronizadoEn = :ahora,
+            fechaActualizacion = :ahora,
+            ultimoError = NULL
         WHERE id = :id
         """
     )
-    suspend fun marcarError(id: Long, error: String): Int
-
-    @Query("DELETE FROM operaciones_pendientes WHERE id = :id")
-    suspend fun eliminar(id: Long): Int
+    suspend fun marcarSincronizado(id: Long, ahora: Long): Int
 
     @Query(
         """
         UPDATE operaciones_pendientes
-        SET intentos = intentos + 1
+        SET estado = 'ERROR',
+            ultimoError = :error,
+            intentos = intentos + 1,
+            fechaActualizacion = :ahora
         WHERE id = :id
         """
     )
-    suspend fun incrementarIntentos(id: Long): Int
+    suspend fun marcarError(id: Long, error: String, ahora: Long): Int
+
+    @Query(
+        """
+        UPDATE operaciones_pendientes
+        SET estado = 'ERROR',
+            ultimoError = :error,
+            fechaActualizacion = :ahora
+        WHERE operacion = 'ACTUALIZAR_STOCK'
+          AND estado IN ('PENDIENTE', 'ENVIANDO', 'ERROR', 'SINCRONIZANDO')
+        """
+    )
+    suspend fun marcarLegacyStockComoError(error: String, ahora: Long): Int
 }

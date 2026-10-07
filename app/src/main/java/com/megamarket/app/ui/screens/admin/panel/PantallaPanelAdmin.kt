@@ -49,17 +49,21 @@ import com.megamarket.app.ui.theme.MegaAdvertencia
 import com.megamarket.app.ui.theme.MegaContenedorAdvertencia
 import com.megamarket.app.ui.theme.MegaContenedorError
 import com.megamarket.app.ui.theme.MegaError
+import com.megamarket.app.ui.components.PanelSincronizacion
 import com.megamarket.app.viewmodel.ProductoViewModel
+import com.megamarket.app.viewmodel.SyncViewModel
 import com.megamarket.modelo.Producto
 import com.megamarket.modelo.formatearSoles
 
 @Composable
 fun PantallaPanelAdmin(
     viewModel: ProductoViewModel,
+    syncViewModel: SyncViewModel,
     alNavegar: (String) -> Unit,
     alCerrarSesion: () -> Unit
 ) {
     val estado by viewModel.estado.collectAsStateWithLifecycle()
+    val syncEstado by syncViewModel.estado.collectAsStateWithLifecycle()
     LifecycleResumeEffect(Unit) {
         viewModel.cargarProductos()
         onPauseOrDispose { }
@@ -135,6 +139,11 @@ fun PantallaPanelAdmin(
                     modifier = Modifier.weight(1f)
                 )
             }
+            Spacer(modifier = Modifier.height(16.dp))
+            PanelSincronizacion(
+                estado = syncEstado,
+                alSincronizar = syncViewModel::sincronizarAhora
+            )
             Spacer(modifier = Modifier.height(20.dp))
             EncabezadoSeccion(
                 titulo = "Productos con stock bajo",

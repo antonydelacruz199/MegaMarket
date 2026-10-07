@@ -1,6 +1,7 @@
 package com.megamarket.cliente.data.remote
 
-/** Payload idempotente: guarda el stock FINAL, nunca un delta a restar. */
+/** LEGACY — stock absoluto. Flujo activo usa MovimientoInventarioRequest (delta). */
+@Deprecated("Usar MovimientoInventarioRequest / CREAR_MOVIMIENTO_INVENTARIO")
 data class StockSyncPayload(
     val productoIdLocal: Long,
     val stock: Int

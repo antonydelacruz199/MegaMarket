@@ -31,6 +31,7 @@ data class ProductoEntity(
     val categoriaId: Long,
     val precioCentimos: Long,
     val precioOfertaCentimos: Long?,
+    @ColumnInfo(name = "descuento_porcentaje") val descuentoPorcentaje: Int = 0,
     val stock: Int,
     val imagenKey: String,
     val esOferta: Boolean,

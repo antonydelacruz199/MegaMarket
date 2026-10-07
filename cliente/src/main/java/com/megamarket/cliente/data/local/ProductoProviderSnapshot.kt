@@ -14,6 +14,7 @@ data class ProductoProviderSnapshot(
     val categoriaProviderId: Long,
     val precioCentimos: Long,
     val precioOfertaCentimos: Long? = null,
+    val descuentoPorcentaje: Int = 0,
     val stock: Int,
     val imagenKey: String,
     val esOferta: Boolean,

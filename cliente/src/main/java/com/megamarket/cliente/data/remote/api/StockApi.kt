@@ -8,12 +8,10 @@ import retrofit2.http.PATCH
 import retrofit2.http.Path
 
 /**
- * Contrato REST previsto:
- * PATCH /api/productos/{uuid}/stock
- *
- * Falta: API real + mapeo Long local → UUID de Neon.
- * Mientras no exista, SyncRepository no marca éxito y WorkManager reintenta.
+ * LEGACY — no usar en flujo activo.
+ * El inventario se sincroniza con [InventarioApi] (movimientos / delta).
  */
+@Deprecated("Usar InventarioApi.crearMovimiento")
 interface StockApi {
     @PATCH("api/productos/{uuid}/stock")
     suspend fun actualizarStock(

@@ -14,10 +14,10 @@ import com.megamarket.cliente.data.repository.ResultadoSincronizacion
 import java.util.concurrent.TimeUnit
 
 /**
- * Sincroniza operaciones_pendientes cuando hay red.
- * Backoff exponencial: evita reintentos agresivos si falta API o remoteId.
+ * Sincroniza cola de operaciones cuando hay red.
+ * Backoff exponencial; no finge éxito sin API.
  */
-class StockSyncWorker(
+class SyncWorker(
     context: Context,
     params: WorkerParameters
 ) : CoroutineWorker(context, params) {
@@ -33,18 +33,28 @@ class StockSyncWorker(
     }
 
     companion object {
-        const val NOMBRE_UNICO = "megamarket_stock_sync"
+        const val NOMBRE_UNICO = "megamarket_cliente_sync"
 
-        fun programar(contexto: Context) {
+        fun programar(contexto: Context, reemplazar: Boolean = false) {
             val restricciones = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.CONNECTED)
                 .build()
-            val trabajo = OneTimeWorkRequestBuilder<StockSyncWorker>()
+            val trabajo = OneTimeWorkRequestBuilder<SyncWorker>()
                 .setConstraints(restricciones)
                 .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
                 .build()
             WorkManager.getInstance(contexto.applicationContext)
-                .enqueueUniqueWork(NOMBRE_UNICO, ExistingWorkPolicy.KEEP, trabajo)
+                .enqueueUniqueWork(
+                    NOMBRE_UNICO,
+                    if (reemplazar) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP,
+                    trabajo
+                )
         }
+
+        fun sincronizarAhora(contexto: Context) = programar(contexto, reemplazar = true)
     }
 }
+
+/** Alias de compatibilidad. */
+@Deprecated("Usar SyncWorker", ReplaceWith("SyncWorker"))
+typealias StockSyncWorker = SyncWorker

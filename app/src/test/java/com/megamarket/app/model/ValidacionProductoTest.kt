@@ -26,6 +26,7 @@ class ValidacionProductoTest {
         val producto = (resultado as ValidacionProducto.Resultado.Valido).producto
         assertEquals(480L, producto.precioCentimos)
         assertEquals(10, producto.stock)
+        assertEquals(0, producto.descuentoPorcentaje)
         assertNull(producto.precioOfertaCentimos)
         assertNull(producto.remoteId)
     }
@@ -64,13 +65,22 @@ class ValidacionProductoTest {
     }
 
     @Test
-    fun oferta_esObligatoriaPositivaYMenorAlPrecio() {
+    fun descuento_derivaPrecioOferta() {
+        val conOferta = valido.copy(esOferta = true, descuentoPorcentaje = "20")
+        val producto = (ValidacionProducto.validar(conOferta) as ValidacionProducto.Resultado.Valido).producto
+        assertEquals(20, producto.descuentoPorcentaje)
+        assertEquals(384L, producto.precioOfertaCentimos)
+    }
+
+    @Test
+    fun descuento_validaRango0a100() {
         val conOferta = valido.copy(esOferta = true)
-        assertEquals("Ingresa el precio de oferta", mensaje(conOferta.copy(precioOferta = "")))
-        assertEquals("Ingresa un precio de oferta válido", mensaje(conOferta.copy(precioOferta = "x")))
-        assertEquals("El precio de oferta debe ser mayor a 0", mensaje(conOferta.copy(precioOferta = "0")))
-        assertEquals("La oferta debe ser menor al precio", mensaje(conOferta.copy(precioOferta = "4.80")))
-        assertNull(mensaje(conOferta.copy(precioOferta = "3.90")))
+        assertEquals("Ingresa el porcentaje de descuento", mensaje(conOferta.copy(descuentoPorcentaje = "")))
+        assertEquals("Ingresa un porcentaje de descuento válido", mensaje(conOferta.copy(descuentoPorcentaje = "x")))
+        assertEquals("El descuento debe ser mayor a 0 cuando hay oferta", mensaje(conOferta.copy(descuentoPorcentaje = "0")))
+        assertEquals("El descuento debe ser menor a 100", mensaje(conOferta.copy(descuentoPorcentaje = "100")))
+        assertEquals("El descuento debe estar entre 0 y 100", mensaje(conOferta.copy(descuentoPorcentaje = "150")))
+        assertNull(mensaje(conOferta.copy(descuentoPorcentaje = "15")))
     }
 
     @Test

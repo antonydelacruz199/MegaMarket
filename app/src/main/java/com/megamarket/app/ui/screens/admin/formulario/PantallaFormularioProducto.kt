@@ -219,13 +219,13 @@ private fun ContenidoFormulario(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         CampoFormulario(
-                            valor = estado.precioOferta,
-                            alCambiarValor = viewModel::actualizarPrecioOferta,
-                            etiqueta = "Precio de oferta",
-                            tipoTeclado = KeyboardType.Decimal,
-                            prefijo = "S/",
+                            valor = estado.descuentoPorcentaje,
+                            alCambiarValor = viewModel::actualizarDescuentoPorcentaje,
+                            etiqueta = "Descuento (%)",
+                            tipoTeclado = KeyboardType.Number,
+                            prefijo = "%",
                             colorAcento = MegaSecundario,
-                            ayuda = "Debe ser menor que el precio normal."
+                            ayuda = "Entre 1 y 99. El precio rebajado se calcula automáticamente."
                         )
                     }
                 }

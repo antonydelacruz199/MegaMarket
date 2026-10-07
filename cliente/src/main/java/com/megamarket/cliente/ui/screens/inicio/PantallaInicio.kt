@@ -30,18 +30,22 @@ import com.megamarket.cliente.R
 import com.megamarket.cliente.ui.components.BannerFeriaPrimavera
 import com.megamarket.cliente.ui.components.EstadoVacio
 import com.megamarket.cliente.ui.components.EstructuraCliente
+import com.megamarket.cliente.ui.components.PanelSincronizacion
 import com.megamarket.cliente.ui.components.TarjetaProducto
 import com.megamarket.cliente.ui.navigation.Ruta
 import com.megamarket.cliente.viewmodel.HomeViewModel
+import com.megamarket.cliente.viewmodel.SyncViewModel
 
 @Composable
 fun PantallaInicio(
     viewModel: HomeViewModel,
+    syncViewModel: SyncViewModel,
     alNavegar: (String) -> Unit,
     alCerrarSesion: () -> Unit,
     alAbrirProducto: (Long) -> Unit
 ) {
     val estado by viewModel.estado.collectAsStateWithLifecycle()
+    val sync by syncViewModel.estado.collectAsStateWithLifecycle()
     LifecycleResumeEffect(Unit) {
         viewModel.cargar()
         onPauseOrDispose { }
@@ -63,12 +67,23 @@ fun PantallaInicio(
                 etiquetaAccion = "Reintentar",
                 alPulsarAccion = viewModel::cargar
             )
-            !estado.hayProductos -> EstadoVacio(
-                icono = Icons.AutoMirrored.Filled.List,
-                titulo = stringResource(R.string.catalogo_vacio_titulo),
-                descripcion = stringResource(R.string.catalogo_vacio),
-                modifier = Modifier.padding(relleno)
-            )
+            !estado.hayProductos -> Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(relleno)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                EstadoVacio(
+                    icono = Icons.AutoMirrored.Filled.List,
+                    titulo = "Sin catálogo local",
+                    descripcion = "Aún no hay datos descargados. Conéctate a Internet y sincroniza para cargar el catálogo."
+                )
+                PanelSincronizacion(
+                    estado = sync,
+                    alSincronizar = syncViewModel::sincronizarAhora
+                )
+            }
             else -> Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -76,6 +91,11 @@ fun PantallaInicio(
                     .verticalScroll(rememberScrollState())
                     .padding(16.dp)
             ) {
+                PanelSincronizacion(
+                    estado = sync,
+                    alSincronizar = syncViewModel::sincronizarAhora,
+                    modifier = Modifier.padding(bottom = 12.dp)
+                )
                 val hayOfertas = estado.ofertas.isNotEmpty()
                 BannerFeriaPrimavera(
                     etiquetaAccion = if (hayOfertas) "Ver ofertas de la feria" else "Recorrer el catálogo",

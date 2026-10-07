@@ -23,6 +23,7 @@ class PedidoMapperTest {
         val pedido = PedidoEntity(
             id = 10,
             clienteId = 3,
+            clientUuid = "pedido-uuid-test",
             fecha = 1_700_000_000_000,
             totalCentimos = 960,
             estado = Pedido.ESTADO_CONFIRMADO

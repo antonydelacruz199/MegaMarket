@@ -53,7 +53,7 @@ class ProductoFormViewModel(
     fun actualizarDescripcion(valor: String) = actualizar { it.copy(descripcion = valor) }
     fun actualizarCategoriaId(valor: Long) = actualizar { it.copy(categoriaId = valor) }
     fun actualizarPrecio(valor: String) = actualizar { it.copy(precio = valor) }
-    fun actualizarPrecioOferta(valor: String) = actualizar { it.copy(precioOferta = valor) }
+    fun actualizarDescuentoPorcentaje(valor: String) = actualizar { it.copy(descuentoPorcentaje = valor) }
     fun actualizarStock(valor: String) = actualizar { it.copy(stock = valor) }
     fun actualizarOferta(valor: Boolean) = actualizar { it.copy(esOferta = valor) }
     fun actualizarActivo(valor: Boolean) = actualizar { it.copy(activo = valor) }
@@ -84,7 +84,13 @@ class ProductoFormViewModel(
                     descripcion = producto.descripcion,
                     categoriaId = producto.categoriaId,
                     precio = producto.precioCentimos.aTextoDecimal(),
-                    precioOferta = producto.precioOfertaCentimos?.aTextoDecimal().orEmpty(),
+                    descuentoPorcentaje = if (producto.descuentoPorcentaje > 0) {
+                        producto.descuentoPorcentaje.toString()
+                    } else if (producto.esOferta) {
+                        producto.descuentoEfectivo.toString()
+                    } else {
+                        ""
+                    },
                     stock = producto.stock.toString(),
                     esOferta = producto.esOferta,
                     activo = producto.activo,
@@ -143,9 +149,16 @@ class ProductoFormViewModel(
         _estado.update { it.copy(guardando = true, error = null) }
         viewModelScope.launch {
             val guardado = try {
-                if (producto.id == 0L) productos.insertar(producto) > 0 else productos.actualizar(producto)
+                if (producto.id == 0L) {
+                    productos.insertar(producto) > 0
+                } else {
+                    productos.actualizar(producto)
+                }
             } catch (error: CancellationException) {
                 throw error
+            } catch (error: IllegalArgumentException) {
+                _estado.update { it.copy(guardando = false, error = error.message) }
+                return@launch
             } catch (_: Exception) {
                 false
             }
@@ -195,7 +208,7 @@ class ProductoFormViewModel(
         estadoGuardado[CLAVE_DESCRIPCION] = estado.descripcion
         estadoGuardado[CLAVE_CATEGORIA_ID] = estado.categoriaId
         estadoGuardado[CLAVE_PRECIO] = estado.precio
-        estadoGuardado[CLAVE_PRECIO_OFERTA] = estado.precioOferta
+        estadoGuardado[CLAVE_DESCUENTO] = estado.descuentoPorcentaje
         estadoGuardado[CLAVE_STOCK] = estado.stock
         estadoGuardado[CLAVE_ES_OFERTA] = estado.esOferta
         estadoGuardado[CLAVE_ACTIVO] = estado.activo
@@ -215,7 +228,7 @@ class ProductoFormViewModel(
             descripcion = estadoGuardado[CLAVE_DESCRIPCION] ?: "",
             categoriaId = estadoGuardado[CLAVE_CATEGORIA_ID] ?: 0L,
             precio = estadoGuardado[CLAVE_PRECIO] ?: "",
-            precioOferta = estadoGuardado[CLAVE_PRECIO_OFERTA] ?: "",
+            descuentoPorcentaje = estadoGuardado[CLAVE_DESCUENTO] ?: "",
             stock = estadoGuardado[CLAVE_STOCK] ?: "",
             esOferta = estadoGuardado[CLAVE_ES_OFERTA] ?: false,
             activo = estadoGuardado[CLAVE_ACTIVO] ?: true,
@@ -236,7 +249,7 @@ class ProductoFormViewModel(
         private const val CLAVE_DESCRIPCION = "form_descripcion"
         private const val CLAVE_CATEGORIA_ID = "form_categoria_id"
         private const val CLAVE_PRECIO = "form_precio"
-        private const val CLAVE_PRECIO_OFERTA = "form_precio_oferta"
+        private const val CLAVE_DESCUENTO = "form_descuento_porcentaje"
         private const val CLAVE_STOCK = "form_stock"
         private const val CLAVE_ES_OFERTA = "form_es_oferta"
         private const val CLAVE_ACTIVO = "form_activo"

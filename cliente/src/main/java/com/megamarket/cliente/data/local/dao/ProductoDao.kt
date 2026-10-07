@@ -51,4 +51,21 @@ interface ProductoDao {
 
     @Update
     suspend fun actualizar(entidad: ProductoEntity): Int
+
+    /**
+     * Descuento atómico de stock local. Nunca deja stock negativo.
+     * @return 1 si OK, 0 si stock insuficiente o producto inválido.
+     */
+    @Query(
+        """
+        UPDATE productos
+        SET stock = stock - :cantidad
+        WHERE id = :productoId
+          AND activo = 1
+          AND remote_deleted_at IS NULL
+          AND stock >= :cantidad
+          AND :cantidad > 0
+        """
+    )
+    suspend fun descontarStockLocal(productoId: Long, cantidad: Int): Int
 }

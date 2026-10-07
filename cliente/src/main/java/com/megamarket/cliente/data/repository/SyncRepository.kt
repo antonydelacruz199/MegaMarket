@@ -1,71 +1,90 @@
 package com.megamarket.cliente.data.repository
 
+import com.megamarket.cliente.data.local.dao.MovimientoInventarioDao
 import com.megamarket.cliente.data.local.dao.OperacionPendienteDao
+import com.megamarket.cliente.data.local.dao.PedidoDao
 import com.megamarket.cliente.data.local.dao.ProductoDao
+import com.megamarket.cliente.data.local.dao.SyncMetadataDao
 import com.megamarket.cliente.data.local.entities.OperacionPendienteEntity
+import com.megamarket.cliente.data.local.entities.SyncMetadataEntity
 import com.megamarket.cliente.data.remote.RetrofitProvider
-import com.megamarket.cliente.data.remote.StockSyncPayload
-import com.megamarket.cliente.data.remote.api.StockApi
-import com.megamarket.cliente.data.remote.dto.ActualizarStockRequest
+import com.megamarket.cliente.data.remote.api.InventarioApi
+import com.megamarket.cliente.data.remote.api.PedidoApi
+import com.megamarket.cliente.data.remote.dto.CrearPedidoRequest
+import com.megamarket.cliente.data.remote.dto.DireccionPedidoRequest
+import com.megamarket.cliente.data.remote.dto.MovimientoInventarioRequest
+import com.megamarket.cliente.data.remote.dto.PedidoDetalleRequest
+import com.megamarket.modelo.EstadoSincronizacion
+import com.megamarket.modelo.TipoOperacionPendiente
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
+import retrofit2.HttpException
+import java.io.IOException
+import java.net.SocketTimeoutException
 
 /**
- * Cola local + envío a API REST.
- * Resuelve UUID desde [ProductoDao.remoteId]; nunca inventa UUID ni usa el nombre.
+ * Cola + envío a API REST.
+ * Conserva UUID de operación en retries. No marca éxito sin backend.
+ * Orden futuro: pedidos → movimientos → pull.
  */
 class SyncRepository(
-    private val dao: OperacionPendienteDao,
+    private val operacionDao: OperacionPendienteDao,
     private val productoDao: ProductoDao,
+    private val pedidoDao: PedidoDao,
+    private val movimientoDao: MovimientoInventarioDao,
+    private val syncMetadataDao: SyncMetadataDao,
     private val baseUrlApi: String,
-    private val stockApiOverride: StockApi? = null
+    private val remote: RetrofitProvider? = null
 ) {
-    private val api: StockApi? by lazy {
-        stockApiOverride ?: RetrofitProvider.crear(baseUrlApi)?.stockApi
+    private val pedidoApi: PedidoApi? by lazy { remote?.pedidoApi ?: RetrofitProvider.crear(baseUrlApi)?.pedidoApi }
+    private val inventarioApi: InventarioApi? by lazy {
+        remote?.inventarioApi ?: RetrofitProvider.crear(baseUrlApi)?.inventarioApi
     }
 
-    /**
-     * Una sola operación PENDIENTE de stock por producto; el payload siempre es el stock final.
-     */
-    suspend fun registrarStockFinal(productoIdLocal: Long, stockFinal: Int) = withContext(Dispatchers.IO) {
-        val payload = StockSyncPayload(productoIdLocal, stockFinal).aJson()
-        val existente = dao.obtenerPendienteDe(
-            tipoEntidad = OperacionPendienteEntity.TIPO_PRODUCTO,
-            entidadIdLocal = productoIdLocal,
-            operacion = OperacionPendienteEntity.OPERACION_ACTUALIZAR_STOCK
+    data class ResumenSync(
+        val pendientes: Int,
+        val errores: Int,
+        val ultimaExitosa: Long?,
+        val ultimoError: String?,
+        val enviando: Boolean = false
+    )
+
+    fun observarResumen(): Flow<ResumenSync> = combine(
+        operacionDao.observarPendientesActivos(),
+        operacionDao.observarErrores(),
+        syncMetadataDao.observar()
+    ) { pendientes, errores, meta ->
+        ResumenSync(
+            pendientes = pendientes,
+            errores = errores,
+            ultimaExitosa = meta?.ultimaSincronizacionExitosa,
+            ultimoError = meta?.ultimoErrorGeneral
         )
-        if (existente != null) {
-            dao.actualizar(
-                existente.copy(
-                    payload = payload,
-                    fechaCreacion = System.currentTimeMillis(),
-                    intentos = 0,
-                    ultimoError = null,
-                    estado = OperacionPendienteEntity.ESTADO_PENDIENTE
-                )
-            )
-        } else {
-            dao.insertar(
-                OperacionPendienteEntity(
-                    tipoEntidad = OperacionPendienteEntity.TIPO_PRODUCTO,
-                    entidadIdLocal = productoIdLocal,
-                    operacion = OperacionPendienteEntity.OPERACION_ACTUALIZAR_STOCK,
-                    payload = payload,
-                    fechaCreacion = System.currentTimeMillis()
-                )
-            )
-        }
     }
 
     suspend fun sincronizarPendientes(): ResultadoSincronizacion = withContext(Dispatchers.IO) {
-        dao.recuperarSincronizandoAtascadas()
-        val pendientes = dao.obtenerPendientes()
-        if (pendientes.isEmpty()) return@withContext ResultadoSincronizacion.SinTrabajo
+        val ahora = System.currentTimeMillis()
+        operacionDao.recuperarEnviandoAtascadas(ahora)
+        operacionDao.marcarLegacyStockComoError(
+            "Operación legacy ACTUALIZAR_STOCK incompatible con movimientos de inventario.",
+            ahora
+        )
+        registrarIntento(ahora, null)
 
-        val servicio = api
-        if (servicio == null) {
+        val pendientes = operacionDao.obtenerParaEnviar()
+            .filter { it.operacion != TipoOperacionPendiente.ACTUALIZAR_STOCK }
+        if (pendientes.isEmpty()) {
+            return@withContext ResultadoSincronizacion.SinTrabajo
+        }
+
+        if (baseUrlApi.isBlank() || (pedidoApi == null && inventarioApi == null)) {
+            registrarIntento(ahora, "API REST no configurada (MEGAMARKET_API_BASE_URL).")
             return@withContext ResultadoSincronizacion.Reintentar(
-                "API REST no configurada. Defina MEGAMARKET_API_BASE_URL cuando exista el backend."
+                "Servidor no configurado. Las operaciones permanecen pendientes."
             )
         }
 
@@ -73,44 +92,44 @@ class SyncRepository(
         var debeReintentar = false
         var ultimoMensaje: String? = null
 
-        for (operacion in pendientes) {
-            if (operacion.operacion != OperacionPendienteEntity.OPERACION_ACTUALIZAR_STOCK) {
-                dao.marcarError(operacion.id, "Operación no soportada: ${operacion.operacion}")
-                debeReintentar = true
-                continue
-            }
-            val uuid = obtenerUuid(operacion.entidadIdLocal)
-            if (uuid.isNullOrBlank()) {
-                // No borrar ni marcar éxito: queda recuperable para cuando llegue remoteId.
-                dao.marcarError(
-                    operacion.id,
-                    "Falta UUID remoto del producto ${operacion.entidadIdLocal}."
-                )
-                debeReintentar = true
-                ultimoMensaje = "No se pudo sincronizar todavía. Se reintentará cuando haya remoteId/API."
-                continue
-            }
+        // Pedidos primero, luego movimientos.
+        val ordenadas = pendientes.sortedWith(
+            compareBy(
+                { if (it.operacion == TipoOperacionPendiente.CREAR_PEDIDO) 0 else 1 },
+                { it.fechaCreacion }
+            )
+        )
 
-            dao.marcarSincronizando(operacion.id)
-            try {
-                val payload = StockSyncPayload.desdeJson(operacion.payload)
-                val respuesta = servicio.actualizarStock(
-                    uuidProducto = uuid,
-                    body = ActualizarStockRequest(stock = payload.stock)
-                )
-                if (respuesta.isSuccessful) {
-                    dao.eliminar(operacion.id)
+        for (op in ordenadas) {
+            operacionDao.marcarEnviando(op.id, System.currentTimeMillis())
+            when (val r = enviarOperacion(op)) {
+                is Envio.Exito -> {
+                    operacionDao.marcarSincronizado(op.id, System.currentTimeMillis())
                     huboExito = true
-                } else {
-                    dao.marcarError(operacion.id, "HTTP ${respuesta.code()}")
-                    debeReintentar = true
-                    ultimoMensaje = "No se pudo sincronizar todavía. Se reintentará cuando haya conexión."
                 }
-            } catch (error: Exception) {
-                dao.marcarError(operacion.id, error.message ?: "Error de red")
-                debeReintentar = true
-                ultimoMensaje = "No se pudo sincronizar todavía. Se reintentará cuando haya conexión."
+                is Envio.ErrorDefinitivo -> {
+                    operacionDao.marcarError(op.id, r.mensaje, System.currentTimeMillis())
+                    ultimoMensaje = r.mensaje
+                }
+                is Envio.Reintentable -> {
+                    operacionDao.marcarError(op.id, r.mensaje, System.currentTimeMillis())
+                    debeReintentar = true
+                    ultimoMensaje = r.mensaje
+                }
             }
+        }
+
+        if (huboExito) {
+            syncMetadataDao.guardar(
+                SyncMetadataEntity(
+                    id = SyncMetadataEntity.FILA_UNICA,
+                    ultimaSincronizacionExitosa = System.currentTimeMillis(),
+                    ultimoIntento = System.currentTimeMillis(),
+                    ultimoErrorGeneral = if (debeReintentar) ultimoMensaje else null
+                )
+            )
+        } else {
+            registrarIntento(System.currentTimeMillis(), ultimoMensaje)
         }
 
         when {
@@ -120,8 +139,137 @@ class SyncRepository(
         }
     }
 
-    private suspend fun obtenerUuid(productoIdLocal: Long): String? =
-        productoDao.obtenerPorId(productoIdLocal)?.remoteId?.takeIf { it.isNotBlank() }
+    private suspend fun enviarOperacion(op: OperacionPendienteEntity): Envio {
+        return try {
+            when (op.operacion) {
+                TipoOperacionPendiente.CREAR_PEDIDO -> enviarPedido(op)
+                TipoOperacionPendiente.CREAR_MOVIMIENTO_INVENTARIO -> enviarMovimiento(op)
+                TipoOperacionPendiente.ACTUALIZAR_STOCK ->
+                    Envio.ErrorDefinitivo(
+                        "Operación legacy ACTUALIZAR_STOCK incompatible con movimientos de inventario."
+                    )
+                else -> Envio.ErrorDefinitivo("Operación no soportada: ${op.operacion}")
+            }
+        } catch (e: SocketTimeoutException) {
+            Envio.Reintentable("Timeout: ${e.message}")
+        } catch (e: IOException) {
+            Envio.Reintentable("Red: ${e.message}")
+        } catch (e: HttpException) {
+            clasificarHttp(e.code(), e.message())
+        } catch (e: Exception) {
+            Envio.Reintentable(e.message ?: "Error desconocido")
+        }
+    }
+
+    private suspend fun enviarPedido(op: OperacionPendienteEntity): Envio {
+        val api = pedidoApi ?: return Envio.Reintentable("PedidoApi no disponible")
+        val pedido = pedidoDao.obtenerPedidoPorId(op.entidadIdLocal)
+            ?: return Envio.ErrorDefinitivo("Pedido local ${op.entidadIdLocal} no existe")
+        val detalles = pedidoDao.obtenerDetallesPedido(pedido.id)
+        val direccion = pedidoDao.obtenerDireccionPedido(pedido.id)
+            ?: return Envio.ErrorDefinitivo("Dirección del pedido no existe")
+
+        val detallesRemotos = mutableListOf<PedidoDetalleRequest>()
+        for (d in detalles) {
+            val remoteProducto = productoDao.obtenerPorId(d.productoId)?.remoteId
+            if (remoteProducto.isNullOrBlank()) {
+                return Envio.Reintentable(
+                    "Falta remoteId del producto ${d.productoId} para sincronizar pedido."
+                )
+            }
+            detallesRemotos += PedidoDetalleRequest(
+                productoId = remoteProducto,
+                nombreProducto = d.nombreProducto,
+                precioUnitarioCentimos = d.precioUnitarioCentimos,
+                cantidad = d.cantidad,
+                subtotalCentimos = d.subtotalCentimos
+            )
+        }
+
+        // Reutiliza clientUuid / uuidOperacion (mismo valor).
+        val body = CrearPedidoRequest(
+            clientUuid = pedido.clientUuid,
+            totalCentimos = pedido.totalCentimos,
+            estado = pedido.estado,
+            detalles = detallesRemotos,
+            direccion = DireccionPedidoRequest(
+                departamento = direccion.departamento,
+                provincia = direccion.provincia,
+                distrito = direccion.distrito,
+                direccion = direccion.direccion,
+                telefono = direccion.telefono
+            )
+        )
+        val respuesta = api.crearPedido(body)
+        return clasificarRespuesta(respuesta.code(), respuesta.message()) {
+            // Éxito / duplicado idempotente.
+        }
+    }
+
+    private suspend fun enviarMovimiento(op: OperacionPendienteEntity): Envio {
+        val api = inventarioApi ?: return Envio.Reintentable("InventarioApi no disponible")
+        val json = JSONObject(op.payload)
+        val productoLocalId = json.getLong("productoIdLocal")
+        val tipo = json.getString("tipo")
+        val cantidad = json.getInt("cantidad")
+        val pedidoUuid = if (json.has("pedidoUuid") && !json.isNull("pedidoUuid")) {
+            json.getString("pedidoUuid")
+        } else {
+            null
+        }
+        val remoteProducto = productoDao.obtenerPorId(productoLocalId)?.remoteId
+        if (remoteProducto.isNullOrBlank()) {
+            return Envio.Reintentable(
+                "Falta remoteId del producto $productoLocalId para movimiento."
+            )
+        }
+        val body = MovimientoInventarioRequest(
+            uuidOperacion = op.uuidOperacion,
+            productoId = remoteProducto,
+            tipo = tipo,
+            cantidad = cantidad,
+            pedidoUuid = pedidoUuid
+        )
+        val respuesta = api.crearMovimiento(body)
+        return clasificarRespuesta(respuesta.code(), respuesta.message()) {}
+    }
+
+    private fun clasificarRespuesta(code: Int, message: String?, onOk: () -> Unit): Envio {
+        if (code in 200..299) {
+            onOk()
+            return Envio.Exito
+        }
+        return clasificarHttp(code, message)
+    }
+
+    private fun clasificarHttp(code: Int, message: String?): Envio = when (code) {
+        408, 429 -> Envio.Reintentable("HTTP $code: ${message.orEmpty()}")
+        in 500..599 -> Envio.Reintentable("HTTP $code servidor: ${message.orEmpty()}")
+        401 -> Envio.ErrorDefinitivo("HTTP 401: sesión inválida / auth necesaria")
+        403 -> Envio.ErrorDefinitivo("HTTP 403: permiso denegado")
+        404 -> Envio.ErrorDefinitivo("HTTP 404: recurso no encontrado")
+        409 -> Envio.ErrorDefinitivo("HTTP 409 conflicto: ${message.orEmpty()}")
+        in 400..499 -> Envio.ErrorDefinitivo("HTTP $code: ${message.orEmpty()}")
+        else -> Envio.Reintentable("HTTP $code: ${message.orEmpty()}")
+    }
+
+    private suspend fun registrarIntento(ahora: Long, error: String?) {
+        val actual = syncMetadataDao.obtener()
+        syncMetadataDao.guardar(
+            SyncMetadataEntity(
+                id = SyncMetadataEntity.FILA_UNICA,
+                ultimaSincronizacionExitosa = actual?.ultimaSincronizacionExitosa,
+                ultimoIntento = ahora,
+                ultimoErrorGeneral = error ?: actual?.ultimoErrorGeneral
+            )
+        )
+    }
+
+    private sealed class Envio {
+        data object Exito : Envio()
+        data class Reintentable(val mensaje: String) : Envio()
+        data class ErrorDefinitivo(val mensaje: String) : Envio()
+    }
 }
 
 sealed class ResultadoSincronizacion {

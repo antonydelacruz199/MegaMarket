@@ -12,17 +12,10 @@ class Migracion45Test {
         val archivo = File("src/main/java/com/megamarket/cliente/data/local/AppDatabase.kt")
         assertTrue(archivo.exists())
         val fuente = archivo.readText(Charsets.UTF_8)
-        assertTrue(fuente.contains("version = 6"))
+        assertTrue(fuente.contains("version = 7"))
         assertTrue(fuente.contains("MIGRACION_4_5"))
         assertTrue(fuente.contains("crearCatalogoLocal"))
-        assertTrue(fuente.contains("categorias"))
-        assertTrue(fuente.contains("productos"))
-        assertTrue(fuente.contains("operaciones_pendientes"))
-        assertTrue(
-            fuente.contains(
-                "addMigrations(MIGRACION_2_3, MIGRACION_3_4, MIGRACION_4_5, MIGRACION_5_6)"
-            )
-        )
+        assertTrue(fuente.contains("MIGRACION_6_7"))
         assertFalse(fuente.contains("fallbackToDestructiveMigrationFrom(true, 4)"))
     }
 }

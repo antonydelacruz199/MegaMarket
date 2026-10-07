@@ -1,6 +1,7 @@
 package com.megamarket.app.model
 
 import com.megamarket.app.model.estado.ProductoFormUiState
+import com.megamarket.modelo.PrecioDescuento
 import com.megamarket.modelo.Producto
 import java.math.RoundingMode
 
@@ -18,7 +19,7 @@ object ValidacionProducto {
         val precio = formulario.precio.aCentimos()
         val stock = formulario.stock.trim().toIntOrNull()
         val categoriaId = formulario.categoriaId
-        val oferta = formulario.precioOferta.aCentimos()
+        val descuento = formulario.descuentoPorcentaje.trim().toIntOrNull()
 
         val mensaje = when {
             nombre.isEmpty() -> "Ingresa el nombre del producto"
@@ -28,13 +29,25 @@ object ValidacionProducto {
             precio <= 0L -> "El precio debe ser mayor a 0"
             stock == null -> "El stock debe ser un número entero"
             stock < 0 -> "El stock no puede ser negativo"
-            formulario.esOferta && formulario.precioOferta.isBlank() -> "Ingresa el precio de oferta"
-            formulario.esOferta && oferta == null -> "Ingresa un precio de oferta válido"
-            formulario.esOferta && oferta != null && oferta <= 0L -> "El precio de oferta debe ser mayor a 0"
-            formulario.esOferta && oferta != null && oferta >= precio -> "La oferta debe ser menor al precio"
+            formulario.esOferta && formulario.descuentoPorcentaje.isBlank() ->
+                "Ingresa el porcentaje de descuento"
+            formulario.esOferta && descuento == null ->
+                "Ingresa un porcentaje de descuento válido"
+            formulario.esOferta && descuento != null && !PrecioDescuento.esDescuentoValido(descuento) ->
+                "El descuento debe estar entre 0 y 100"
+            formulario.esOferta && descuento != null && descuento == 0 ->
+                "El descuento debe ser mayor a 0 cuando hay oferta"
+            formulario.esOferta && descuento != null && descuento >= 100 ->
+                "El descuento debe ser menor a 100"
             else -> null
         }
         if (mensaje != null) return Resultado.Invalido(mensaje)
+
+        val descuentoFinal = if (formulario.esOferta) checkNotNull(descuento) else 0
+        val precioOferta = PrecioDescuento.precioOfertaDesdeDescuento(
+            checkNotNull(precio),
+            descuentoFinal
+        )
 
         return Resultado.Valido(
             Producto(
@@ -44,7 +57,8 @@ object ValidacionProducto {
                 descripcion = formulario.descripcion.trim(),
                 categoriaId = categoriaId,
                 precioCentimos = checkNotNull(precio),
-                precioOfertaCentimos = if (formulario.esOferta) oferta else null,
+                precioOfertaCentimos = precioOferta,
+                descuentoPorcentaje = descuentoFinal,
                 stock = checkNotNull(stock),
                 imagenKey = formulario.imagenVisibleKey,
                 esOferta = formulario.esOferta,

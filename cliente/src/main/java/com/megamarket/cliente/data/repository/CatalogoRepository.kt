@@ -10,6 +10,7 @@ import android.os.Handler
 import android.os.Looper
 import com.megamarket.cliente.data.local.ProductoProviderSnapshot
 import com.megamarket.cliente.data.local.dao.CategoriaDao
+import com.megamarket.cliente.data.local.dao.MovimientoInventarioDao
 import com.megamarket.cliente.data.local.dao.ProductoDao
 import com.megamarket.cliente.data.local.entities.CategoriaEntity
 import com.megamarket.cliente.data.mapper.aEntidad
@@ -47,6 +48,7 @@ class CatalogoRepository(
     private val resolver: ContentResolver,
     private val productoDao: ProductoDao,
     private val categoriaDao: CategoriaDao,
+    private val movimientoDao: MovimientoInventarioDao? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 ) {
     private val mutexImportacion = Mutex()
@@ -142,12 +144,15 @@ class CatalogoRepository(
             val categoriaLocal = resolverCategoriaIdLocal(dto.categoriaId, categorias) ?: continue
             val existente = productoDao.obtenerPorRemoteId(dto.id)
             if (existente != null) {
+                val pendienteStock = (movimientoDao?.contarPendientesDeProducto(existente.id) ?: 0) > 0
+                val remoto = dto.aEntidad(
+                    categoriaIdLocal = categoriaLocal,
+                    idLocal = existente.id,
+                    providerIdExistente = existente.providerId
+                )
+                // No pisar stock local si hay movimiento de inventario pendiente (RF11/conflictos).
                 productoDao.actualizar(
-                    dto.aEntidad(
-                        categoriaIdLocal = categoriaLocal,
-                        idLocal = existente.id,
-                        providerIdExistente = existente.providerId
-                    )
+                    if (pendienteStock) remoto.copy(stock = existente.stock) else remoto
                 )
             } else {
                 productoDao.insertar(

@@ -3,7 +3,9 @@ package com.megamarket.modelo
 /**
  * Producto de catálogo. [id] es la PK local Room (Long).
  * [remoteId] es el UUID de Neon; null hasta sincronizar con la API REST.
- * Android nunca genera UUID locales para mapear productos remotos existentes.
+ *
+ * Oferta (RF09): [descuentoPorcentaje] es la fuente principal del precio vigente.
+ * [precioOfertaCentimos] se conserva por compatibilidad con Neon y datos legacy.
  */
 data class Producto(
     val id: Long,
@@ -13,6 +15,7 @@ data class Producto(
     val categoriaId: Long,
     val precioCentimos: Long,
     val precioOfertaCentimos: Long? = null,
+    val descuentoPorcentaje: Int = 0,
     val stock: Int,
     val imagenKey: String,
     val esOferta: Boolean,
@@ -24,18 +27,31 @@ data class Producto(
 ) {
     val ofertaValida: Boolean
         get() {
-            val oferta = precioOfertaCentimos
-            return esOferta && oferta != null && oferta < precioCentimos
+            val descuento = descuentoEfectivo
+            return PrecioDescuento.esOfertaActiva(esOferta, descuento) &&
+                PrecioDescuento.precioConDescuentoCentimos(precioCentimos, descuento) < precioCentimos &&
+                PrecioDescuento.precioConDescuentoCentimos(precioCentimos, descuento) > 0L
+        }
+
+    /** % efectivo: campo explícito, o derivado de precioOferta legacy. */
+    val descuentoEfectivo: Int
+        get() = when {
+            descuentoPorcentaje in 1..100 -> descuentoPorcentaje
+            esOferta -> PrecioDescuento.descuentoDesdePrecioOferta(precioCentimos, precioOfertaCentimos)
+            else -> 0
         }
 
     val precioVigenteCentimos: Long
         get() {
-            val oferta = precioOfertaCentimos
-            return if (esOferta && oferta != null && oferta < precioCentimos) {
-                oferta
-            } else {
-                precioCentimos
+            if (!ofertaValida) return precioCentimos
+            // Fuente principal: descuentoPorcentaje explícito.
+            if (descuentoPorcentaje in 1..99) {
+                return PrecioDescuento.precioConDescuentoCentimos(precioCentimos, descuentoPorcentaje)
             }
+            // Legacy: conservar precioOfertaCentimos exacto si el % solo se derivó.
+            val oferta = precioOfertaCentimos
+            if (oferta != null && oferta > 0L && oferta < precioCentimos) return oferta
+            return PrecioDescuento.precioConDescuentoCentimos(precioCentimos, descuentoEfectivo)
         }
 
     val agotado: Boolean

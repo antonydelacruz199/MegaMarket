@@ -48,6 +48,7 @@ class ProductoMapperTest {
             categoriaId = 1,
             precioCentimos = 500,
             precioOfertaCentimos = null,
+            descuentoPorcentaje = 0,
             stock = 5,
             imagenKey = "",
             esOferta = false,

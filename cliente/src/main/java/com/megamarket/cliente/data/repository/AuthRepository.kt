@@ -3,6 +3,7 @@ package com.megamarket.cliente.data.repository
 import com.megamarket.cliente.data.local.dao.ClienteDao
 import com.megamarket.cliente.data.local.entities.ClienteEntity
 import com.megamarket.cliente.data.mapper.toModel
+import com.megamarket.cliente.data.session.SessionStore
 import com.megamarket.modelo.ClaveAcceso
 import com.megamarket.modelo.Usuario
 import kotlinx.coroutines.Dispatchers
@@ -11,8 +12,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 
+/**
+ * Login local temporal. AuthApi/SessionStore preparados para API real
+ * (no se finge auth remota mientras MEGAMARKET_API_BASE_URL esté vacía).
+ */
 class AuthRepository(
-    private val dao: ClienteDao
+    private val dao: ClienteDao,
+    private val sessionStore: SessionStore? = null
 ) {
     private val _usuario = MutableStateFlow<Usuario?>(null)
     val usuario: StateFlow<Usuario?> = _usuario.asStateFlow()
@@ -26,11 +32,15 @@ class AuthRepository(
             cuenta.toModel()
         }
         _usuario.value = cliente
+        if (cliente != null) {
+            sessionStore?.marcarSesionLocal(remoteUserId = cliente.id.toString(), rol = "CLIENTE")
+        }
         return cliente
     }
 
     fun cerrar() {
         _usuario.value = null
+        sessionStore?.cerrarSesionCompleta()
     }
 
     private suspend fun asegurarCuentaInicial() {

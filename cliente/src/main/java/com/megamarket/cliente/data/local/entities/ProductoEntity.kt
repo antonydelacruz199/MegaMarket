@@ -9,10 +9,8 @@ import androidx.room.PrimaryKey
 /**
  * Copia local del catálogo (offline-first).
  *
- * Identidades:
- * - [id]: PK local del cliente (autogenerada). Usada por UI, carrito, favoritos, pedidos, sync.
- * - [providerId]: PK temporal del administrador vía ContentProvider; null si solo viene de API.
- * - [remoteId]: UUID de Neon; null hasta sincronizar con la API REST.
+ * Identidades: id (PK cliente), providerId (admin temporal), remoteId (UUID Neon).
+ * Oferta: [descuentoPorcentaje] es fuente principal; precioOfertaCentimos compat.
  */
 @Entity(
     tableName = "productos",
@@ -41,6 +39,7 @@ data class ProductoEntity(
     val categoriaId: Long,
     val precioCentimos: Long,
     val precioOfertaCentimos: Long?,
+    @ColumnInfo(name = "descuento_porcentaje") val descuentoPorcentaje: Int = 0,
     val stock: Int,
     val imagenKey: String,
     val esOferta: Boolean,

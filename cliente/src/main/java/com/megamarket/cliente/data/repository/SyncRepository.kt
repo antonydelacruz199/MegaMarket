@@ -8,18 +8,20 @@ import com.megamarket.cliente.data.local.dao.SyncMetadataDao
 import com.megamarket.cliente.data.local.entities.OperacionPendienteEntity
 import com.megamarket.cliente.data.local.entities.SyncMetadataEntity
 import com.megamarket.cliente.data.remote.RetrofitProvider
+import com.megamarket.cliente.data.remote.api.CategoriaApi
 import com.megamarket.cliente.data.remote.api.InventarioApi
 import com.megamarket.cliente.data.remote.api.PedidoApi
+import com.megamarket.cliente.data.remote.api.ProductoApi
 import com.megamarket.cliente.data.remote.dto.CrearPedidoRequest
 import com.megamarket.cliente.data.remote.dto.DireccionPedidoRequest
 import com.megamarket.cliente.data.remote.dto.MovimientoInventarioRequest
 import com.megamarket.cliente.data.remote.dto.PedidoDetalleRequest
+import com.megamarket.cliente.data.session.SessionStore
 import com.megamarket.modelo.EstadoSincronizacion
 import com.megamarket.modelo.TipoOperacionPendiente
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import retrofit2.HttpException
@@ -28,8 +30,7 @@ import java.net.SocketTimeoutException
 
 /**
  * Cola + envío a API REST.
- * Conserva UUID de operación en retries. No marca éxito sin backend.
- * Orden futuro: pedidos → movimientos → pull.
+ * Orden: catálogo → pedidos → movimientos → pull final.
  */
 class SyncRepository(
     private val operacionDao: OperacionPendienteDao,
@@ -38,11 +39,19 @@ class SyncRepository(
     private val movimientoDao: MovimientoInventarioDao,
     private val syncMetadataDao: SyncMetadataDao,
     private val baseUrlApi: String,
+    private val catalogoRepository: CatalogoRepository? = null,
+    private val sessionStore: SessionStore? = null,
     private val remote: RetrofitProvider? = null
 ) {
     private val pedidoApi: PedidoApi? by lazy { remote?.pedidoApi ?: RetrofitProvider.crear(baseUrlApi)?.pedidoApi }
     private val inventarioApi: InventarioApi? by lazy {
         remote?.inventarioApi ?: RetrofitProvider.crear(baseUrlApi)?.inventarioApi
+    }
+    private val categoriaApi: CategoriaApi? by lazy {
+        remote?.categoriaApi ?: RetrofitProvider.crear(baseUrlApi)?.categoriaApi
+    }
+    private val productoApi: ProductoApi? by lazy {
+        remote?.productoApi ?: RetrofitProvider.crear(baseUrlApi)?.productoApi
     }
 
     data class ResumenSync(
@@ -75,24 +84,40 @@ class SyncRepository(
         )
         registrarIntento(ahora, null)
 
-        val pendientes = operacionDao.obtenerParaEnviar()
-            .filter { it.operacion != TipoOperacionPendiente.ACTUALIZAR_STOCK }
-        if (pendientes.isEmpty()) {
-            return@withContext ResultadoSincronizacion.SinTrabajo
-        }
-
-        if (baseUrlApi.isBlank() || (pedidoApi == null && inventarioApi == null)) {
+        if (baseUrlApi.isBlank() || remote == null) {
             registrarIntento(ahora, "API REST no configurada (MEGAMARKET_API_BASE_URL).")
             return@withContext ResultadoSincronizacion.Reintentar(
                 "Servidor no configurado. Las operaciones permanecen pendientes."
             )
         }
 
-        var huboExito = false
+        if (sessionStore?.accessToken.isNullOrBlank()) {
+            registrarIntento(ahora, "Sesión remota requerida (HTTP 401).")
+            return@withContext ResultadoSincronizacion.Reintentar("Autenticación requerida.")
+        }
+
+        when (val pullInicial = pullCatalogo()) {
+            is Envio.Reintentable -> {
+                registrarIntento(ahora, pullInicial.mensaje)
+                return@withContext ResultadoSincronizacion.Reintentar(pullInicial.mensaje)
+            }
+            is Envio.ErrorDefinitivo -> {
+                if (pullInicial.mensaje.contains("401")) {
+                    sessionStore?.marcarSesionInvalidaRemota()
+                }
+                registrarIntento(ahora, pullInicial.mensaje)
+                return@withContext ResultadoSincronizacion.Reintentar(pullInicial.mensaje)
+            }
+            else -> Unit
+        }
+
+        val pendientes = operacionDao.obtenerParaEnviar()
+            .filter { it.operacion != TipoOperacionPendiente.ACTUALIZAR_STOCK }
+
+        var huboExito = pendientes.isEmpty()
         var debeReintentar = false
         var ultimoMensaje: String? = null
 
-        // Pedidos primero, luego movimientos.
         val ordenadas = pendientes.sortedWith(
             compareBy(
                 { if (it.operacion == TipoOperacionPendiente.CREAR_PEDIDO) 0 else 1 },
@@ -108,6 +133,9 @@ class SyncRepository(
                     huboExito = true
                 }
                 is Envio.ErrorDefinitivo -> {
+                    if (r.mensaje.contains("401")) {
+                        sessionStore?.marcarSesionInvalidaRemota()
+                    }
                     operacionDao.marcarError(op.id, r.mensaje, System.currentTimeMillis())
                     ultimoMensaje = r.mensaje
                 }
@@ -118,6 +146,8 @@ class SyncRepository(
                 }
             }
         }
+
+        pullCatalogo()
 
         if (huboExito) {
             syncMetadataDao.guardar(
@@ -136,6 +166,39 @@ class SyncRepository(
             debeReintentar -> ResultadoSincronizacion.Reintentar(ultimoMensaje)
             huboExito -> ResultadoSincronizacion.Exito
             else -> ResultadoSincronizacion.SinTrabajo
+        }
+    }
+
+    private suspend fun pullCatalogo(): Envio {
+        val catalogo = catalogoRepository ?: return Envio.Exito
+        val catApi = categoriaApi ?: return Envio.Reintentable("CategoriaApi no disponible")
+        val prodApi = productoApi ?: return Envio.Reintentable("ProductoApi no disponible")
+        return try {
+            val cats = catApi.obtenerCategorias()
+            if (cats.code() == 401) {
+                return Envio.ErrorDefinitivo("HTTP 401: sesión inválida / auth necesaria")
+            }
+            if (!cats.isSuccessful) {
+                return clasificarHttp(cats.code(), cats.message())
+            }
+            val prods = prodApi.obtenerProductos()
+            if (prods.code() == 401) {
+                return Envio.ErrorDefinitivo("HTTP 401: sesión inválida / auth necesaria")
+            }
+            if (!prods.isSuccessful) {
+                return clasificarHttp(prods.code(), prods.message())
+            }
+            catalogo.sincronizarRemotoSiDisponible(
+                categoriasRemotas = cats.body().orEmpty(),
+                productosRemotos = prods.body().orEmpty()
+            )
+            Envio.Exito
+        } catch (e: SocketTimeoutException) {
+            Envio.Reintentable("Timeout: ${e.message}")
+        } catch (e: IOException) {
+            Envio.Reintentable("Red: ${e.message}")
+        } catch (e: Exception) {
+            Envio.Reintentable(e.message ?: "Error pull catálogo")
         }
     }
 
@@ -186,7 +249,6 @@ class SyncRepository(
             )
         }
 
-        // Reutiliza clientUuid / uuidOperacion (mismo valor).
         val body = CrearPedidoRequest(
             clientUuid = pedido.clientUuid,
             totalCentimos = pedido.totalCentimos,
@@ -201,9 +263,19 @@ class SyncRepository(
             )
         )
         val respuesta = api.crearPedido(body)
-        return clasificarRespuesta(respuesta.code(), respuesta.message()) {
-            // Éxito / duplicado idempotente.
+        if (respuesta.code() !in 200..299) {
+            return clasificarHttp(respuesta.code(), respuesta.message())
         }
+        respuesta.body()?.let { cuerpo ->
+            pedidoDao.actualizarPedido(
+                pedido.copy(
+                    remoteId = cuerpo.id,
+                    remoteVersion = cuerpo.version,
+                    estadoSync = EstadoSincronizacion.SINCRONIZADO
+                )
+            )
+        }
+        return Envio.Exito
     }
 
     private suspend fun enviarMovimiento(op: OperacionPendienteEntity): Envio {
@@ -231,15 +303,21 @@ class SyncRepository(
             pedidoUuid = pedidoUuid
         )
         val respuesta = api.crearMovimiento(body)
-        return clasificarRespuesta(respuesta.code(), respuesta.message()) {}
-    }
-
-    private fun clasificarRespuesta(code: Int, message: String?, onOk: () -> Unit): Envio {
-        if (code in 200..299) {
-            onOk()
-            return Envio.Exito
+        if (respuesta.code() !in 200..299) {
+            return clasificarHttp(respuesta.code(), respuesta.message())
         }
-        return clasificarHttp(code, message)
+        val mov = movimientoDao.obtenerPorUuid(op.uuidOperacion)
+        respuesta.body()?.let { cuerpo ->
+            if (mov != null) {
+                movimientoDao.actualizar(
+                    mov.copy(
+                        remoteId = cuerpo.id,
+                        remoteVersion = cuerpo.version
+                    )
+                )
+            }
+        }
+        return Envio.Exito
     }
 
     private fun clasificarHttp(code: Int, message: String?): Envio = when (code) {

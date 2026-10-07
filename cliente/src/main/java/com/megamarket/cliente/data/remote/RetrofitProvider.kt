@@ -6,15 +6,12 @@ import com.megamarket.cliente.data.remote.api.InventarioApi
 import com.megamarket.cliente.data.remote.api.PedidoApi
 import com.megamarket.cliente.data.remote.api.ProductoApi
 import com.megamarket.cliente.data.remote.api.StockApi
+import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
-/**
- * Una sola instancia Retrofit cuando hay BASE_URL.
- * Sin URL: null — no se finge conexión a Neon.
- */
 class RetrofitProvider private constructor(
     val productoApi: ProductoApi,
     val categoriaApi: CategoriaApi,
@@ -25,13 +22,36 @@ class RetrofitProvider private constructor(
     val stockApi: StockApi
 ) {
     companion object {
-        fun crear(baseUrl: String): RetrofitProvider? {
+        fun crear(
+            baseUrl: String,
+            tokenProvider: (() -> String?)? = null
+        ): RetrofitProvider? {
             val normalizada = baseUrl.trim()
             if (normalizada.isEmpty()) return null
             val conBarra = if (normalizada.endsWith("/")) normalizada else "$normalizada/"
+
+            val authInterceptor = Interceptor { cadena ->
+                val original = cadena.request()
+                val ruta = original.url.encodedPath
+                val esLogin = ruta.endsWith("/api/auth/login")
+                val token = if (!esLogin) tokenProvider?.invoke() else null
+                val request = if (!token.isNullOrBlank()) {
+                    original.newBuilder()
+                        .header("Authorization", "Bearer $token")
+                        .header("Accept", "application/json")
+                        .build()
+                } else {
+                    original.newBuilder()
+                        .header("Accept", "application/json")
+                        .build()
+                }
+                cadena.proceed(request)
+            }
+
             val cliente = OkHttpClient.Builder()
                 .connectTimeout(20, TimeUnit.SECONDS)
                 .readTimeout(20, TimeUnit.SECONDS)
+                .addInterceptor(authInterceptor)
                 .build()
             val retrofit = Retrofit.Builder()
                 .baseUrl(conBarra)

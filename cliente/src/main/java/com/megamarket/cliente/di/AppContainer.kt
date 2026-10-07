@@ -12,6 +12,7 @@ import com.megamarket.cliente.data.repository.FavoritosRepository
 import com.megamarket.cliente.data.repository.PedidoRepository
 import com.megamarket.cliente.data.repository.SyncRepository
 import com.megamarket.cliente.data.session.SessionStore
+import com.megamarket.cliente.worker.SyncWorker
 
 class AppContainer(context: Context) {
 
@@ -23,9 +24,10 @@ class AppContainer(context: Context) {
     val sessionStore = SessionStore(appContext)
     val connectivityObserver = ConnectivityObserver(appContext)
 
-    val remote = RetrofitProvider.crear(BuildConfig.API_BASE_URL)
-
-    val authRepository = AuthRepository(database.clienteDao(), sessionStore)
+    val remote = RetrofitProvider.crear(
+        baseUrl = BuildConfig.API_BASE_URL,
+        tokenProvider = { sessionStore.accessToken }
+    )
 
     val catalogoRepository = CatalogoRepository(
         resolver = appContext.contentResolver,
@@ -33,6 +35,29 @@ class AppContainer(context: Context) {
         categoriaDao = categoriaDao,
         movimientoDao = database.movimientoInventarioDao()
     ).also { it.iniciar() }
+
+    val syncRepository = SyncRepository(
+        operacionDao = database.operacionPendienteDao(),
+        productoDao = productoDao,
+        pedidoDao = database.pedidoDao(),
+        movimientoDao = database.movimientoInventarioDao(),
+        syncMetadataDao = database.syncMetadataDao(),
+        baseUrlApi = BuildConfig.API_BASE_URL,
+        catalogoRepository = catalogoRepository,
+        sessionStore = sessionStore,
+        remote = remote
+    )
+
+    val authRepository = AuthRepository(
+        dao = database.clienteDao(),
+        sessionStore = sessionStore,
+        authApi = remote?.authApi,
+        connectivity = connectivityObserver,
+        trasLoginExitoso = {
+            SyncWorker.programar(appContext)
+            syncRepository.sincronizarPendientes()
+        }
+    )
 
     val carritoRepository = CarritoRepository(
         database.carritoDao(),
@@ -42,16 +67,6 @@ class AppContainer(context: Context) {
     val favoritosRepository = FavoritosRepository(
         database.favoritoDao(),
         catalogoRepository
-    )
-
-    val syncRepository = SyncRepository(
-        operacionDao = database.operacionPendienteDao(),
-        productoDao = productoDao,
-        pedidoDao = database.pedidoDao(),
-        movimientoDao = database.movimientoInventarioDao(),
-        syncMetadataDao = database.syncMetadataDao(),
-        baseUrlApi = BuildConfig.API_BASE_URL,
-        remote = remote
     )
 
     val pedidoRepository = PedidoRepository(

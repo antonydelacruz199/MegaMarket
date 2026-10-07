@@ -3,6 +3,7 @@ package com.megamarket.app.data.local.dao
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Update
 import com.megamarket.app.data.local.entities.AdministradorEntity
 
 @Dao
@@ -15,4 +16,7 @@ interface AdministradorDao {
 
     @Insert
     suspend fun insertar(entidad: AdministradorEntity): Long
+
+    @Update
+    suspend fun actualizar(entidad: AdministradorEntity): Int
 }

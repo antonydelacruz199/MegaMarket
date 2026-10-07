@@ -14,6 +14,7 @@ data class ProductoDto(
     @SerializedName("categoria_id") val categoriaId: String,
     @SerializedName("precio_centimos") val precioCentimos: Long,
     @SerializedName("precio_oferta_centimos") val precioOfertaCentimos: Long? = null,
+    @SerializedName("descuento_porcentaje") val descuentoPorcentaje: Int = 0,
     val stock: Int,
     @SerializedName("imagen_key") val imagenKey: String,
     @SerializedName("es_oferta") val esOferta: Boolean,

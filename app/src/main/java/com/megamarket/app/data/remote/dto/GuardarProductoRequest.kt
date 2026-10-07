@@ -16,5 +16,6 @@ data class GuardarProductoRequest(
     @SerializedName("es_oferta") val esOferta: Boolean,
     @SerializedName("imagen_key") val imagenKey: String,
     val activo: Boolean,
-    val stock: Int? = null
+    val stock: Int? = null,
+    val version: Long? = null
 )

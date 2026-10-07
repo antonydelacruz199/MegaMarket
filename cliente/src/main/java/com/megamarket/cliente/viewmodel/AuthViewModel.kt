@@ -45,7 +45,9 @@ class AuthViewModel(
     }
 
     fun cerrarSesion() {
-        repositorio.cerrar()
-        _estado.value = AuthUiState()
+        viewModelScope.launch {
+            repositorio.cerrar()
+            _estado.value = AuthUiState()
+        }
     }
 }

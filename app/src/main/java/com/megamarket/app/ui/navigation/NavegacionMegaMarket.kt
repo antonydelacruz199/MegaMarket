@@ -31,6 +31,7 @@ fun NavegacionMegaMarket(
 ) {
     val aplicacion = LocalContext.current.applicationContext as MegaMarketApplication
     val fabrica = remember(aplicacion) { ViewModelFactory(aplicacion.container) }
+    val authViewModel: AuthViewModel = viewModel(factory = fabrica)
 
     NavHost(
         navController = controlador,
@@ -47,8 +48,7 @@ fun NavegacionMegaMarket(
         }
 
         composable(Ruta.Sesion.ruta) {
-            val viewModel: AuthViewModel = viewModel(factory = fabrica)
-            val estado by viewModel.estado.collectAsStateWithLifecycle()
+            val estado by authViewModel.estado.collectAsStateWithLifecycle()
 
             LaunchedEffect(estado.usuario) {
                 if (estado.usuario != null) {
@@ -61,7 +61,7 @@ fun NavegacionMegaMarket(
             PantallaSesion(
                 cargando = estado.cargando,
                 error = estado.error,
-                alIngresar = viewModel::ingresar
+                alIngresar = authViewModel::ingresar
             )
         }
 
@@ -70,7 +70,10 @@ fun NavegacionMegaMarket(
                 viewModel = viewModel<ProductoViewModel>(factory = fabrica),
                 syncViewModel = viewModel<SyncViewModel>(factory = fabrica),
                 alNavegar = { ruta -> controlador.navegarAdmin(ruta) },
-                alCerrarSesion = { controlador.cerrarSesion() }
+                alCerrarSesion = {
+                    authViewModel.cerrarSesion()
+                    controlador.cerrarSesion()
+                }
             )
         }
 
@@ -78,7 +81,10 @@ fun NavegacionMegaMarket(
             PantallaProductosAdmin(
                 viewModel = viewModel<ProductoViewModel>(factory = fabrica),
                 alNavegar = { ruta -> controlador.navegarAdmin(ruta) },
-                alCerrarSesion = { controlador.cerrarSesion() }
+                alCerrarSesion = {
+                    authViewModel.cerrarSesion()
+                    controlador.cerrarSesion()
+                }
             )
         }
 

@@ -75,7 +75,10 @@ fun ProductoDto.aEntidad(
     idLocal: Long = 0,
     providerIdExistente: Long? = null
 ): ProductoEntity {
-    val descuento = PrecioDescuento.descuentoDesdePrecioOferta(precioCentimos, precioOfertaCentimos)
+    val descuento = when {
+        descuentoPorcentaje > 0 -> descuentoPorcentaje
+        else -> PrecioDescuento.descuentoDesdePrecioOferta(precioCentimos, precioOfertaCentimos)
+    }
     return ProductoEntity(
         id = idLocal,
         providerId = providerIdExistente,

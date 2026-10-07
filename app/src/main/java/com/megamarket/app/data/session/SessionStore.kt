@@ -38,6 +38,42 @@ class SessionStore(contexto: Context) {
         get() = prefs.getBoolean(KEY_AUTH_PREVIA, false)
         set(value) = prefs.edit().putBoolean(KEY_AUTH_PREVIA, value).apply()
 
+    var expiresAtEpochMs: Long
+        get() = prefs.getLong(KEY_EXPIRES, 0L)
+        set(value) = prefs.edit().putLong(KEY_EXPIRES, value).apply()
+
+    var usuarioLocal: String?
+        get() = prefs.getString(KEY_USUARIO, null)
+        set(value) = prefs.edit().putString(KEY_USUARIO, value).apply()
+
+    fun sesionRemotaValida(ahora: Long = System.currentTimeMillis()): Boolean {
+        val token = accessToken
+        if (token.isNullOrBlank() || !autenticadoPreviamente) return false
+        if (expiresAtEpochMs <= 0L) return true
+        return ahora < expiresAtEpochMs
+    }
+
+    fun marcarSesionRemota(
+        accessToken: String,
+        expiresAtEpochMs: Long?,
+        remoteUserId: String,
+        rol: String,
+        usuario: String
+    ) {
+        this.accessToken = accessToken
+        this.expiresAtEpochMs = expiresAtEpochMs ?: 0L
+        this.remoteUserId = remoteUserId
+        this.rol = rol
+        this.usuarioLocal = usuario
+        fechaAutenticacion = System.currentTimeMillis()
+        autenticadoPreviamente = true
+    }
+
+    fun marcarSesionInvalidaRemota() {
+        limpiarTokens()
+        expiresAtEpochMs = 0L
+    }
+
     fun marcarSesionLocal(remoteUserId: String?, rol: String?) {
         this.remoteUserId = remoteUserId
         this.rol = rol
@@ -54,6 +90,9 @@ class SessionStore(contexto: Context) {
         limpiarTokens()
         remoteUserId = null
         rol = null
+        usuarioLocal = null
+        expiresAtEpochMs = 0L
+        autenticadoPreviamente = false
     }
 
     private fun guardarCifrado(clave: String, valor: String?) {
@@ -114,6 +153,8 @@ class SessionStore(contexto: Context) {
         private const val KEY_ROL = "rol"
         private const val KEY_FECHA_AUTH = "fecha_auth"
         private const val KEY_AUTH_PREVIA = "auth_previa"
+        private const val KEY_EXPIRES = "expires_at"
+        private const val KEY_USUARIO = "usuario_local"
         private const val SUF_IV = "_iv"
         private const val ANDROID_KEYSTORE = "AndroidKeyStore"
         private const val ALIAS = "megamarket_admin_session_key"

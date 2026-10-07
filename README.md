@@ -2,6 +2,16 @@
 
 > Este archivo es la fuente de verdad del proyecto. Cursor debe leerlo antes de crear, modificar o refactorizar código.
 
+## Backend REST (integración remota)
+
+- **API:** proyecto hermano `MegaMarket-API` (Laravel + Sanctum + Neon).
+- **Base URL emulador:** en `local.properties` (no versionar):
+  `MEGAMARKET_API_BASE_URL=http://10.0.2.2:8000/`
+- **Auth:** login remoto Bearer; offline solo con sesión previa válida (token/expiración + perfil Room). No guardar contraseña en texto plano.
+- **Datos:** Room sigue siendo fuente de la UI. Sync/WorkManager usa Retrofit → API. Catálogo se descarga tras login/sync.
+- **Roles:** Cliente (`CLIENTE`) y Admin (`ADMINISTRADOR`) validados en backend.
+- **Arquitectura:** UI → ViewModel → Repository → DAO/API. Worker → SyncRepository.
+
 ## 1. Identificación del proyecto
 
 - **Nombre comercial:** MegaMarket Express

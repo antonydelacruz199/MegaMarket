@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Update
 import com.megamarket.cliente.data.local.entities.DireccionEntity
 import com.megamarket.cliente.data.local.entities.PedidoDetalleEntity
 import com.megamarket.cliente.data.local.entities.PedidoEntity
@@ -18,6 +19,9 @@ interface PedidoDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertarDireccion(direccion: DireccionEntity): Long
+
+    @Update
+    suspend fun actualizarPedido(pedido: PedidoEntity): Int
 
     @Query("SELECT * FROM pedidos WHERE id = :pedidoId LIMIT 1")
     suspend fun obtenerPedidoPorId(pedidoId: Long): PedidoEntity?

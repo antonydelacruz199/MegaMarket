@@ -39,4 +39,11 @@ class AuthViewModel(
             }
         }
     }
+
+    fun cerrarSesion() {
+        viewModelScope.launch {
+            repositorio.cerrar()
+            _estado.value = AuthUiState()
+        }
+    }
 }

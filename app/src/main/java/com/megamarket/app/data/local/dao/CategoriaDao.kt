@@ -37,6 +37,9 @@ interface CategoriaDao {
     @Query("SELECT * FROM categorias WHERE remote_id = :remoteId LIMIT 1")
     suspend fun obtenerPorRemoteId(remoteId: String): CategoriaEntity?
 
+    @Query("SELECT * FROM categorias WHERE nombre = :nombre COLLATE NOCASE LIMIT 1")
+    suspend fun obtenerPorNombre(nombre: String): CategoriaEntity?
+
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertar(entidad: CategoriaEntity): Long
 

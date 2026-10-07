@@ -1,10 +1,17 @@
 package com.megamarket.app.data.remote.dto
 
-import com.google.gson.annotations.SerializedName
-
 data class LoginResponse(
-    @SerializedName("access_token") val accessToken: String,
-    @SerializedName("refresh_token") val refreshToken: String? = null,
-    @SerializedName("user_id") val userId: String? = null,
-    val rol: String? = null
+    val accessToken: String,
+    val tokenType: String? = "Bearer",
+    val expiresAt: String? = null,
+    val usuario: UsuarioRemotoDto
+)
+
+data class UsuarioRemotoDto(
+    val id: String,
+    val nombre: String,
+    val usuario: String,
+    val correo: String? = null,
+    val rol: String,
+    val version: Long? = null
 )

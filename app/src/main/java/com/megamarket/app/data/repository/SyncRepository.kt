@@ -5,14 +5,17 @@ import com.megamarket.app.data.local.dao.MovimientoInventarioDao
 import com.megamarket.app.data.local.dao.OperacionPendienteDao
 import com.megamarket.app.data.local.dao.ProductoDao
 import com.megamarket.app.data.local.dao.SyncMetadataDao
+import com.megamarket.app.data.local.entities.CategoriaEntity
 import com.megamarket.app.data.local.entities.OperacionPendienteEntity
 import com.megamarket.app.data.local.entities.ProductoEntity
 import com.megamarket.app.data.local.entities.SyncMetadataEntity
 import com.megamarket.app.data.remote.RetrofitProvider
+import com.megamarket.app.data.remote.api.CategoriaApi
 import com.megamarket.app.data.remote.api.InventarioApi
 import com.megamarket.app.data.remote.api.ProductoApi
 import com.megamarket.app.data.remote.dto.GuardarProductoRequest
 import com.megamarket.app.data.remote.dto.MovimientoInventarioRequest
+import com.megamarket.app.data.session.SessionStore
 import com.megamarket.modelo.PrecioDescuento
 import com.megamarket.modelo.TipoOperacionPendiente
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +33,7 @@ class SyncRepository(
     private val categoriaDao: CategoriaDao,
     private val movimientoDao: MovimientoInventarioDao,
     private val syncMetadataDao: SyncMetadataDao,
+    private val sessionStore: SessionStore,
     private val baseUrlApi: String,
     private val remote: RetrofitProvider? = null
 ) {
@@ -38,6 +42,9 @@ class SyncRepository(
     }
     private val inventarioApi: InventarioApi? by lazy {
         remote?.inventarioApi ?: RetrofitProvider.crear(baseUrlApi)?.inventarioApi
+    }
+    private val categoriaApi: CategoriaApi? by lazy {
+        remote?.categoriaApi ?: RetrofitProvider.crear(baseUrlApi)?.categoriaApi
     }
 
     data class ResumenSync(
@@ -66,15 +73,40 @@ class SyncRepository(
         registrarIntento(ahora, null)
 
         val pendientes = operacionDao.obtenerParaEnviar()
-        if (pendientes.isEmpty()) {
-            return@withContext ResultadoSincronizacion.SinTrabajo
-        }
-
         if (baseUrlApi.isBlank() || productoApi == null) {
             registrarIntento(ahora, "API REST no configurada (MEGAMARKET_API_BASE_URL).")
             return@withContext ResultadoSincronizacion.Reintentar(
                 "Servidor no configurado. Las operaciones permanecen pendientes."
             )
+        }
+        if (sessionStore.accessToken.isNullOrBlank()) {
+            registrarIntento(ahora, "Sesión remota requerida (HTTP 401).")
+            return@withContext ResultadoSincronizacion.Reintentar("Autenticación requerida.")
+        }
+
+        when (val pull = pullCategorias()) {
+            is Envio.Reintentable -> {
+                registrarIntento(ahora, pull.mensaje)
+                return@withContext ResultadoSincronizacion.Reintentar(pull.mensaje)
+            }
+            is Envio.ErrorDefinitivo -> {
+                if (pull.mensaje.contains("401")) sessionStore.marcarSesionInvalidaRemota()
+                registrarIntento(ahora, pull.mensaje)
+                return@withContext ResultadoSincronizacion.Reintentar(pull.mensaje)
+            }
+            else -> Unit
+        }
+
+        if (pendientes.isEmpty()) {
+            syncMetadataDao.guardar(
+                SyncMetadataEntity(
+                    id = SyncMetadataEntity.FILA_UNICA,
+                    ultimaSincronizacionExitosa = System.currentTimeMillis(),
+                    ultimoIntento = System.currentTimeMillis(),
+                    ultimoErrorGeneral = null
+                )
+            )
+            return@withContext ResultadoSincronizacion.Exito
         }
 
         var huboExito = false
@@ -96,6 +128,7 @@ class SyncRepository(
                     huboExito = true
                 }
                 is Envio.ErrorDefinitivo -> {
+                    if (r.mensaje.contains("401")) sessionStore.marcarSesionInvalidaRemota()
                     operacionDao.marcarError(op.id, r.mensaje, System.currentTimeMillis())
                     ultimoMensaje = r.mensaje
                 }
@@ -133,6 +166,52 @@ class SyncRepository(
         TipoOperacionPendiente.ELIMINAR_PRODUCTO -> 2
         TipoOperacionPendiente.CREAR_MOVIMIENTO_INVENTARIO -> 3
         else -> 9
+    }
+
+    private suspend fun pullCategorias(): Envio {
+        val api = categoriaApi ?: return Envio.Reintentable("CategoriaApi no disponible")
+        return try {
+            val respuesta = api.obtenerCategorias()
+            if (respuesta.code() == 401) {
+                return Envio.ErrorDefinitivo("HTTP 401: sesión inválida / auth necesaria")
+            }
+            if (!respuesta.isSuccessful) {
+                return clasificarHttp(respuesta.code(), respuesta.message())
+            }
+            for (dto in respuesta.body().orEmpty()) {
+                val porRemote = categoriaDao.obtenerPorRemoteId(dto.id)
+                val porNombre = categoriaDao.obtenerPorNombre(dto.nombre)
+                val base = porRemote ?: porNombre
+                if (base != null) {
+                    categoriaDao.actualizar(
+                        base.copy(
+                            remoteId = dto.id,
+                            nombre = dto.nombre,
+                            remoteVersion = dto.version,
+                            remoteUpdatedAt = dto.updatedAt,
+                            remoteDeletedAt = dto.deletedAt
+                        )
+                    )
+                } else {
+                    categoriaDao.insertar(
+                        CategoriaEntity(
+                            remoteId = dto.id,
+                            nombre = dto.nombre,
+                            remoteVersion = dto.version,
+                            remoteUpdatedAt = dto.updatedAt,
+                            remoteDeletedAt = dto.deletedAt
+                        )
+                    )
+                }
+            }
+            Envio.Exito
+        } catch (e: SocketTimeoutException) {
+            Envio.Reintentable("Timeout: ${e.message}")
+        } catch (e: IOException) {
+            Envio.Reintentable("Red: ${e.message}")
+        } catch (e: Exception) {
+            Envio.Reintentable(e.message ?: "Error pull categorías")
+        }
     }
 
     private suspend fun enviarOperacion(op: OperacionPendienteEntity): Envio {
@@ -184,6 +263,9 @@ class SyncRepository(
         val producto = cargarProducto(op) ?: return Envio.ErrorDefinitivo("Producto local no existe")
         val remoteId = producto.remoteId
             ?: return Envio.Reintentable("Falta remoteId del producto ${producto.id}")
+        if (producto.remoteVersion == null) {
+            return Envio.Reintentable("Falta remoteVersion del producto ${producto.id}")
+        }
         val categoriaRemota = categoriaDao.obtenerPorId(producto.categoriaId)?.remoteId
         if (categoriaRemota.isNullOrBlank()) {
             return Envio.Reintentable("Falta remoteId de categoría ${producto.categoriaId}")
@@ -209,8 +291,15 @@ class SyncRepository(
         val producto = cargarProducto(op) ?: return Envio.ErrorDefinitivo("Producto local no existe")
         val remoteId = producto.remoteId
             ?: return Envio.ErrorDefinitivo("Falta remoteId para eliminar producto ${producto.id}")
-        val respuesta = api.eliminar(remoteId)
-        return clasificarRespuesta(respuesta.code(), respuesta.message()) {}
+        val respuesta = api.eliminar(
+            remoteId = remoteId,
+            clientUuid = op.uuidOperacion,
+            version = producto.remoteVersion
+        )
+        if (respuesta.code() !in 200..299) {
+            return clasificarHttp(respuesta.code(), respuesta.message())
+        }
+        return Envio.Exito
     }
 
     private suspend fun enviarMovimiento(op: OperacionPendienteEntity): Envio {
@@ -233,7 +322,21 @@ class SyncRepository(
             pedidoUuid = null
         )
         val respuesta = api.crearMovimiento(body)
-        return clasificarRespuesta(respuesta.code(), respuesta.message()) {}
+        if (respuesta.code() !in 200..299) {
+            return clasificarHttp(respuesta.code(), respuesta.message())
+        }
+        val mov = movimientoDao.obtenerPorUuid(op.uuidOperacion)
+        respuesta.body()?.let { cuerpo ->
+            if (mov != null) {
+                movimientoDao.actualizar(
+                    mov.copy(
+                        remoteId = cuerpo.id,
+                        remoteVersion = cuerpo.version
+                    )
+                )
+            }
+        }
+        return Envio.Exito
     }
 
     private suspend fun cargarProducto(op: OperacionPendienteEntity): ProductoEntity? {
@@ -260,16 +363,9 @@ class SyncRepository(
             esOferta = producto.esOferta && PrecioDescuento.esOfertaActiva(producto.esOferta, descuento),
             imagenKey = producto.imagenKey,
             activo = producto.activo,
-            stock = if (incluirStock) producto.stock else null
+            stock = if (incluirStock) producto.stock else null,
+            version = producto.remoteVersion
         )
-    }
-
-    private fun clasificarRespuesta(code: Int, message: String?, onOk: () -> Unit): Envio {
-        if (code in 200..299) {
-            onOk()
-            return Envio.Exito
-        }
-        return clasificarHttp(code, message)
     }
 
     private fun clasificarHttp(code: Int, message: String?): Envio = when (code) {

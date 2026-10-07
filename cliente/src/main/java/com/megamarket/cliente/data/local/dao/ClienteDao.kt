@@ -3,6 +3,7 @@ package com.megamarket.cliente.data.local.dao
 import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
+import androidx.room.Update
 import com.megamarket.cliente.data.local.entities.ClienteEntity
 
 @Dao
@@ -15,4 +16,7 @@ interface ClienteDao {
 
     @Insert
     suspend fun insertar(entidad: ClienteEntity): Long
+
+    @Update
+    suspend fun actualizar(entidad: ClienteEntity): Int
 }

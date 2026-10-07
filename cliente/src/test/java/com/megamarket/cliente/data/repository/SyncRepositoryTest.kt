@@ -125,6 +125,7 @@ class SyncRepositoryTest {
         override suspend fun insertarPedido(pedido: PedidoEntity) = 1L
         override suspend fun insertarDetalles(detalles: List<PedidoDetalleEntity>) = Unit
         override suspend fun insertarDireccion(direccion: DireccionEntity) = 1L
+        override suspend fun actualizarPedido(pedido: PedidoEntity) = 1
         override suspend fun obtenerPedidoPorId(pedidoId: Long): PedidoEntity? = null
         override suspend fun obtenerDetallesPedido(pedidoId: Long) = emptyList<PedidoDetalleEntity>()
         override suspend fun obtenerDireccionPedido(pedidoId: Long): DireccionEntity? = null
@@ -132,6 +133,7 @@ class SyncRepositoryTest {
 
     private class FakeMovimientoDao : MovimientoInventarioDao {
         override suspend fun insertar(entidad: MovimientoInventarioEntity) = 1L
+        override suspend fun actualizar(entidad: MovimientoInventarioEntity) = 1
         override suspend fun obtenerPorUuid(uuid: String) = null
         override suspend fun contarPendientesDeProducto(productoId: Long) = 0
     }

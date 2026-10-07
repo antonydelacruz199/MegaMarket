@@ -20,11 +20,10 @@ class AppContainer(context: Context) {
 
     val sessionStore = SessionStore(appContext)
     val connectivityObserver = ConnectivityObserver(appContext)
-    val remote = RetrofitProvider.crear(BuildConfig.API_BASE_URL)
-
-    val authRepository = AuthRepository(database.administradorDao())
-
-    val categoriaRepository = CategoriaRepository(database.categoriaDao())
+    val remote = RetrofitProvider.crear(
+        baseUrl = BuildConfig.API_BASE_URL,
+        tokenProvider = { sessionStore.accessToken }
+    )
 
     val syncRepository = SyncRepository(
         operacionDao = database.operacionPendienteDao(),
@@ -32,9 +31,23 @@ class AppContainer(context: Context) {
         categoriaDao = database.categoriaDao(),
         movimientoDao = database.movimientoInventarioDao(),
         syncMetadataDao = database.syncMetadataDao(),
+        sessionStore = sessionStore,
         baseUrlApi = BuildConfig.API_BASE_URL,
         remote = remote
     )
+
+    val authRepository = AuthRepository(
+        dao = database.administradorDao(),
+        sessionStore = sessionStore,
+        authApi = remote?.authApi,
+        connectivity = connectivityObserver,
+        trasLoginExitoso = {
+            SyncWorker.programar(appContext)
+            syncRepository.sincronizarPendientes()
+        }
+    )
+
+    val categoriaRepository = CategoriaRepository(database.categoriaDao())
 
     val productoRepository = ProductoRepository(
         database = database,

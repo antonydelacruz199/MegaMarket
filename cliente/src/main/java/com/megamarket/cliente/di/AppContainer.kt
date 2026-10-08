@@ -54,8 +54,8 @@ class AppContainer(context: Context) {
         authApi = remote?.authApi,
         connectivity = connectivityObserver,
         trasLoginExitoso = {
-            SyncWorker.programar(appContext)
-            syncRepository.sincronizarPendientes()
+            // Solo programa sync en background; no bloquear ni tumbar el login.
+            SyncWorker.sincronizarAhora(appContext)
         }
     )
 

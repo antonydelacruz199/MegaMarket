@@ -46,7 +46,7 @@ class AuthRepository(
         }
         _usuario.value = resultado
         if (resultado != null) {
-            trasLoginExitoso?.invoke()
+            runCatching { trasLoginExitoso?.invoke() }
         }
         return resultado
     }
@@ -71,10 +71,12 @@ class AuthRepository(
                 )
             )
         } catch (_: Exception) {
+            // Sin API alcanzable: offline solo si ya hubo sesión remota previa.
             return autenticarOffline(usuarioTrim)
         }
 
         if (!respuesta.isSuccessful) {
+            // 401/credenciales: no caer a offline con contraseña local.
             return null
         }
         val cuerpo = respuesta.body() ?: return null

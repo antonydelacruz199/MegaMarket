@@ -33,7 +33,7 @@ class AuthRepository(
             autenticarOffline(usuarioTrim)
         }
         if (usuario != null) {
-            trasLoginExitoso?.invoke()
+            runCatching { trasLoginExitoso?.invoke() }
         }
         usuario
     }

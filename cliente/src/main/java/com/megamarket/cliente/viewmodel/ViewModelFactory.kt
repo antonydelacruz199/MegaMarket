@@ -13,10 +13,10 @@ class ViewModelFactory(
 
     override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
         val modelo: ViewModel = when {
-            modelClass.isAssignableFrom(AuthViewModel::class.java) ->
-                AuthViewModel(container.authRepository)
-            modelClass.isAssignableFrom(HomeViewModel::class.java) ->
-                HomeViewModel(container.catalogoRepository)
+            modelClass.isAssignableFrom(SesionViewModel::class.java) ->
+                SesionViewModel(container.sesionRepository)
+            modelClass.isAssignableFrom(InicioViewModel::class.java) ->
+                InicioViewModel(container.catalogoRepository)
             modelClass.isAssignableFrom(CatalogoViewModel::class.java) ->
                 CatalogoViewModel(container.catalogoRepository, soloOfertas)
             modelClass.isAssignableFrom(DetalleProductoViewModel::class.java) ->
@@ -31,17 +31,13 @@ class ViewModelFactory(
             modelClass.isAssignableFrom(CarritoViewModel::class.java) ->
                 CarritoViewModel(container.carritoRepository, container.catalogoRepository)
             modelClass.isAssignableFrom(CheckoutViewModel::class.java) ->
-                CheckoutViewModel(container.authRepository, container.pedidoRepository)
+                CheckoutViewModel(container.sesionRepository, container.pedidoRepository)
             modelClass.isAssignableFrom(ConfirmacionViewModel::class.java) ->
                 ConfirmacionViewModel(extras.createSavedStateHandle(), container.pedidoRepository)
             modelClass.isAssignableFrom(PerfilViewModel::class.java) ->
-                PerfilViewModel(container.authRepository)
-            modelClass.isAssignableFrom(SyncViewModel::class.java) ->
-                SyncViewModel(
-                    container.appContext,
-                    container.syncRepository,
-                    container.connectivityObserver
-                )
+                PerfilViewModel(container.sesionRepository)
+            modelClass.isAssignableFrom(SincronizacionViewModel::class.java) ->
+                SincronizacionViewModel(container.sincronizacionRepository)
             else -> throw IllegalArgumentException("ViewModel no registrado: ${modelClass.name}")
         }
         @Suppress("UNCHECKED_CAST")

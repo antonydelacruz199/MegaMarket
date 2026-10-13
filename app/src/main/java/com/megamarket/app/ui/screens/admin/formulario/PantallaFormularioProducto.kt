@@ -58,7 +58,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.megamarket.app.model.estado.ProductoFormUiState
+import com.megamarket.app.state.FormularioProductoUiState
 import androidx.compose.ui.res.stringResource
 import com.megamarket.modelo.Categoria
 import com.megamarket.app.R
@@ -67,11 +67,11 @@ import com.megamarket.app.ui.components.EstadoVacio
 import com.megamarket.app.ui.components.ImagenProducto
 import com.megamarket.app.ui.theme.MegaContenedorSecundario
 import com.megamarket.app.ui.theme.MegaSecundario
-import com.megamarket.app.viewmodel.ProductoFormViewModel
+import com.megamarket.app.viewmodel.FormularioProductoViewModel
 
 @Composable
 fun PantallaFormularioProducto(
-    viewModel: ProductoFormViewModel,
+    viewModel: FormularioProductoViewModel,
     alVolver: () -> Unit
 ) {
     val estado by viewModel.estado.collectAsStateWithLifecycle()
@@ -137,8 +137,8 @@ fun PantallaFormularioProducto(
 
 @Composable
 private fun ContenidoFormulario(
-    estado: ProductoFormUiState,
-    viewModel: ProductoFormViewModel,
+    estado: FormularioProductoUiState,
+    viewModel: FormularioProductoViewModel,
     alElegirImagen: () -> Unit,
     modifier: Modifier = Modifier
 ) {

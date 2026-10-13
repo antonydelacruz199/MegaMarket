@@ -4,27 +4,27 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
-import com.megamarket.app.data.local.entities.ProductoEntity
+import com.megamarket.app.data.local.Producto
 
 @Dao
 interface ProductoDao {
     @Query("SELECT * FROM productos WHERE trim(nombre) != '' ORDER BY nombre COLLATE NOCASE")
-    fun obtenerTodos(): List<ProductoEntity>
+    fun obtenerTodos(): List<Producto>
 
     @Query("SELECT * FROM productos WHERE activo = 1 AND trim(nombre) != '' ORDER BY nombre COLLATE NOCASE")
-    fun obtenerActivos(): List<ProductoEntity>
+    fun obtenerActivos(): List<Producto>
 
     @Query("SELECT * FROM productos WHERE id = :id LIMIT 1")
-    fun obtenerPorId(id: Long): ProductoEntity?
+    fun obtenerPorId(id: Long): Producto?
 
     @Query("SELECT * FROM productos WHERE remote_id = :remoteId LIMIT 1")
-    fun obtenerPorRemoteId(remoteId: String): ProductoEntity?
+    fun obtenerPorRemoteId(remoteId: String): Producto?
 
     @Insert
-    suspend fun insertar(entidad: ProductoEntity): Long
+    suspend fun insertar(entidad: Producto): Long
 
     @Update
-    suspend fun actualizar(entidad: ProductoEntity): Int
+    suspend fun actualizarProducto(entidad: Producto): Int
 
     @Query("DELETE FROM productos WHERE trim(nombre) = ''")
     suspend fun eliminarSinDatos()

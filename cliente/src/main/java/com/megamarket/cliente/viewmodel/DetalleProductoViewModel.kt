@@ -7,7 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.megamarket.cliente.data.repository.CarritoRepository
 import com.megamarket.cliente.data.repository.CatalogoRepository
 import com.megamarket.cliente.data.repository.FavoritosRepository
-import com.megamarket.cliente.model.estado.DetalleProductoUiState
+import com.megamarket.cliente.state.DetalleProductoUiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -31,7 +31,7 @@ class DetalleProductoViewModel(
         catalogo.observarProducto(productoId),
         catalogo.observarCategorias(),
         favoritos.observarEsFavorito(productoId),
-        carrito.observar()
+        carrito.observarLineasCarrito()
     ) { producto, categorias, esFavorito, lineas ->
         if (producto == null || !producto.activo || producto.eliminadoRemotamente) {
             DetalleProductoUiState(
@@ -76,22 +76,22 @@ class DetalleProductoViewModel(
         }
     }
 
-    fun agregar() {
-        viewModelScope.launch { ejecutar { carrito.agregar(productoId) } }
+    fun agregarAlCarrito() {
+        viewModelScope.launch { ejecutarAccionDetalle { carrito.agregarAlCarrito(productoId) } }
     }
 
-    fun cambiarCantidad(cantidad: Int) {
-        viewModelScope.launch { ejecutar { carrito.cambiarCantidad(productoId, cantidad) } }
+    fun actualizarCantidadCarrito(cantidad: Int) {
+        viewModelScope.launch { ejecutarAccionDetalle { carrito.actualizarCantidadCarrito(productoId, cantidad) } }
     }
 
     fun alternarFavorito() {
-        viewModelScope.launch { ejecutar { favoritos.alternar(productoId) } }
+        viewModelScope.launch { ejecutarAccionDetalle { favoritos.alternarFavorito(productoId) } }
     }
 
     suspend fun cargarImagen(productoId: Long, lado: Int): Bitmap? =
         catalogo.cargarImagen(productoId, lado)
 
-    private suspend fun ejecutar(accion: suspend () -> Unit) {
+    private suspend fun ejecutarAccionDetalle(accion: suspend () -> Unit) {
         try {
             accion()
         } catch (error: CancellationException) {

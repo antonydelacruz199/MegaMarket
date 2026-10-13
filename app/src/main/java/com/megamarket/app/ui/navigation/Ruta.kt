@@ -1,6 +1,6 @@
 package com.megamarket.app.ui.navigation
 
-import com.megamarket.app.viewmodel.ProductoFormViewModel
+import com.megamarket.app.viewmodel.FormularioProductoViewModel
 
 sealed class Ruta(val ruta: String) {
     data object Presentacion : Ruta("presentacion")
@@ -9,7 +9,7 @@ sealed class Ruta(val ruta: String) {
     data object ProductosAdmin : Ruta("productos_admin")
     data object CrearProductoAdmin : Ruta("crear_producto_admin")
     data object EditarProductoAdmin :
-        Ruta("editar_producto_admin/{${ProductoFormViewModel.ARG_PRODUCTO_ID}}") {
+        Ruta("editar_producto_admin/{${FormularioProductoViewModel.ARG_PRODUCTO_ID}}") {
         fun crear(id: Long) = "editar_producto_admin/$id"
     }
 }

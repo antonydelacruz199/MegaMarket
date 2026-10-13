@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.megamarket.cliente.data.repository.CatalogoRepository
 import com.megamarket.cliente.data.repository.FavoritosRepository
-import com.megamarket.cliente.model.estado.FavoritosUiState
+import com.megamarket.cliente.state.FavoritosUiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -23,7 +23,7 @@ class FavoritosViewModel(
 
     init {
         viewModelScope.launch {
-            favoritos.observar()
+            favoritos.observarProductosFavoritos()
                 .catch { error ->
                     _estado.value = FavoritosUiState(
                         cargando = false,
@@ -36,10 +36,10 @@ class FavoritosViewModel(
         }
     }
 
-    fun alternar(productoId: Long) {
+    fun alternarFavorito(productoId: Long) {
         viewModelScope.launch {
             try {
-                favoritos.alternar(productoId)
+                favoritos.alternarFavorito(productoId)
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {

@@ -10,15 +10,10 @@ import android.os.Handler
 import android.os.Looper
 import com.megamarket.cliente.data.local.ProductoProviderSnapshot
 import com.megamarket.cliente.data.local.dao.CategoriaDao
-import com.megamarket.cliente.data.local.dao.MovimientoInventarioDao
 import com.megamarket.cliente.data.local.dao.ProductoDao
-import com.megamarket.cliente.data.local.entities.CategoriaEntity
-import com.megamarket.cliente.data.mapper.aEntidad
-import com.megamarket.cliente.data.mapper.resolverCategoriaIdLocal
+import com.megamarket.cliente.data.local.Categoria as CategoriaRoom
 import com.megamarket.cliente.data.mapper.toEntity
 import com.megamarket.cliente.data.mapper.toModel
-import com.megamarket.cliente.data.remote.dto.CategoriaDto
-import com.megamarket.cliente.data.remote.dto.ProductoDto
 import com.megamarket.cliente.model.ResultadoDescuentoStock
 import com.megamarket.modelo.Categoria
 import com.megamarket.modelo.CategoriasBootstrap
@@ -42,13 +37,12 @@ import java.io.IOException
 /**
  * Catálogo offline-first:
  * Room local es la fuente de la UI (Producto.id = PK cliente).
- * ContentProvider usa ProductoEntity.providerId durante la transición.
+ * ContentProvider usa providerId de la fila local.
  */
 class CatalogoRepository(
     private val resolver: ContentResolver,
     private val productoDao: ProductoDao,
     private val categoriaDao: CategoriaDao,
-    private val movimientoDao: MovimientoInventarioDao? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 ) {
     private val mutexImportacion = Mutex()
@@ -79,7 +73,7 @@ class CatalogoRepository(
         awaitClose { resolver.unregisterContentObserver(observer) }
     }.flowOn(Dispatchers.Main.immediate)
 
-    fun iniciar() {
+    fun iniciarObservacionDelCatalogo() {
         if (observacionIniciada) return
         observacionIniciada = true
         scope.launch {
@@ -124,49 +118,6 @@ class CatalogoRepository(
         runBlockingIo { productoDao.obtenerPorId(id)?.toModel() }
 
     /**
-     * Orden futuro cuando exista API: categorías → productos.
-     * Insert con id=0 (AUTOINCREMENT). Conserva providerId en merge.
-     */
-    suspend fun sincronizarRemotoSiDisponible(
-        categoriasRemotas: List<CategoriaDto>,
-        productosRemotos: List<ProductoDto>
-    ) = withContext(Dispatchers.IO) {
-        for (dto in categoriasRemotas) {
-            val existente = categoriaDao.obtenerPorRemoteId(dto.id)
-            if (existente != null) {
-                categoriaDao.actualizar(dto.aEntidad(idLocal = existente.id))
-            } else {
-                categoriaDao.insertar(dto.aEntidad(idLocal = 0))
-            }
-        }
-        val categorias = categoriaDao.obtenerActivas()
-        for (dto in productosRemotos) {
-            val categoriaLocal = resolverCategoriaIdLocal(dto.categoriaId, categorias) ?: continue
-            val existente = productoDao.obtenerPorRemoteId(dto.id)
-            if (existente != null) {
-                val pendienteStock = (movimientoDao?.contarPendientesDeProducto(existente.id) ?: 0) > 0
-                val remoto = dto.aEntidad(
-                    categoriaIdLocal = categoriaLocal,
-                    idLocal = existente.id,
-                    providerIdExistente = existente.providerId
-                )
-                // No pisar stock local si hay movimiento de inventario pendiente (RF11/conflictos).
-                productoDao.actualizar(
-                    if (pendienteStock) remoto.copy(stock = existente.stock) else remoto
-                )
-            } else {
-                productoDao.insertar(
-                    dto.aEntidad(
-                        categoriaIdLocal = categoriaLocal,
-                        idLocal = 0,
-                        providerIdExistente = null
-                    )
-                )
-            }
-        }
-    }
-
-    /**
      * Importa/actualiza Room desde Provider por [ProductoProviderSnapshot.providerId].
      * No usa el id admin como PK local.
      */
@@ -203,7 +154,7 @@ class CatalogoRepository(
 
     suspend fun descontarStock(productoIdLocal: Long, cantidad: Int): ResultadoDescuentoStock =
         withContext(Dispatchers.IO) {
-            mutarStock(
+            aplicarCambioDeStock(
                 productoIdLocal = productoIdLocal,
                 cantidad = cantidad,
                 operacion = ContratoCatalogo.OPERACION_DESCONTAR,
@@ -214,7 +165,7 @@ class CatalogoRepository(
 
     suspend fun restaurarStock(productoIdLocal: Long, cantidad: Int): ResultadoDescuentoStock =
         withContext(Dispatchers.IO) {
-            mutarStock(
+            aplicarCambioDeStock(
                 productoIdLocal = productoIdLocal,
                 cantidad = cantidad,
                 operacion = ContratoCatalogo.OPERACION_RESTAURAR,
@@ -229,7 +180,7 @@ class CatalogoRepository(
     private suspend fun asegurarCategoriasBootstrap() {
         if (categoriaDao.contar() > 0) return
         categoriaDao.insertarVarias(
-            CategoriasBootstrap.NOMBRES.map { nombre -> CategoriaEntity(nombre = nombre) }
+            CategoriasBootstrap.NOMBRES.map { nombre -> CategoriaRoom(nombre = nombre) }
         )
     }
 
@@ -251,7 +202,7 @@ class CatalogoRepository(
             ?: snapshot.remoteId?.takeIf { it.isNotBlank() }?.let { productoDao.obtenerPorRemoteId(it) }
 
         return if (existente != null) {
-            productoDao.actualizar(
+            productoDao.actualizarProducto(
                 snapshot.toEntity(idLocal = existente.id, categoriaIdLocal = categoriaId)
             ) > 0
         } else {
@@ -261,7 +212,7 @@ class CatalogoRepository(
         }
     }
 
-    private suspend fun mutarStock(
+    private suspend fun aplicarCambioDeStock(
         productoIdLocal: Long,
         cantidad: Int,
         operacion: String,

@@ -6,7 +6,7 @@ internal object ProductoSyncPayload {
     fun referenciaProducto(productoIdLocal: Long): String =
         JSONObject().put("productoIdLocal", productoIdLocal).toString()
 
-    fun movimiento(productoIdLocal: Long, tipo: String, cantidad: Int): String =
+    fun payloadMovimientoInventario(productoIdLocal: Long, tipo: String, cantidad: Int): String =
         JSONObject()
             .put("productoIdLocal", productoIdLocal)
             .put("tipo", tipo)

@@ -11,6 +11,6 @@ object TipoOperacionPendiente {
     const val CREAR_PEDIDO = "CREAR_PEDIDO"
     const val CREAR_MOVIMIENTO_INVENTARIO = "CREAR_MOVIMIENTO_INVENTARIO"
 
-    /** Legacy cliente: stock absoluto. No enviar al backend. */
+    /** Operación histórica de stock absoluto. Se conserva para filas ya guardadas. */
     const val ACTUALIZAR_STOCK = "ACTUALIZAR_STOCK"
 }

@@ -2,12 +2,12 @@ package com.megamarket.cliente.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.megamarket.cliente.data.repository.AuthRepository
+import com.megamarket.cliente.data.repository.SesionRepository
 import com.megamarket.cliente.data.repository.CatalogoNoDisponibleException
 import com.megamarket.cliente.data.repository.PedidoRepository
 import com.megamarket.cliente.model.CheckoutException
 import com.megamarket.cliente.model.Direccion
-import com.megamarket.cliente.model.estado.CheckoutUiState
+import com.megamarket.cliente.state.CheckoutUiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -16,7 +16,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class CheckoutViewModel(
-    private val auth: AuthRepository,
+    private val sesionRepository: SesionRepository,
     private val pedidos: PedidoRepository
 ) : ViewModel() {
 
@@ -44,7 +44,7 @@ class CheckoutViewModel(
             _estado.update { it.copy(error = errorDireccion) }
             return
         }
-        val clienteId = auth.usuario.value?.id
+        val clienteId = sesionRepository.usuario.value?.id
         if (clienteId == null) {
             _estado.update { it.copy(error = "Tu sesión terminó. Vuelve a iniciar sesión.") }
             return

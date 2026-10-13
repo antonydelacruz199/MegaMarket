@@ -4,7 +4,7 @@ import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.megamarket.cliente.data.repository.CatalogoRepository
-import com.megamarket.cliente.model.estado.CatalogoUiState
+import com.megamarket.cliente.state.CatalogoUiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -45,10 +45,10 @@ class CatalogoViewModel(
     )
 
     init {
-        cargar()
+        cargarCatalogo()
     }
 
-    fun cargar() {
+    fun cargarCatalogo() {
         viewModelScope.launch {
             try {
                 catalogo.asegurarCatalogoLocal()

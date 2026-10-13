@@ -5,16 +5,16 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Update
-import com.megamarket.cliente.data.local.entities.OperacionPendienteEntity
+import com.megamarket.cliente.data.local.OperacionPendiente
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface OperacionPendienteDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
-    suspend fun insertar(entidad: OperacionPendienteEntity): Long
+    suspend fun insertar(entidad: OperacionPendiente): Long
 
     @Update
-    suspend fun actualizar(entidad: OperacionPendienteEntity): Int
+    suspend fun actualizarOperacionPendiente(entidad: OperacionPendiente): Int
 
     @Query(
         """
@@ -23,7 +23,7 @@ interface OperacionPendienteDao {
         ORDER BY fechaCreacion ASC
         """
     )
-    suspend fun obtenerParaEnviar(): List<OperacionPendienteEntity>
+    suspend fun obtenerOperacionesPorSincronizar(): List<OperacionPendiente>
 
     @Query(
         """
@@ -76,7 +76,7 @@ interface OperacionPendienteDao {
         tipoEntidad: String,
         entidadIdLocal: Long,
         operacion: String
-    ): OperacionPendienteEntity?
+    ): OperacionPendiente?
 
     @Query(
         """
@@ -94,7 +94,7 @@ interface OperacionPendienteDao {
         WHERE id = :id
         """
     )
-    suspend fun marcarEnviando(id: Long, ahora: Long): Int
+    suspend fun marcarOperacionEnviando(id: Long, ahora: Long): Int
 
     @Query(
         """
@@ -106,7 +106,7 @@ interface OperacionPendienteDao {
         WHERE id = :id
         """
     )
-    suspend fun marcarSincronizado(id: Long, ahora: Long): Int
+    suspend fun marcarOperacionSincronizada(id: Long, ahora: Long): Int
 
     @Query(
         """
@@ -118,7 +118,7 @@ interface OperacionPendienteDao {
         WHERE id = :id
         """
     )
-    suspend fun marcarError(id: Long, error: String, ahora: Long): Int
+    suspend fun marcarOperacionError(id: Long, error: String, ahora: Long): Int
 
     @Query(
         """

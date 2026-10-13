@@ -51,19 +51,19 @@ import com.megamarket.app.ui.theme.MegaContenedorError
 import com.megamarket.app.ui.theme.MegaError
 import com.megamarket.app.ui.components.PanelSincronizacion
 import com.megamarket.app.viewmodel.ProductoViewModel
-import com.megamarket.app.viewmodel.SyncViewModel
+import com.megamarket.app.viewmodel.SincronizacionViewModel
 import com.megamarket.modelo.Producto
 import com.megamarket.modelo.formatearSoles
 
 @Composable
 fun PantallaPanelAdmin(
     viewModel: ProductoViewModel,
-    syncViewModel: SyncViewModel,
+    sincronizacionViewModel: SincronizacionViewModel,
     alNavegar: (String) -> Unit,
     alCerrarSesion: () -> Unit
 ) {
     val estado by viewModel.estado.collectAsStateWithLifecycle()
-    val syncEstado by syncViewModel.estado.collectAsStateWithLifecycle()
+    val syncEstado by sincronizacionViewModel.estado.collectAsStateWithLifecycle()
     LifecycleResumeEffect(Unit) {
         viewModel.cargarProductos()
         onPauseOrDispose { }
@@ -142,7 +142,7 @@ fun PantallaPanelAdmin(
             Spacer(modifier = Modifier.height(16.dp))
             PanelSincronizacion(
                 estado = syncEstado,
-                alSincronizar = syncViewModel::sincronizarAhora
+                alSincronizar = sincronizacionViewModel::sincronizarPendientes
             )
             Spacer(modifier = Modifier.height(20.dp))
             EncabezadoSeccion(

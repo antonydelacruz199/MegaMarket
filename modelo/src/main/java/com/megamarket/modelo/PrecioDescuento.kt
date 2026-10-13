@@ -5,7 +5,7 @@ package com.megamarket.modelo
  * Dinero siempre en céntimos (Long). Redondeo: división entera hacia abajo.
  *
  * [descuentoPorcentaje] es la fuente principal.
- * [precioOfertaCentimos] se mantiene por compatibilidad con Neon/UI legacy
+ * [precioOfertaCentimos] se mantiene por compatibilidad con datos ya guardados
  * y debe derivarse de este porcentaje al persistir.
  */
 object PrecioDescuento {
@@ -37,7 +37,7 @@ object PrecioDescuento {
         return pct.coerceIn(1, 99)
     }
 
-    /** Deriva precio oferta desde % (compatibilidad Neon / Provider). */
+    /** Deriva precio oferta desde el porcentaje. */
     fun precioOfertaDesdeDescuento(precioCentimos: Long, descuentoPorcentaje: Int): Long? {
         if (!esOfertaActiva(true, descuentoPorcentaje)) return null
         val vigente = precioConDescuentoCentimos(precioCentimos, descuentoPorcentaje)

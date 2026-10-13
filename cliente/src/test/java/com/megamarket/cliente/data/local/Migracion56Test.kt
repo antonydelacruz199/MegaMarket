@@ -22,7 +22,7 @@ class Migracion56Test {
     @Test
     fun productoEntity_usaAutoGenerateYProviderId() {
         val archivo = File(
-            "src/main/java/com/megamarket/cliente/data/local/entities/ProductoEntity.kt"
+            "src/main/java/com/megamarket/cliente/data/local/Producto.kt"
         )
         assertTrue(archivo.exists())
         val fuente = archivo.readText(Charsets.UTF_8)

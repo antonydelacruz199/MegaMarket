@@ -12,11 +12,11 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.megamarket.app.viewmodel.SyncUiState
+import com.megamarket.app.state.SincronizacionUiState
 
 @Composable
 fun PanelSincronizacion(
-    estado: SyncUiState,
+    estado: SincronizacionUiState,
     alSincronizar: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -28,7 +28,7 @@ fun PanelSincronizacion(
             Text("Sincronización", style = MaterialTheme.typography.titleMedium)
             Text("Pendientes: ${estado.pendientes}")
             Text("Errores: ${estado.errores}")
-            Text("Última sincronización: ${estado.ultimaSyncTexto}")
+            Text("Última sincronización: ${estado.textoUltimaSincronizacion}")
             if (!estado.conectado) {
                 Text(
                     "Sin conexión. Las operaciones se enviarán al recuperar red.",

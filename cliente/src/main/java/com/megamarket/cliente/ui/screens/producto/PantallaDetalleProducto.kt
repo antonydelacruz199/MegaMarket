@@ -137,7 +137,7 @@ fun PantallaDetalleProducto(
                     }
                 } else if (estado.cantidadEnCarrito == 0) {
                     Button(
-                        onClick = viewModel::agregar,
+                        onClick = viewModel::agregarAlCarrito,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(48.dp),
@@ -155,12 +155,12 @@ fun PantallaDetalleProducto(
                         )
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             IconButton(
-                                onClick = { viewModel.cambiarCantidad(estado.cantidadEnCarrito - 1) },
+                                onClick = { viewModel.actualizarCantidadCarrito(estado.cantidadEnCarrito - 1) },
                                 enabled = estado.cantidadEnCarrito > 1
                             ) { Text("−", style = MaterialTheme.typography.titleLarge) }
                             Text("${estado.cantidadEnCarrito}", style = MaterialTheme.typography.titleMedium)
                             IconButton(
-                                onClick = { viewModel.cambiarCantidad(estado.cantidadEnCarrito + 1) },
+                                onClick = { viewModel.actualizarCantidadCarrito(estado.cantidadEnCarrito + 1) },
                                 enabled = estado.cantidadEnCarrito < producto.stock
                             ) { Text("+", style = MaterialTheme.typography.titleLarge) }
                         }

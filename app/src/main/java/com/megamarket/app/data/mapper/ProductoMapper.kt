@@ -1,13 +1,13 @@
 package com.megamarket.app.data.mapper
 
-import com.megamarket.app.data.local.entities.ProductoEntity
+import com.megamarket.app.data.local.Producto as ProductoRoom
 import com.megamarket.modelo.PrecioDescuento
 import com.megamarket.modelo.Producto
 
-fun Producto.toEntity(): ProductoEntity {
+fun Producto.toEntity(): ProductoRoom {
     val descuento = if (esOferta) descuentoPorcentaje.coerceIn(0, 100) else 0
     val ofertaCentimos = PrecioDescuento.precioOfertaDesdeDescuento(precioCentimos, descuento)
-    return ProductoEntity(
+    return ProductoRoom(
         id = id,
         remoteId = remoteId,
         nombre = nombre,
@@ -27,7 +27,7 @@ fun Producto.toEntity(): ProductoEntity {
     )
 }
 
-fun ProductoEntity.toModel(): Producto = Producto(
+fun ProductoRoom.toModel(): Producto = Producto(
     id = id,
     nombre = nombre,
     marca = marca,

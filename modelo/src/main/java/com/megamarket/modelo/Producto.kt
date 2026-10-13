@@ -2,10 +2,10 @@ package com.megamarket.modelo
 
 /**
  * Producto de catálogo. [id] es la PK local Room (Long).
- * [remoteId] es el UUID de Neon; null hasta sincronizar con la API REST.
+ * [remoteId] queda reservado para un identificador externo futuro.
  *
  * Oferta (RF09): [descuentoPorcentaje] es la fuente principal del precio vigente.
- * [precioOfertaCentimos] se conserva por compatibilidad con Neon y datos legacy.
+ * [precioOfertaCentimos] se conserva por compatibilidad con datos ya guardados.
  */
 data class Producto(
     val id: Long,

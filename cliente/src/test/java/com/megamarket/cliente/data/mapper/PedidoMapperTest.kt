@@ -1,8 +1,8 @@
 package com.megamarket.cliente.data.mapper
 
-import com.megamarket.cliente.data.local.entities.DireccionEntity
-import com.megamarket.cliente.data.local.entities.PedidoDetalleEntity
-import com.megamarket.cliente.data.local.entities.PedidoEntity
+import com.megamarket.cliente.data.local.Direccion
+import com.megamarket.cliente.data.local.PedidoDetalle as PedidoDetalleRoom
+import com.megamarket.cliente.data.local.Pedido as PedidoRoom
 import com.megamarket.cliente.model.Pedido
 import com.megamarket.cliente.model.PedidoDetalle
 import org.junit.Assert.assertEquals
@@ -20,7 +20,7 @@ class PedidoMapperTest {
             subtotalCentimos = 960
         ).toEntity(pedidoId = 10)
 
-        val pedido = PedidoEntity(
+        val pedido = PedidoRoom(
             id = 10,
             clienteId = 3,
             clientUuid = "pedido-uuid-test",
@@ -29,7 +29,7 @@ class PedidoMapperTest {
             estado = Pedido.ESTADO_CONFIRMADO
         ).toModel(
             detalles = listOf(detalleGuardado.copy(id = 1)),
-            direccion = DireccionEntity(
+            direccion = Direccion(
                 id = 1,
                 pedidoId = 10,
                 departamento = "Lima",
@@ -50,7 +50,7 @@ class PedidoMapperTest {
 
     @Test
     fun detalleEntity_seConvierteSinRecalcular() {
-        val entidad = PedidoDetalleEntity(
+        val entidad = PedidoDetalleRoom(
             id = 5,
             pedidoId = 10,
             productoId = 2,

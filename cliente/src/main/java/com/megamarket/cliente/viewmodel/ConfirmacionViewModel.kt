@@ -4,7 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.megamarket.cliente.data.repository.PedidoRepository
-import com.megamarket.cliente.model.estado.ConfirmacionUiState
+import com.megamarket.cliente.state.ConfirmacionUiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -24,10 +24,10 @@ class ConfirmacionViewModel(
     val estado: StateFlow<ConfirmacionUiState> = _estado.asStateFlow()
 
     init {
-        cargar()
+        cargarPedido()
     }
 
-    fun cargar() {
+    fun cargarPedido() {
         viewModelScope.launch {
             _estado.value = ConfirmacionUiState(cargando = true)
             _estado.value = try {

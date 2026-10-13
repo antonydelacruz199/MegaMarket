@@ -4,7 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
-import com.megamarket.cliente.data.local.entities.ProductoEntity
+import com.megamarket.cliente.data.local.Producto
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -18,7 +18,7 @@ interface ProductoDao {
         ORDER BY nombre COLLATE NOCASE
         """
     )
-    fun observarActivos(): Flow<List<ProductoEntity>>
+    fun observarActivos(): Flow<List<Producto>>
 
     @Query(
         """
@@ -29,28 +29,28 @@ interface ProductoDao {
         ORDER BY nombre COLLATE NOCASE
         """
     )
-    suspend fun obtenerActivos(): List<ProductoEntity>
+    suspend fun obtenerActivos(): List<Producto>
 
     @Query("SELECT COUNT(*) FROM productos")
     suspend fun contar(): Int
 
     @Query("SELECT * FROM productos WHERE id = :id LIMIT 1")
-    suspend fun obtenerPorId(id: Long): ProductoEntity?
+    suspend fun obtenerPorId(id: Long): Producto?
 
     @Query("SELECT * FROM productos WHERE id = :id LIMIT 1")
-    fun observarPorId(id: Long): Flow<ProductoEntity?>
+    fun observarPorId(id: Long): Flow<Producto?>
 
     @Query("SELECT * FROM productos WHERE provider_id = :providerId LIMIT 1")
-    suspend fun obtenerPorProviderId(providerId: Long): ProductoEntity?
+    suspend fun obtenerPorProviderId(providerId: Long): Producto?
 
     @Query("SELECT * FROM productos WHERE remote_id = :remoteId LIMIT 1")
-    suspend fun obtenerPorRemoteId(remoteId: String): ProductoEntity?
+    suspend fun obtenerPorRemoteId(remoteId: String): Producto?
 
     @Insert
-    suspend fun insertar(entidad: ProductoEntity): Long
+    suspend fun insertar(entidad: Producto): Long
 
     @Update
-    suspend fun actualizar(entidad: ProductoEntity): Int
+    suspend fun actualizarProducto(entidad: Producto): Int
 
     /**
      * Descuento atómico de stock local. Nunca deja stock negativo.

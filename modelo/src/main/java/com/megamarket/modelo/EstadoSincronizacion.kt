@@ -10,7 +10,7 @@ object EstadoSincronizacion {
     const val SINCRONIZADO = "SINCRONIZADO"
     const val ERROR = "ERROR"
 
-    /** Estados que aún deben enviarse o reintentarse. */
+    /** Estados que siguen en la cola local. */
     val EN_COLA: Set<String> = setOf(PENDIENTE, ENVIANDO, ERROR)
 
     fun esActiva(estado: String): Boolean = estado in EN_COLA

@@ -15,17 +15,6 @@ import com.megamarket.cliente.data.local.dao.OperacionPendienteDao
 import com.megamarket.cliente.data.local.dao.PedidoDao
 import com.megamarket.cliente.data.local.dao.ProductoDao
 import com.megamarket.cliente.data.local.dao.SyncMetadataDao
-import com.megamarket.cliente.data.local.entities.CarritoEntity
-import com.megamarket.cliente.data.local.entities.CategoriaEntity
-import com.megamarket.cliente.data.local.entities.ClienteEntity
-import com.megamarket.cliente.data.local.entities.DireccionEntity
-import com.megamarket.cliente.data.local.entities.FavoritoEntity
-import com.megamarket.cliente.data.local.entities.MovimientoInventarioEntity
-import com.megamarket.cliente.data.local.entities.OperacionPendienteEntity
-import com.megamarket.cliente.data.local.entities.PedidoDetalleEntity
-import com.megamarket.cliente.data.local.entities.PedidoEntity
-import com.megamarket.cliente.data.local.entities.ProductoEntity
-import com.megamarket.cliente.data.local.entities.SyncMetadataEntity
 import com.megamarket.modelo.CategoriasBootstrap
 import com.megamarket.modelo.EstadoSincronizacion
 import com.megamarket.modelo.PrecioDescuento
@@ -33,17 +22,17 @@ import java.util.UUID
 
 @Database(
     entities = [
-        CarritoEntity::class,
-        FavoritoEntity::class,
-        ClienteEntity::class,
-        PedidoEntity::class,
-        PedidoDetalleEntity::class,
-        DireccionEntity::class,
-        OperacionPendienteEntity::class,
-        CategoriaEntity::class,
-        ProductoEntity::class,
-        MovimientoInventarioEntity::class,
-        SyncMetadataEntity::class
+        CarritoItem::class,
+        Favorito::class,
+        Cliente::class,
+        Pedido::class,
+        PedidoDetalle::class,
+        Direccion::class,
+        OperacionPendiente::class,
+        Categoria::class,
+        Producto::class,
+        MovimientoInventario::class,
+        SyncMetadata::class
     ],
     version = 7,
     exportSchema = false
@@ -57,7 +46,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun categoriaDao(): CategoriaDao
     abstract fun productoDao(): ProductoDao
     abstract fun movimientoInventarioDao(): MovimientoInventarioDao
-    abstract fun syncMetadataDao(): SyncMetadataDao
+    abstract fun metadatosSincronizacionDao(): SyncMetadataDao
 
     companion object {
         private const val NOMBRE = "megamarket_cliente.db"

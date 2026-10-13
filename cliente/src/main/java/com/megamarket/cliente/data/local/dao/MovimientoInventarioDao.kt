@@ -4,18 +4,18 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
-import com.megamarket.cliente.data.local.entities.MovimientoInventarioEntity
+import com.megamarket.cliente.data.local.MovimientoInventario
 
 @Dao
 interface MovimientoInventarioDao {
     @Insert
-    suspend fun insertar(entidad: MovimientoInventarioEntity): Long
+    suspend fun insertar(entidad: MovimientoInventario): Long
 
     @Update
-    suspend fun actualizar(entidad: MovimientoInventarioEntity): Int
+    suspend fun actualizarMovimientoInventario(entidad: MovimientoInventario): Int
 
     @Query("SELECT * FROM movimientos_inventario WHERE uuidOperacion = :uuid LIMIT 1")
-    suspend fun obtenerPorUuid(uuid: String): MovimientoInventarioEntity?
+    suspend fun obtenerPorUuid(uuid: String): MovimientoInventario?
 
     @Query(
         """

@@ -1,20 +1,8 @@
-import java.util.Properties
-
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
 }
-
-val localProperties = Properties().apply {
-    val archivo = rootProject.file("local.properties")
-    if (archivo.exists()) {
-        archivo.inputStream().use { load(it) }
-    }
-}
-// Vacío por defecto: SyncRepository/Worker reintentan sin fingir éxito.
-// Cuando exista la API REST: MEGAMARKET_API_BASE_URL=https://tu-api.ejemplo/
-val apiBaseUrl = (localProperties.getProperty("MEGAMARKET_API_BASE_URL") ?: "").replace("\"", "")
 
 android {
     namespace = "com.megamarket.cliente"
@@ -30,7 +18,6 @@ android {
         versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
     }
 
     buildTypes {
@@ -53,7 +40,6 @@ android {
     }
     buildFeatures {
         compose = true
-        buildConfig = true
     }
     packaging {
         resources {
@@ -85,10 +71,6 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.work.runtime.ktx)
-    implementation(libs.retrofit)
-    implementation(libs.retrofit.converter.gson)
-    implementation(libs.okhttp)
-    implementation(libs.gson)
     testImplementation(libs.junit)
     debugImplementation(libs.androidx.compose.ui.tooling)
 }

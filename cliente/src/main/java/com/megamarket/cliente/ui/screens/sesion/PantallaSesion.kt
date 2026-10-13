@@ -30,10 +30,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.megamarket.cliente.R
 import com.megamarket.cliente.ui.components.LogoMegaMarket
-import com.megamarket.cliente.viewmodel.AuthViewModel
+import com.megamarket.cliente.viewmodel.SesionViewModel
 
 @Composable
-fun PantallaSesion(viewModel: AuthViewModel) {
+fun PantallaSesion(viewModel: SesionViewModel) {
     val estado by viewModel.estado.collectAsStateWithLifecycle()
     var usuario by rememberSaveable { mutableStateOf("") }
     var clave by rememberSaveable { mutableStateOf("") }
@@ -90,7 +90,7 @@ fun PantallaSesion(viewModel: AuthViewModel) {
         }
         Spacer(modifier = Modifier.height(16.dp))
         Button(
-            onClick = { viewModel.ingresar(usuario, clave) },
+            onClick = { viewModel.iniciarSesion(usuario, clave) },
             enabled = !estado.cargando,
             modifier = Modifier
                 .fillMaxWidth()

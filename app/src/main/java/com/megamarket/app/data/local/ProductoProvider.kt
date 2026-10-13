@@ -27,10 +27,10 @@ class ProductoProvider : ContentProvider() {
         sortOrder: String?
     ): Cursor {
         val contexto = checkNotNull(context) { "Proveedor sin contexto" }
-        val dao = AppDatabase.getInstance(contexto).productoDao()
+        val productoDao = AppDatabase.getInstance(contexto).productoDao()
         val productos = when (COMPARADOR.match(uri)) {
-            LISTA -> dao.obtenerActivos()
-            ITEM -> dao.obtenerPorId(ContentUris.parseId(uri))?.let { listOf(it) }.orEmpty()
+            LISTA -> productoDao.obtenerActivos()
+            ITEM -> productoDao.obtenerPorId(ContentUris.parseId(uri))?.let { listOf(it) }.orEmpty()
             else -> throw IllegalArgumentException("URI no válida: $uri")
         }
 
@@ -105,11 +105,11 @@ class ProductoProvider : ContentProvider() {
         val operacion = values.getAsString(ContratoCatalogo.COL_OPERACION)
             ?: ContratoCatalogo.OPERACION_DESCONTAR
         val contexto = checkNotNull(context)
-        val dao = AppDatabase.getInstance(contexto).productoDao()
+        val productoDao = AppDatabase.getInstance(contexto).productoDao()
 
         val filas = when (operacion) {
-            ContratoCatalogo.OPERACION_DESCONTAR -> dao.descontarStock(productoId, cantidad)
-            ContratoCatalogo.OPERACION_RESTAURAR -> dao.incrementarStock(productoId, cantidad)
+            ContratoCatalogo.OPERACION_DESCONTAR -> productoDao.descontarStock(productoId, cantidad)
+            ContratoCatalogo.OPERACION_RESTAURAR -> productoDao.incrementarStock(productoId, cantidad)
             else -> 0
         }
         if (filas > 0) {

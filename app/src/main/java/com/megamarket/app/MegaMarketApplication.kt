@@ -18,6 +18,7 @@ class MegaMarketApplication : Application() {
         super.onCreate()
         container = AppContainer(this)
         alcance.launch {
+            container.sesionRepository.prepararCuentaLocal()
             container.categoriaRepository.asegurarBootstrap()
         }
     }

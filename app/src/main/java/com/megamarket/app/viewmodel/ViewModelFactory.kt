@@ -12,23 +12,19 @@ class ViewModelFactory(
 
     override fun <T : ViewModel> create(modelClass: Class<T>, extras: CreationExtras): T {
         val modelo: ViewModel = when {
-            modelClass.isAssignableFrom(AuthViewModel::class.java) ->
-                AuthViewModel(container.authRepository)
+            modelClass.isAssignableFrom(SesionViewModel::class.java) ->
+                SesionViewModel(container.sesionRepository)
             modelClass.isAssignableFrom(ProductoViewModel::class.java) ->
                 ProductoViewModel(container.productoRepository, container.imagenRepository)
-            modelClass.isAssignableFrom(ProductoFormViewModel::class.java) ->
-                ProductoFormViewModel(
+            modelClass.isAssignableFrom(FormularioProductoViewModel::class.java) ->
+                FormularioProductoViewModel(
                     extras.createSavedStateHandle(),
                     container.productoRepository,
                     container.categoriaRepository,
                     container.imagenRepository
                 )
-            modelClass.isAssignableFrom(SyncViewModel::class.java) ->
-                SyncViewModel(
-                    container.appContext,
-                    container.syncRepository,
-                    container.connectivityObserver
-                )
+            modelClass.isAssignableFrom(SincronizacionViewModel::class.java) ->
+                SincronizacionViewModel(container.sincronizacionRepository)
             else -> throw IllegalArgumentException("ViewModel no soportado: ${modelClass.name}")
         }
         @Suppress("UNCHECKED_CAST")

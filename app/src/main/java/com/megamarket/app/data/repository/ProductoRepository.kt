@@ -6,8 +6,8 @@ import com.megamarket.app.data.local.AppDatabase
 import com.megamarket.app.data.local.dao.MovimientoInventarioDao
 import com.megamarket.app.data.local.dao.OperacionPendienteDao
 import com.megamarket.app.data.local.dao.ProductoDao
-import com.megamarket.app.data.local.entities.MovimientoInventarioEntity
-import com.megamarket.app.data.local.entities.OperacionPendienteEntity
+import com.megamarket.app.data.local.MovimientoInventario
+import com.megamarket.app.data.local.OperacionPendiente
 import com.megamarket.app.data.mapper.toEntity
 import com.megamarket.app.data.mapper.toModel
 import com.megamarket.modelo.ContratoCatalogo
@@ -24,7 +24,7 @@ class ProductoRepository(
     private val movimientoDao: MovimientoInventarioDao,
     private val operacionDao: OperacionPendienteDao,
     private val resolver: ContentResolver,
-    private val programarSync: () -> Unit
+    private val programarSincronizacion: () -> Unit
 ) {
     suspend fun obtenerTodos(): List<Producto> = withContext(Dispatchers.IO) {
         productoDao.eliminarSinDatos()
@@ -40,7 +40,7 @@ class ProductoRepository(
         productoDao.obtenerPorId(id)?.toModel()?.takeIf { it.nombre.isNotBlank() }
     }
 
-    suspend fun insertar(producto: Producto): Long = withContext(Dispatchers.IO) {
+    suspend fun crearProducto(producto: Producto): Long = withContext(Dispatchers.IO) {
         require(producto.stock >= 0) { "El stock no puede ser negativo" }
         val id = database.withTransaction {
             val ahora = System.currentTimeMillis()
@@ -48,7 +48,7 @@ class ProductoRepository(
             val nuevoId = productoDao.insertar(entidad.copy(id = 0))
             val uuidOperacion = UUID.randomUUID().toString()
             operacionDao.insertar(
-                OperacionPendienteEntity(
+                OperacionPendiente(
                     uuidOperacion = uuidOperacion,
                     tipoEntidad = TipoOperacionPendiente.PRODUCTO,
                     entidadIdLocal = nuevoId,
@@ -62,17 +62,17 @@ class ProductoRepository(
             nuevoId
         }
         notificarCambio(id)
-        programarSync()
+        programarSincronizacion()
         id
     }
 
-    suspend fun actualizar(producto: Producto): Boolean = withContext(Dispatchers.IO) {
+    suspend fun actualizarProducto(producto: Producto): Boolean = withContext(Dispatchers.IO) {
         require(producto.stock >= 0) { "El stock no puede ser negativo" }
         val anterior = productoDao.obtenerPorId(producto.id) ?: return@withContext false
         val aplicado = database.withTransaction {
             val ahora = System.currentTimeMillis()
             val entidad = producto.toEntity()
-            val filas = productoDao.actualizar(entidad)
+            val filas = productoDao.actualizarProducto(entidad)
             if (filas <= 0) return@withTransaction false
 
             if (producto.remoteId.isNullOrBlank()) {
@@ -82,7 +82,7 @@ class ProductoRepository(
                     TipoOperacionPendiente.CREAR_PRODUCTO
                 )
                 if (pendienteCrear != null) {
-                    operacionDao.actualizar(
+                    operacionDao.actualizarOperacionPendiente(
                         pendienteCrear.copy(
                             payload = ProductoSyncPayload.referenciaProducto(producto.id),
                             estado = EstadoSincronizacion.PENDIENTE,
@@ -95,13 +95,13 @@ class ProductoRepository(
                 }
             } else {
                 encolarActualizarProducto(producto.id, ahora)
-                registrarAjusteStock(anterior.stock, producto.stock, producto.id, ahora)
+                ajustarStock(anterior.stock, producto.stock, producto.id, ahora)
             }
             true
         }
         if (aplicado) {
             notificarCambio(producto.id)
-            programarSync()
+            programarSincronizacion()
         }
         aplicado
     }
@@ -110,7 +110,7 @@ class ProductoRepository(
         val actual = productoDao.obtenerPorId(id) ?: return@withContext false
         val aplicado = database.withTransaction {
             val ahora = System.currentTimeMillis()
-            val filas = productoDao.actualizar(actual.copy(activo = false))
+            val filas = productoDao.actualizarProducto(actual.copy(activo = false))
             if (filas <= 0) return@withTransaction false
 
             if (actual.remoteId.isNullOrBlank()) {
@@ -122,7 +122,7 @@ class ProductoRepository(
             } else {
                 val uuidOperacion = UUID.randomUUID().toString()
                 operacionDao.insertar(
-                    OperacionPendienteEntity(
+                    OperacionPendiente(
                         uuidOperacion = uuidOperacion,
                         tipoEntidad = TipoOperacionPendiente.PRODUCTO,
                         entidadIdLocal = id,
@@ -138,7 +138,7 @@ class ProductoRepository(
         }
         if (aplicado) {
             notificarCambio(id)
-            programarSync()
+            programarSincronizacion()
         }
         aplicado
     }
@@ -146,7 +146,7 @@ class ProductoRepository(
     private suspend fun encolarCrearProducto(productoId: Long, ahora: Long) {
         val uuidOperacion = UUID.randomUUID().toString()
         operacionDao.insertar(
-            OperacionPendienteEntity(
+            OperacionPendiente(
                 uuidOperacion = uuidOperacion,
                 tipoEntidad = TipoOperacionPendiente.PRODUCTO,
                 entidadIdLocal = productoId,
@@ -166,7 +166,7 @@ class ProductoRepository(
             TipoOperacionPendiente.ACTUALIZAR_PRODUCTO
         )
         if (existente != null) {
-            operacionDao.actualizar(
+            operacionDao.actualizarOperacionPendiente(
                 existente.copy(
                     estado = EstadoSincronizacion.PENDIENTE,
                     ultimoError = null,
@@ -176,7 +176,7 @@ class ProductoRepository(
         } else {
             val uuidOperacion = UUID.randomUUID().toString()
             operacionDao.insertar(
-                OperacionPendienteEntity(
+                OperacionPendiente(
                     uuidOperacion = uuidOperacion,
                     tipoEntidad = TipoOperacionPendiente.PRODUCTO,
                     entidadIdLocal = productoId,
@@ -190,17 +190,17 @@ class ProductoRepository(
         }
     }
 
-    private suspend fun registrarAjusteStock(
+    private suspend fun ajustarStock(
         stockAnterior: Int,
         stockNuevo: Int,
         productoId: Long,
         ahora: Long
     ) {
         val ajuste = ProductoInventarioLocal.calcularAjuste(stockAnterior, stockNuevo) ?: return
-        val uuidMov = UUID.randomUUID().toString()
+        val uuidMovimiento = UUID.randomUUID().toString()
         movimientoDao.insertar(
-            MovimientoInventarioEntity(
-                uuidOperacion = uuidMov,
+            MovimientoInventario(
+                uuidOperacion = uuidMovimiento,
                 productoId = productoId,
                 tipo = ajuste.tipo,
                 cantidad = ajuste.cantidad,
@@ -208,12 +208,12 @@ class ProductoRepository(
             )
         )
         operacionDao.insertar(
-            OperacionPendienteEntity(
-                uuidOperacion = uuidMov,
+            OperacionPendiente(
+                uuidOperacion = uuidMovimiento,
                 tipoEntidad = TipoOperacionPendiente.MOVIMIENTO_INVENTARIO,
                 entidadIdLocal = productoId,
                 operacion = TipoOperacionPendiente.CREAR_MOVIMIENTO_INVENTARIO,
-                payload = ProductoSyncPayload.movimiento(productoId, ajuste.tipo, ajuste.cantidad),
+                payload = ProductoSyncPayload.payloadMovimientoInventario(productoId, ajuste.tipo, ajuste.cantidad),
                 estado = EstadoSincronizacion.PENDIENTE,
                 fechaCreacion = ahora,
                 fechaActualizacion = ahora

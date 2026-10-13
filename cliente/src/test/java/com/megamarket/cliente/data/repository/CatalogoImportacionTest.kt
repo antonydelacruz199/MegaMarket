@@ -1,7 +1,7 @@
 package com.megamarket.cliente.data.repository
 
 import com.megamarket.cliente.data.local.ProductoProviderSnapshot
-import com.megamarket.cliente.data.local.entities.ProductoEntity
+import com.megamarket.cliente.data.local.Producto
 import com.megamarket.cliente.data.mapper.toEntity
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -17,7 +17,7 @@ class CatalogoImportacionTest {
 
     @Test
     fun importProvider_usaProviderIdNoComoPk() {
-        val cache = mutableMapOf<Long, ProductoEntity>()
+        val cache = mutableMapOf<Long, Producto>()
         var nextId = 101L
 
         fun upsert(snapshot: ProductoProviderSnapshot) {
@@ -76,7 +76,7 @@ class CatalogoImportacionTest {
 
     @Test
     fun providerActualizaStock_conservaPkLocalDistinta() {
-        var local = ProductoEntity(
+        var local = Producto(
             id = 100,
             providerId = 5,
             remoteId = null,
@@ -140,7 +140,7 @@ class CatalogoImportacionTest {
 
     @Test
     fun providerIdNull_noUsaLocalIdComoUri() {
-        val local = ProductoEntity(
+        val local = Producto(
             id = 52,
             providerId = null,
             remoteId = "uuid-api",

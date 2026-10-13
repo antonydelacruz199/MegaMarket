@@ -7,9 +7,9 @@ import com.megamarket.cliente.data.local.dao.MovimientoInventarioDao
 import com.megamarket.cliente.data.local.dao.OperacionPendienteDao
 import com.megamarket.cliente.data.local.dao.PedidoDao
 import com.megamarket.cliente.data.local.dao.ProductoDao
-import com.megamarket.cliente.data.local.entities.MovimientoInventarioEntity
-import com.megamarket.cliente.data.local.entities.OperacionPendienteEntity
-import com.megamarket.cliente.data.local.entities.PedidoEntity
+import com.megamarket.cliente.data.local.MovimientoInventario
+import com.megamarket.cliente.data.local.OperacionPendiente
+import com.megamarket.cliente.data.local.Pedido as PedidoRoom
 import com.megamarket.cliente.data.mapper.toEntity
 import com.megamarket.cliente.data.mapper.toModel
 import com.megamarket.cliente.model.CheckoutException
@@ -17,7 +17,7 @@ import com.megamarket.cliente.model.Direccion
 import com.megamarket.cliente.model.Pedido
 import com.megamarket.cliente.model.ProductoSolicitado
 import com.megamarket.cliente.model.armarDetallesPedido
-import com.megamarket.cliente.worker.SyncWorker
+import com.megamarket.cliente.worker.SincronizacionWorker
 import com.megamarket.modelo.EstadoSincronizacion
 import com.megamarket.modelo.TipoMovimientoInventario
 import com.megamarket.modelo.TipoOperacionPendiente
@@ -39,7 +39,7 @@ class PedidoRepository(
     private val productoDao: ProductoDao,
     private val movimientoDao: MovimientoInventarioDao,
     private val operacionDao: OperacionPendienteDao,
-    private val programarSync: () -> Unit
+    private val programarSincronizacion: () -> Unit
 ) {
     /**
      * @throws CheckoutException con un mensaje listo para mostrar.
@@ -68,7 +68,7 @@ class PedidoRepository(
             armarDetallesPedido(solicitados, catalogoModelo)
         } catch (error: CheckoutException) {
             if (error.productosNoDisponibles.isNotEmpty()) {
-                carritoDao.eliminarVarios(error.productosNoDisponibles)
+                carritoDao.quitarProductos(error.productosNoDisponibles)
             }
             throw error
         }
@@ -88,7 +88,7 @@ class PedidoRepository(
                 }
 
                 val id = pedidoDao.insertarPedido(
-                    PedidoEntity(
+                    PedidoRoom(
                         clienteId = clienteId,
                         clientUuid = clientUuid,
                         fecha = ahora,
@@ -101,7 +101,7 @@ class PedidoRepository(
                 pedidoDao.insertarDetalles(detalles.map { it.toEntity(id) })
 
                 operacionDao.insertar(
-                    OperacionPendienteEntity(
+                    OperacionPendiente(
                         uuidOperacion = clientUuid,
                         tipoEntidad = TipoOperacionPendiente.PEDIDO,
                         entidadIdLocal = id,
@@ -117,10 +117,10 @@ class PedidoRepository(
                 )
 
                 for (detalle in detalles) {
-                    val uuidMov = UUID.randomUUID().toString()
+                    val uuidMovimiento = UUID.randomUUID().toString()
                     movimientoDao.insertar(
-                        MovimientoInventarioEntity(
-                            uuidOperacion = uuidMov,
+                        MovimientoInventario(
+                            uuidOperacion = uuidMovimiento,
                             productoId = detalle.productoId,
                             pedidoId = id,
                             tipo = TipoMovimientoInventario.SALIDA_VENTA,
@@ -129,8 +129,8 @@ class PedidoRepository(
                         )
                     )
                     operacionDao.insertar(
-                        OperacionPendienteEntity(
-                            uuidOperacion = uuidMov,
+                        OperacionPendiente(
+                            uuidOperacion = uuidMovimiento,
                             tipoEntidad = TipoOperacionPendiente.MOVIMIENTO_INVENTARIO,
                             entidadIdLocal = detalle.productoId,
                             operacion = TipoOperacionPendiente.CREAR_MOVIMIENTO_INVENTARIO,
@@ -147,11 +147,11 @@ class PedidoRepository(
                     )
                 }
 
-                carritoDao.vaciar()
+                carritoDao.vaciarCarrito()
                 id
             }
             try {
-                programarSync()
+                programarSincronizacion()
             } catch (_: Exception) {
             }
             pedidoId
@@ -170,7 +170,7 @@ class PedidoRepository(
 
     companion object {
         fun crearProgramador(contexto: android.content.Context): () -> Unit = {
-            SyncWorker.programar(contexto)
+            SincronizacionWorker.programar(contexto)
         }
     }
 }

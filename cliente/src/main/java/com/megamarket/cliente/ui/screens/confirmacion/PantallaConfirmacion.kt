@@ -55,7 +55,7 @@ fun PantallaConfirmacion(
                     titulo = estado.error ?: "No hay una compra para mostrar",
                     descripcion = "Puedes revisar tu carrito desde el inicio.",
                     etiquetaAccion = "Reintentar",
-                    alPulsarAccion = viewModel::cargar
+                    alPulsarAccion = viewModel::cargarPedido
                 )
                 else -> ResumenPedido(pedido)
             }

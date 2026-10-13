@@ -12,12 +12,6 @@ import com.megamarket.app.data.local.dao.MovimientoInventarioDao
 import com.megamarket.app.data.local.dao.OperacionPendienteDao
 import com.megamarket.app.data.local.dao.ProductoDao
 import com.megamarket.app.data.local.dao.SyncMetadataDao
-import com.megamarket.app.data.local.entities.AdministradorEntity
-import com.megamarket.app.data.local.entities.CategoriaEntity
-import com.megamarket.app.data.local.entities.MovimientoInventarioEntity
-import com.megamarket.app.data.local.entities.OperacionPendienteEntity
-import com.megamarket.app.data.local.entities.ProductoEntity
-import com.megamarket.app.data.local.entities.SyncMetadataEntity
 import com.megamarket.modelo.CategoriasBootstrap
 import com.megamarket.modelo.PrecioDescuento
 
@@ -27,12 +21,12 @@ import com.megamarket.modelo.PrecioDescuento
  */
 @Database(
     entities = [
-        ProductoEntity::class,
-        CategoriaEntity::class,
-        AdministradorEntity::class,
-        OperacionPendienteEntity::class,
-        MovimientoInventarioEntity::class,
-        SyncMetadataEntity::class
+        Producto::class,
+        Categoria::class,
+        Administrador::class,
+        OperacionPendiente::class,
+        MovimientoInventario::class,
+        SyncMetadata::class
     ],
     version = 4,
     exportSchema = false
@@ -43,7 +37,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun administradorDao(): AdministradorDao
     abstract fun operacionPendienteDao(): OperacionPendienteDao
     abstract fun movimientoInventarioDao(): MovimientoInventarioDao
-    abstract fun syncMetadataDao(): SyncMetadataDao
+    abstract fun metadatosSincronizacionDao(): SyncMetadataDao
 
     companion object {
         private const val NOMBRE = "megamarket_catalogo.db"

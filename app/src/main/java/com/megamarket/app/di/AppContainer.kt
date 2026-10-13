@@ -1,50 +1,31 @@
 package com.megamarket.app.di
 
 import android.content.Context
-import com.megamarket.app.BuildConfig
-import com.megamarket.app.data.connectivity.ConnectivityObserver
+import com.megamarket.app.data.connectivity.ObservadorConexion
+import com.megamarket.app.data.connectivity.EstadoConexion
 import com.megamarket.app.data.local.AppDatabase
-import com.megamarket.app.data.remote.RetrofitProvider
-import com.megamarket.app.data.repository.AuthRepository
+import com.megamarket.app.data.repository.SesionRepository
 import com.megamarket.app.data.repository.CategoriaRepository
 import com.megamarket.app.data.repository.ImagenRepository
 import com.megamarket.app.data.repository.ProductoRepository
-import com.megamarket.app.data.repository.SyncRepository
-import com.megamarket.app.data.session.SessionStore
-import com.megamarket.app.worker.SyncWorker
+import com.megamarket.app.data.repository.SincronizacionRepository
+import com.megamarket.app.worker.SincronizacionWorker
+import kotlinx.coroutines.flow.map
 
 class AppContainer(context: Context) {
 
-    val appContext = context.applicationContext
+    private val appContext = context.applicationContext
     private val database = AppDatabase.getInstance(appContext)
+    private val observadorConexion = ObservadorConexion(appContext)
 
-    val sessionStore = SessionStore(appContext)
-    val connectivityObserver = ConnectivityObserver(appContext)
-    val remote = RetrofitProvider.crear(
-        baseUrl = BuildConfig.API_BASE_URL,
-        tokenProvider = { sessionStore.accessToken }
-    )
-
-    val syncRepository = SyncRepository(
+    val sincronizacionRepository = SincronizacionRepository(
         operacionDao = database.operacionPendienteDao(),
-        productoDao = database.productoDao(),
-        categoriaDao = database.categoriaDao(),
-        movimientoDao = database.movimientoInventarioDao(),
-        syncMetadataDao = database.syncMetadataDao(),
-        sessionStore = sessionStore,
-        baseUrlApi = BuildConfig.API_BASE_URL,
-        remote = remote
+        metadatosSincronizacionDao = database.metadatosSincronizacionDao(),
+        conectado = observadorConexion.observarConexion().map { it == EstadoConexion.CONECTADO }
     )
 
-    val authRepository = AuthRepository(
-        dao = database.administradorDao(),
-        sessionStore = sessionStore,
-        authApi = remote?.authApi,
-        connectivity = connectivityObserver,
-        trasLoginExitoso = {
-            // Solo programa sync en background; no bloquear ni tumbar el login.
-            SyncWorker.sincronizarAhora(appContext)
-        }
+    val sesionRepository = SesionRepository(
+        administradorDao = database.administradorDao()
     )
 
     val categoriaRepository = CategoriaRepository(database.categoriaDao())
@@ -55,7 +36,7 @@ class AppContainer(context: Context) {
         movimientoDao = database.movimientoInventarioDao(),
         operacionDao = database.operacionPendienteDao(),
         resolver = appContext.contentResolver,
-        programarSync = { SyncWorker.programar(appContext) }
+        programarSincronizacion = { SincronizacionWorker.programar(appContext) }
     )
 
     val imagenRepository = ImagenRepository(appContext)

@@ -1,15 +1,15 @@
 package com.megamarket.cliente.data.mapper
 
-import com.megamarket.cliente.data.local.entities.DireccionEntity
-import com.megamarket.cliente.data.local.entities.PedidoDetalleEntity
-import com.megamarket.cliente.data.local.entities.PedidoEntity
+import com.megamarket.cliente.data.local.Direccion as DireccionRoom
+import com.megamarket.cliente.data.local.PedidoDetalle as PedidoDetalleRoom
+import com.megamarket.cliente.data.local.Pedido as PedidoRoom
 import com.megamarket.cliente.model.Direccion
 import com.megamarket.cliente.model.Pedido
 import com.megamarket.cliente.model.PedidoDetalle
 
-fun PedidoEntity.toModel(
-    detalles: List<PedidoDetalleEntity>,
-    direccion: DireccionEntity
+fun PedidoRoom.toModel(
+    detalles: List<PedidoDetalleRoom>,
+    direccion: DireccionRoom
 ): Pedido = Pedido(
     id = id,
     clienteId = clienteId,
@@ -20,7 +20,7 @@ fun PedidoEntity.toModel(
     direccion = direccion.toModel()
 )
 
-fun PedidoDetalleEntity.toModel(): PedidoDetalle = PedidoDetalle(
+fun PedidoDetalleRoom.toModel(): PedidoDetalle = PedidoDetalle(
     id = id,
     productoId = productoId,
     nombreProducto = nombreProducto,
@@ -29,7 +29,7 @@ fun PedidoDetalleEntity.toModel(): PedidoDetalle = PedidoDetalle(
     subtotalCentimos = subtotalCentimos
 )
 
-fun PedidoDetalle.toEntity(pedidoId: Long): PedidoDetalleEntity = PedidoDetalleEntity(
+fun PedidoDetalle.toEntity(pedidoId: Long): PedidoDetalleRoom = PedidoDetalleRoom(
     pedidoId = pedidoId,
     productoId = productoId,
     nombreProducto = nombreProducto,
@@ -38,7 +38,7 @@ fun PedidoDetalle.toEntity(pedidoId: Long): PedidoDetalleEntity = PedidoDetalleE
     subtotalCentimos = subtotalCentimos
 )
 
-fun DireccionEntity.toModel(): Direccion = Direccion(
+fun DireccionRoom.toModel(): Direccion = Direccion(
     departamento = departamento,
     provincia = provincia,
     distrito = distrito,
@@ -46,7 +46,7 @@ fun DireccionEntity.toModel(): Direccion = Direccion(
     telefono = telefono
 )
 
-fun Direccion.toEntity(pedidoId: Long): DireccionEntity = DireccionEntity(
+fun Direccion.toEntity(pedidoId: Long): DireccionRoom = DireccionRoom(
     pedidoId = pedidoId,
     departamento = departamento,
     provincia = provincia,

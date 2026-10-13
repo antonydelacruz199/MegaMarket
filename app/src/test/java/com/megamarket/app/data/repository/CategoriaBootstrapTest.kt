@@ -20,7 +20,7 @@ class CategoriaBootstrapTest {
         val archivo = File("src/main/java/com/megamarket/app/data/repository/CategoriaRepository.kt")
         assertTrue(archivo.exists())
         val fuente = archivo.readText(Charsets.UTF_8)
-        assertTrue(fuente.contains("if (dao.contar() > 0) return@withContext"))
+        assertTrue(fuente.contains("if (categoriaDao.contar() > 0) return@withContext"))
         assertTrue(fuente.contains("CategoriasBootstrap.NOMBRES"))
         assertTrue(!fuente.contains("UUID.randomUUID"))
     }

@@ -1,6 +1,6 @@
 package com.megamarket.app.data.mapper
 
-import com.megamarket.app.data.local.entities.ProductoEntity
+import com.megamarket.app.data.local.Producto as ProductoRoom
 import com.megamarket.modelo.Producto
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -39,7 +39,7 @@ class ProductoMapperTest {
 
     @Test
     fun remoteId_inicialmenteNull() {
-        val entidad = ProductoEntity(
+        val entidad = ProductoRoom(
             id = 1,
             remoteId = null,
             nombre = "Leche",

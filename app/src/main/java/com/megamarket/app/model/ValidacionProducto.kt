@@ -1,6 +1,6 @@
 package com.megamarket.app.model
 
-import com.megamarket.app.model.estado.ProductoFormUiState
+import com.megamarket.app.state.FormularioProductoUiState
 import com.megamarket.modelo.PrecioDescuento
 import com.megamarket.modelo.Producto
 import java.math.RoundingMode
@@ -13,7 +13,7 @@ object ValidacionProducto {
         data class Invalido(val mensaje: String) : Resultado
     }
 
-    fun validar(formulario: ProductoFormUiState): Resultado {
+    fun validar(formulario: FormularioProductoUiState): Resultado {
         val nombre = formulario.nombre.trim()
         val marca = formulario.marca.trim()
         val precio = formulario.precio.aCentimos()

@@ -19,10 +19,10 @@ import com.megamarket.app.ui.screens.admin.panel.PantallaPanelAdmin
 import com.megamarket.app.ui.screens.admin.productos.PantallaProductosAdmin
 import com.megamarket.app.ui.screens.presentacion.PantallaPresentacion
 import com.megamarket.app.ui.screens.sesion.PantallaSesion
-import com.megamarket.app.viewmodel.AuthViewModel
-import com.megamarket.app.viewmodel.ProductoFormViewModel
+import com.megamarket.app.viewmodel.SesionViewModel
+import com.megamarket.app.viewmodel.FormularioProductoViewModel
 import com.megamarket.app.viewmodel.ProductoViewModel
-import com.megamarket.app.viewmodel.SyncViewModel
+import com.megamarket.app.viewmodel.SincronizacionViewModel
 import com.megamarket.app.viewmodel.ViewModelFactory
 
 @Composable
@@ -31,7 +31,7 @@ fun NavegacionMegaMarket(
 ) {
     val aplicacion = LocalContext.current.applicationContext as MegaMarketApplication
     val fabrica = remember(aplicacion) { ViewModelFactory(aplicacion.container) }
-    val authViewModel: AuthViewModel = viewModel(factory = fabrica)
+    val sesionViewModel: SesionViewModel = viewModel(factory = fabrica)
 
     NavHost(
         navController = controlador,
@@ -48,7 +48,7 @@ fun NavegacionMegaMarket(
         }
 
         composable(Ruta.Sesion.ruta) {
-            val estado by authViewModel.estado.collectAsStateWithLifecycle()
+            val estado by sesionViewModel.estado.collectAsStateWithLifecycle()
 
             LaunchedEffect(estado.usuario) {
                 if (estado.usuario != null) {
@@ -61,17 +61,17 @@ fun NavegacionMegaMarket(
             PantallaSesion(
                 cargando = estado.cargando,
                 error = estado.error,
-                alIngresar = authViewModel::ingresar
+                alIngresar = sesionViewModel::iniciarSesion
             )
         }
 
         composable(Ruta.PanelAdmin.ruta) {
             PantallaPanelAdmin(
                 viewModel = viewModel<ProductoViewModel>(factory = fabrica),
-                syncViewModel = viewModel<SyncViewModel>(factory = fabrica),
+                sincronizacionViewModel = viewModel<SincronizacionViewModel>(factory = fabrica),
                 alNavegar = { ruta -> controlador.navegarAdmin(ruta) },
                 alCerrarSesion = {
-                    authViewModel.cerrarSesion()
+                    sesionViewModel.cerrarSesion()
                     controlador.cerrarSesion()
                 }
             )
@@ -82,7 +82,7 @@ fun NavegacionMegaMarket(
                 viewModel = viewModel<ProductoViewModel>(factory = fabrica),
                 alNavegar = { ruta -> controlador.navegarAdmin(ruta) },
                 alCerrarSesion = {
-                    authViewModel.cerrarSesion()
+                    sesionViewModel.cerrarSesion()
                     controlador.cerrarSesion()
                 }
             )
@@ -90,7 +90,7 @@ fun NavegacionMegaMarket(
 
         composable(Ruta.CrearProductoAdmin.ruta) {
             PantallaFormularioProducto(
-                viewModel = viewModel<ProductoFormViewModel>(factory = fabrica),
+                viewModel = viewModel<FormularioProductoViewModel>(factory = fabrica),
                 alVolver = { controlador.popBackStack() }
             )
         }
@@ -98,11 +98,11 @@ fun NavegacionMegaMarket(
         composable(
             route = Ruta.EditarProductoAdmin.ruta,
             arguments = listOf(
-                navArgument(ProductoFormViewModel.ARG_PRODUCTO_ID) { type = NavType.LongType }
+                navArgument(FormularioProductoViewModel.ARG_PRODUCTO_ID) { type = NavType.LongType }
             )
         ) {
             PantallaFormularioProducto(
-                viewModel = viewModel<ProductoFormViewModel>(factory = fabrica),
+                viewModel = viewModel<FormularioProductoViewModel>(factory = fabrica),
                 alVolver = { controlador.popBackStack() }
             )
         }

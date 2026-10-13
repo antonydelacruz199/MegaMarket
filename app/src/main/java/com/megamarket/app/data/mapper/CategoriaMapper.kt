@@ -1,9 +1,9 @@
 package com.megamarket.app.data.mapper
 
-import com.megamarket.app.data.local.entities.CategoriaEntity
+import com.megamarket.app.data.local.Categoria as CategoriaRoom
 import com.megamarket.modelo.Categoria
 
-fun CategoriaEntity.toModel(): Categoria = Categoria(
+fun CategoriaRoom.toModel(): Categoria = Categoria(
     id = id,
     nombre = nombre,
     remoteId = remoteId,
@@ -12,7 +12,7 @@ fun CategoriaEntity.toModel(): Categoria = Categoria(
     remoteDeletedAt = remoteDeletedAt
 )
 
-fun Categoria.toEntity(): CategoriaEntity = CategoriaEntity(
+fun Categoria.toEntity(): CategoriaRoom = CategoriaRoom(
     id = id,
     remoteId = remoteId,
     nombre = nombre,

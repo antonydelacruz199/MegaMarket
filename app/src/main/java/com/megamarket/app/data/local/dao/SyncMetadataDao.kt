@@ -4,17 +4,17 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
-import com.megamarket.app.data.local.entities.SyncMetadataEntity
+import com.megamarket.app.data.local.SyncMetadata
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SyncMetadataDao {
     @Query("SELECT * FROM sync_metadata WHERE id = 1 LIMIT 1")
-    fun observar(): Flow<SyncMetadataEntity?>
+    fun observarMetadatos(): Flow<SyncMetadata?>
 
     @Query("SELECT * FROM sync_metadata WHERE id = 1 LIMIT 1")
-    suspend fun obtener(): SyncMetadataEntity?
+    suspend fun obtener(): SyncMetadata?
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun guardar(entidad: SyncMetadataEntity)
+    suspend fun guardar(entidad: SyncMetadata)
 }

@@ -19,11 +19,11 @@ class ImagenRepository(
     private val alcanceLimpieza = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** Copia y comprime la imagen elegida. Devuelve la clave del archivo o null si no se pudo leer. */
-    suspend fun guardar(origen: Uri): String? = withContext(Dispatchers.IO) {
+    suspend fun guardarImagen(origen: Uri): String? = withContext(Dispatchers.IO) {
         AlmacenImagenes.guardar(contexto, origen)
     }
 
-    suspend fun eliminar(clave: String) = withContext(Dispatchers.IO) {
+    suspend fun eliminarImagen(clave: String) = withContext(Dispatchers.IO) {
         if (clave.isNotBlank()) AlmacenImagenes.eliminar(contexto, clave)
     }
 
@@ -32,7 +32,7 @@ class ImagenRepository(
         alcanceLimpieza.launch { AlmacenImagenes.eliminar(contexto, clave) }
     }
 
-    suspend fun cargar(clave: String, lado: Int): Bitmap? = withContext(Dispatchers.IO) {
+    suspend fun cargarImagen(clave: String, lado: Int): Bitmap? = withContext(Dispatchers.IO) {
         if (clave.isBlank()) null else AlmacenImagenes.bitmap(contexto, clave, lado)
     }
 }

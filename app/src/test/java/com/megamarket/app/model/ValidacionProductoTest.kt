@@ -1,6 +1,6 @@
 package com.megamarket.app.model
 
-import com.megamarket.app.model.estado.ProductoFormUiState
+import com.megamarket.app.state.FormularioProductoUiState
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -8,7 +8,7 @@ import org.junit.Test
 
 class ValidacionProductoTest {
 
-    private val valido = ProductoFormUiState(
+    private val valido = FormularioProductoUiState(
         nombre = "Arroz Costeño",
         marca = "Costeño",
         categoriaId = 1L,
@@ -16,7 +16,7 @@ class ValidacionProductoTest {
         stock = "10"
     )
 
-    private fun mensaje(formulario: ProductoFormUiState): String? =
+    private fun mensaje(formulario: FormularioProductoUiState): String? =
         (ValidacionProducto.validar(formulario) as? ValidacionProducto.Resultado.Invalido)?.mensaje
 
     @Test

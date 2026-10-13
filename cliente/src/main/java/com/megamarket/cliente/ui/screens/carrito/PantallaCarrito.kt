@@ -106,7 +106,7 @@ fun PantallaCarrito(
                                     Text(linea.producto.nombre, fontWeight = FontWeight.SemiBold)
                                     TextoPrecio(linea.producto)
                                 }
-                                IconButton(onClick = { viewModel.eliminar(linea.producto.id) }) {
+                                IconButton(onClick = { viewModel.quitarDelCarrito(linea.producto.id) }) {
                                     Icon(Icons.Default.Delete, contentDescription = "Quitar del carrito")
                                 }
                             }
@@ -115,12 +115,12 @@ fun PantallaCarrito(
                             } else {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     IconButton(
-                                        onClick = { viewModel.disminuir(linea.producto.id, linea.cantidad) },
+                                        onClick = { viewModel.disminuirCantidadCarrito(linea.producto.id, linea.cantidad) },
                                         enabled = linea.cantidad > 1
                                     ) { Text("−") }
                                     Text("${linea.cantidad}")
                                     IconButton(
-                                        onClick = { viewModel.aumentar(linea.producto.id, linea.cantidad) },
+                                        onClick = { viewModel.aumentarCantidadCarrito(linea.producto.id, linea.cantidad) },
                                         enabled = linea.cantidad < linea.producto.stock
                                     ) { Text("+") }
                                     Text(

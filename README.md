@@ -2,15 +2,12 @@
 
 > Este archivo es la fuente de verdad del proyecto. Cursor debe leerlo antes de crear, modificar o refactorizar código.
 
-## Backend REST (integración remota)
+## Datos
 
-- **API:** proyecto hermano `MegaMarket-API` (Laravel + Sanctum + Neon).
-- **Base URL emulador:** en `local.properties` (no versionar):
-  `MEGAMARKET_API_BASE_URL=http://10.0.2.2:8000/`
-- **Auth:** login remoto Bearer; offline solo con sesión previa válida (token/expiración + perfil Room). No guardar contraseña en texto plano.
-- **Datos:** Room sigue siendo fuente de la UI. Sync/WorkManager usa Retrofit → API. Catálogo se descarga tras login/sync.
-- **Roles:** Cliente (`CLIENTE`) y Admin (`ADMINISTRADOR`) validados en backend.
-- **Arquitectura:** UI → ViewModel → Repository → DAO/API. Worker → SyncRepository.
+- Room es la fuente de la UI en `:app` y en `:cliente`, con bases separadas.
+- El login temporal es local: UI → ViewModel → SesionRepository → Room.
+- `data/remote/ApiService.kt` queda vacío para una API REST futura. No hay cliente HTTP.
+- WorkManager solo mantiene la cola local. No llama a una API.
 
 ## 1. Identificación del proyecto
 
@@ -273,7 +270,7 @@ com.megamarket.app
 │   └── RolUsuario.kt
 │
 ├── repository/
-│   ├── AuthRepository.kt
+│   ├── SesionRepository.kt
 │   ├── ProductoRepository.kt
 │   ├── CarritoRepository.kt
 │   ├── FavoritosRepository.kt
@@ -300,7 +297,7 @@ com.megamarket.app
 │   └── theme/
 │
 ├── viewmodel/
-│   ├── AuthViewModel.kt
+│   ├── SesionViewModel.kt
 │   ├── CatalogoViewModel.kt
 │   ├── CarritoViewModel.kt
 │   ├── FavoritosViewModel.kt
@@ -438,8 +435,8 @@ Credenciales demo sugeridas:
 Reglas:
 
 - Las credenciales no deben validarse directamente dentro del composable.
-- `AuthRepository` debe encapsular la validación demo.
-- `AuthViewModel` expone el resultado del login y el rol.
+- `SesionRepository` debe encapsular la validación demo.
+- `SesionViewModel` expone el resultado del login y el rol.
 - Cliente navega al flujo Cliente.
 - Administrador navega al flujo Administrador.
 - Debe existir cierre de sesión.
@@ -757,7 +754,7 @@ Validaciones:
 
 # 16. ViewModels
 
-## AuthViewModel
+## SesionViewModel
 
 Responsabilidades:
 
@@ -833,9 +830,9 @@ Responsabilidades:
 
 # 17. Repositories
 
-## AuthRepository
+## SesionRepository
 
-- autenticar usuario demo
+- iniciar sesión con usuario demo
 - recuperar usuario por credenciales
 - cerrar sesión local si se persiste sesión
 
@@ -1143,8 +1140,8 @@ No llenar favoritos o carrito automáticamente.
 
 - Splash
 - Login
-- `AuthRepository`
-- `AuthViewModel`
+- `SesionRepository`
+- `SesionViewModel`
 - navegación por rol
 - logout
 

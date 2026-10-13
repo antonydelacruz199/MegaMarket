@@ -6,7 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.megamarket.app.data.repository.ImagenRepository
 import com.megamarket.app.data.repository.ProductoRepository
 import com.megamarket.app.model.FiltroProducto
-import com.megamarket.app.model.estado.ProductoUiState
+import com.megamarket.app.state.ProductoUiState
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -48,5 +48,5 @@ class ProductoViewModel(
         _estado.update { it.copy(filtro = filtro) }
     }
 
-    suspend fun cargarImagen(clave: String, lado: Int): Bitmap? = imagenes.cargar(clave, lado)
+    suspend fun cargarImagen(clave: String, lado: Int): Bitmap? = imagenes.cargarImagen(clave, lado)
 }

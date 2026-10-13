@@ -40,7 +40,7 @@ fun PantallaCatalogo(
 ) {
     val estado by viewModel.estado.collectAsStateWithLifecycle()
     LifecycleResumeEffect(Unit) {
-        viewModel.cargar()
+        viewModel.cargarCatalogo()
         onPauseOrDispose { }
     }
     val ruta = if (estado.soloOfertas) Ruta.Ofertas.ruta else Ruta.Catalogo.ruta
@@ -71,7 +71,7 @@ fun PantallaCatalogo(
                 descripcion = estado.error.orEmpty(),
                 modifier = Modifier.padding(relleno),
                 etiquetaAccion = "Reintentar",
-                alPulsarAccion = viewModel::cargar
+                alPulsarAccion = viewModel::cargarCatalogo
             )
 
             estado.vacio -> EstadoVacio(

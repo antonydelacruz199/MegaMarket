@@ -4,19 +4,19 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.Query
 import androidx.room.Update
-import com.megamarket.cliente.data.local.entities.ClienteEntity
+import com.megamarket.cliente.data.local.Cliente
 
 @Dao
 interface ClienteDao {
     @Query("SELECT * FROM clientes WHERE usuario = :usuario LIMIT 1")
-    suspend fun buscarPorUsuario(usuario: String): ClienteEntity?
+    suspend fun buscarPorUsuario(usuario: String): Cliente?
 
     @Query("SELECT COUNT(*) FROM clientes")
     suspend fun contar(): Int
 
     @Insert
-    suspend fun insertar(entidad: ClienteEntity): Long
+    suspend fun insertar(entidad: Cliente): Long
 
     @Update
-    suspend fun actualizar(entidad: ClienteEntity): Int
+    suspend fun actualizarCliente(entidad: Cliente): Int
 }

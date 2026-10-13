@@ -5,7 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.megamarket.cliente.data.repository.CarritoRepository
 import com.megamarket.cliente.data.repository.CatalogoRepository
-import com.megamarket.cliente.model.estado.CarritoUiState
+import com.megamarket.cliente.state.CarritoUiState
 import com.megamarket.cliente.model.totalCentimos
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,7 +24,7 @@ class CarritoViewModel(
 
     init {
         viewModelScope.launch {
-            carrito.observar()
+            carrito.observarLineasCarrito()
                 .catch { error ->
                     _estado.value = CarritoUiState(
                         cargando = false,
@@ -43,23 +43,23 @@ class CarritoViewModel(
         }
     }
 
-    fun aumentar(productoId: Long, cantidadActual: Int) {
-        cambiar { carrito.cambiarCantidad(productoId, cantidadActual + 1) }
+    fun aumentarCantidadCarrito(productoId: Long, cantidadActual: Int) {
+        aplicarCambioEnCarrito { carrito.actualizarCantidadCarrito(productoId, cantidadActual + 1) }
     }
 
-    fun disminuir(productoId: Long, cantidadActual: Int) {
+    fun disminuirCantidadCarrito(productoId: Long, cantidadActual: Int) {
         if (cantidadActual <= 1) return
-        cambiar { carrito.cambiarCantidad(productoId, cantidadActual - 1) }
+        aplicarCambioEnCarrito { carrito.actualizarCantidadCarrito(productoId, cantidadActual - 1) }
     }
 
-    fun eliminar(productoId: Long) {
-        cambiar { carrito.eliminar(productoId) }
+    fun quitarDelCarrito(productoId: Long) {
+        aplicarCambioEnCarrito { carrito.quitarDelCarrito(productoId) }
     }
 
     suspend fun cargarImagen(productoId: Long, lado: Int): Bitmap? =
         catalogo.cargarImagen(productoId, lado)
 
-    private fun cambiar(accion: suspend () -> Unit) {
+    private fun aplicarCambioEnCarrito(accion: suspend () -> Unit) {
         viewModelScope.launch {
             try {
                 accion()

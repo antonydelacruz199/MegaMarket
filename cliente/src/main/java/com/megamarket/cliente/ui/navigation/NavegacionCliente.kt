@@ -22,16 +22,16 @@ import com.megamarket.cliente.ui.screens.perfil.PantallaPerfil
 import com.megamarket.cliente.ui.screens.presentacion.PantallaPresentacion
 import com.megamarket.cliente.ui.screens.producto.PantallaDetalleProducto
 import com.megamarket.cliente.ui.screens.sesion.PantallaSesion
-import com.megamarket.cliente.viewmodel.AuthViewModel
+import com.megamarket.cliente.viewmodel.SesionViewModel
 import com.megamarket.cliente.viewmodel.CarritoViewModel
 import com.megamarket.cliente.viewmodel.CatalogoViewModel
 import com.megamarket.cliente.viewmodel.CheckoutViewModel
 import com.megamarket.cliente.viewmodel.ConfirmacionViewModel
 import com.megamarket.cliente.viewmodel.DetalleProductoViewModel
 import com.megamarket.cliente.viewmodel.FavoritosViewModel
-import com.megamarket.cliente.viewmodel.HomeViewModel
+import com.megamarket.cliente.viewmodel.InicioViewModel
 import com.megamarket.cliente.viewmodel.PerfilViewModel
-import com.megamarket.cliente.viewmodel.SyncViewModel
+import com.megamarket.cliente.viewmodel.SincronizacionViewModel
 import com.megamarket.cliente.viewmodel.ViewModelFactory
 
 @Composable
@@ -41,9 +41,9 @@ fun NavegacionCliente(
     val container = (LocalContext.current.applicationContext as MegaMarketClienteApplication).container
     val fabrica = remember(container) { ViewModelFactory(container) }
     val fabricaOfertas = remember(container) { ViewModelFactory(container, soloOfertas = true) }
-    val authViewModel: AuthViewModel = viewModel(factory = fabrica)
+    val sesionViewModel: SesionViewModel = viewModel(factory = fabrica)
     val cerrarSesion = {
-        authViewModel.cerrarSesion()
+        sesionViewModel.cerrarSesion()
         controlador.irASesion()
     }
 
@@ -59,7 +59,7 @@ fun NavegacionCliente(
         }
 
         composable(Ruta.Sesion.ruta) {
-            val viewModel: AuthViewModel = viewModel(factory = fabrica)
+            val viewModel: SesionViewModel = viewModel(factory = fabrica)
             LaunchedEffect(viewModel.estado) {
                 viewModel.estado.collect { estado ->
                     if (estado.usuario != null) {
@@ -74,8 +74,8 @@ fun NavegacionCliente(
 
         composable(Ruta.Inicio.ruta) {
             PantallaInicio(
-                viewModel = viewModel<HomeViewModel>(factory = fabrica),
-                syncViewModel = viewModel<SyncViewModel>(factory = fabrica),
+                viewModel = viewModel<InicioViewModel>(factory = fabrica),
+                sincronizacionViewModel = viewModel<SincronizacionViewModel>(factory = fabrica),
                 alNavegar = controlador::irARaiz,
                 alCerrarSesion = cerrarSesion,
                 alAbrirProducto = { id -> controlador.navigate(Ruta.Detalle.crear(id)) }

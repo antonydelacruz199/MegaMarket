@@ -33,21 +33,21 @@ import com.megamarket.cliente.ui.components.EstructuraCliente
 import com.megamarket.cliente.ui.components.PanelSincronizacion
 import com.megamarket.cliente.ui.components.TarjetaProducto
 import com.megamarket.cliente.ui.navigation.Ruta
-import com.megamarket.cliente.viewmodel.HomeViewModel
-import com.megamarket.cliente.viewmodel.SyncViewModel
+import com.megamarket.cliente.viewmodel.InicioViewModel
+import com.megamarket.cliente.viewmodel.SincronizacionViewModel
 
 @Composable
 fun PantallaInicio(
-    viewModel: HomeViewModel,
-    syncViewModel: SyncViewModel,
+    viewModel: InicioViewModel,
+    sincronizacionViewModel: SincronizacionViewModel,
     alNavegar: (String) -> Unit,
     alCerrarSesion: () -> Unit,
     alAbrirProducto: (Long) -> Unit
 ) {
     val estado by viewModel.estado.collectAsStateWithLifecycle()
-    val sync by syncViewModel.estado.collectAsStateWithLifecycle()
+    val sync by sincronizacionViewModel.estado.collectAsStateWithLifecycle()
     LifecycleResumeEffect(Unit) {
-        viewModel.cargar()
+        viewModel.cargarInicio()
         onPauseOrDispose { }
     }
 
@@ -65,7 +65,7 @@ fun PantallaInicio(
                 descripcion = estado.error.orEmpty(),
                 modifier = Modifier.padding(relleno),
                 etiquetaAccion = "Reintentar",
-                alPulsarAccion = viewModel::cargar
+                alPulsarAccion = viewModel::cargarInicio
             )
             !estado.hayProductos -> Column(
                 modifier = Modifier
@@ -81,7 +81,7 @@ fun PantallaInicio(
                 )
                 PanelSincronizacion(
                     estado = sync,
-                    alSincronizar = syncViewModel::sincronizarAhora
+                    alSincronizar = sincronizacionViewModel::sincronizarPendientes
                 )
             }
             else -> Column(
@@ -93,7 +93,7 @@ fun PantallaInicio(
             ) {
                 PanelSincronizacion(
                     estado = sync,
-                    alSincronizar = syncViewModel::sincronizarAhora,
+                    alSincronizar = sincronizacionViewModel::sincronizarPendientes,
                     modifier = Modifier.padding(bottom = 12.dp)
                 )
                 val hayOfertas = estado.ofertas.isNotEmpty()

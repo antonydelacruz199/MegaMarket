@@ -2,7 +2,7 @@ package com.megamarket.modelo
 
 /**
  * Categoría de catálogo. [id] es la PK local Room (Long).
- * [remoteId] es el UUID de Neon cuando exista sincronización vía API REST.
+ * [remoteId] queda reservado para un identificador externo futuro.
  */
 data class Categoria(
     val id: Long,
@@ -16,7 +16,7 @@ data class Categoria(
         get() = !remoteDeletedAt.isNullOrBlank()
 }
 
-/** Semillas locales (sin UUID inventados). remoteId queda null hasta GET /api/categorias. */
+/** Semillas locales. remoteId queda null. */
 object CategoriasBootstrap {
     val NOMBRES: List<String> = listOf(
         "Abarrotes",

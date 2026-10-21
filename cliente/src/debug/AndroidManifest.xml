@@ -1,4 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Android 17+: acceso a API REST local de desarrollo (10.0.2.2 / LAN). -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
+
     <application android:usesCleartextTraffic="true" />
 </manifest>

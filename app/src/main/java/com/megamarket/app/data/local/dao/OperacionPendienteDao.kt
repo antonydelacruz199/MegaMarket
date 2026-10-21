@@ -54,6 +54,31 @@ interface OperacionPendienteDao {
 
     @Query(
         """
+        SELECT COUNT(*) FROM operaciones_pendientes
+        WHERE tipoEntidad = :tipoEntidad
+          AND entidadIdLocal = :entidadIdLocal
+          AND estado IN ('PENDIENTE', 'ENVIANDO', 'ERROR', 'SINCRONIZANDO')
+        """
+    )
+    suspend fun contarActivasDeEntidad(tipoEntidad: String, entidadIdLocal: Long): Int
+
+    @Query(
+        """
+        SELECT * FROM operaciones_pendientes
+        WHERE tipoEntidad = :tipoEntidad
+          AND entidadIdLocal = :entidadIdLocal
+          AND operacion = :operacion
+          AND estado IN ('PENDIENTE', 'ENVIANDO', 'ERROR', 'SINCRONIZANDO')
+        """
+    )
+    suspend fun obtenerActivasDe(
+        tipoEntidad: String,
+        entidadIdLocal: Long,
+        operacion: String
+    ): List<OperacionPendiente>
+
+    @Query(
+        """
         UPDATE operaciones_pendientes
         SET estado = 'PENDIENTE', fechaActualizacion = :ahora
         WHERE estado IN ('ENVIANDO', 'SINCRONIZANDO')

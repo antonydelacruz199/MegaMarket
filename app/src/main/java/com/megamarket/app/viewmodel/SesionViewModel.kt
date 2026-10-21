@@ -2,6 +2,7 @@ package com.megamarket.app.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.megamarket.app.data.repository.ResultadoInicioSesion
 import com.megamarket.app.data.repository.SesionRepository
 import com.megamarket.app.state.SesionUiState
 import kotlinx.coroutines.CancellationException
@@ -22,19 +23,20 @@ class SesionViewModel(
         if (_estado.value.cargando) return
         viewModelScope.launch {
             _estado.update { it.copy(cargando = true, error = null) }
-            val usuario = try {
+            val resultado = try {
                 sesionRepository.iniciarSesion(nombreUsuario, clave)
             } catch (error: CancellationException) {
                 throw error
-            } catch (error: Exception) {
+            } catch (_: Exception) {
                 _estado.update { it.copy(cargando = false, error = "No se pudo iniciar sesión") }
                 return@launch
             }
             _estado.update {
-                if (usuario == null) {
-                    it.copy(cargando = false, error = "Credenciales incorrectas", usuario = null)
-                } else {
-                    it.copy(cargando = false, error = null, usuario = usuario)
+                when (resultado) {
+                    is ResultadoInicioSesion.Exito ->
+                        it.copy(cargando = false, error = null, usuario = resultado.usuario)
+                    is ResultadoInicioSesion.Error ->
+                        it.copy(cargando = false, error = resultado.mensaje, usuario = null)
                 }
             }
         }

@@ -46,6 +46,9 @@ interface ProductoDao {
     @Query("SELECT * FROM productos WHERE remote_id = :remoteId LIMIT 1")
     suspend fun obtenerPorRemoteId(remoteId: String): Producto?
 
+    @Query("SELECT * FROM productos WHERE remote_id IS NOT NULL AND trim(remote_id) != ''")
+    suspend fun obtenerConRemoteId(): List<Producto>
+
     @Insert
     suspend fun insertar(entidad: Producto): Long
 

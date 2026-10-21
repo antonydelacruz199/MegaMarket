@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -18,6 +21,14 @@ android {
         versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        val props = Properties()
+        val localProperties = rootProject.file("local.properties")
+        if (localProperties.exists()) {
+            FileInputStream(localProperties).use { stream -> props.load(stream) }
+        }
+        val apiBaseUrl = props.getProperty("MEGAMARKET_API_BASE_URL", "http://10.0.2.2:8010/")
+        buildConfigField("String", "MEGAMARKET_API_BASE_URL", "\"$apiBaseUrl\"")
     }
 
     buildTypes {
@@ -40,6 +51,7 @@ android {
     }
     buildFeatures {
         compose = true
+        buildConfig = true
     }
     packaging {
         resources {
@@ -71,6 +83,9 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.gson)
+    implementation(libs.okhttp)
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)

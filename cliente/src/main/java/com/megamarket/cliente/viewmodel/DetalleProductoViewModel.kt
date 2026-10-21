@@ -65,17 +65,6 @@ class DetalleProductoViewModel(
             initialValue = DetalleProductoUiState()
         )
 
-    init {
-        viewModelScope.launch {
-            try {
-                catalogo.asegurarCatalogoLocal()
-            } catch (_: CancellationException) {
-                throw CancellationException()
-            } catch (_: Exception) {
-            }
-        }
-    }
-
     fun agregarAlCarrito() {
         viewModelScope.launch { ejecutarAccionDetalle { carrito.agregarAlCarrito(productoId) } }
     }

@@ -28,9 +28,8 @@ import java.util.UUID
  * Checkout local-first atómico (Room cliente).
  * ContentProvider ya NO descuenta stock en compras.
  *
- * Contrato futuro:
- * - POST /api/pedidos → pedido/detalles/dirección (sin descontar stock)
- * - POST /api/inventario/movimientos → único responsable del stock remoto
+ * Remoto: POST /api/pedidos crea pedido, descuenta stock y registra SALIDA_VENTA.
+ * Las ops locales CREAR_MOVIMIENTO_INVENTARIO (SALIDA_VENTA) no se reenvían.
  */
 class PedidoRepository(
     private val database: AppDatabase,

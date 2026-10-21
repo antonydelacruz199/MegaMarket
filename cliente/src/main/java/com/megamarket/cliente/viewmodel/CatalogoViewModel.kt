@@ -51,8 +51,7 @@ class CatalogoViewModel(
     fun cargarCatalogo() {
         viewModelScope.launch {
             try {
-                catalogo.asegurarCatalogoLocal()
-                catalogo.importarDesdeProvider(silencioso = true)
+                // Observa Room; datos remotos llegan vía SesionRepository / SincronizacionRepository.
             } catch (_: CancellationException) {
                 throw CancellationException()
             } catch (_: Exception) {

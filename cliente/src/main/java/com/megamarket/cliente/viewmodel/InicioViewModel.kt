@@ -41,8 +41,7 @@ class InicioViewModel(
     fun cargarInicio() {
         viewModelScope.launch {
             try {
-                catalogo.asegurarCatalogoLocal()
-                catalogo.importarDesdeProvider(silencioso = true)
+                // Room es la fuente de la UI; el catálogo se llena tras login/sync API.
             } catch (_: CancellationException) {
                 throw CancellationException()
             } catch (_: Exception) {

@@ -2,52 +2,38 @@ package com.megamarket.cliente.data.repository
 
 import android.content.ContentResolver
 import android.content.ContentValues
-import android.database.ContentObserver
 import android.database.Cursor
 import android.graphics.Bitmap
 import android.net.Uri
-import android.os.Handler
-import android.os.Looper
 import com.megamarket.cliente.data.local.ProductoProviderSnapshot
 import com.megamarket.cliente.data.local.dao.CategoriaDao
 import com.megamarket.cliente.data.local.dao.ProductoDao
-import com.megamarket.cliente.data.local.Categoria as CategoriaRoom
 import com.megamarket.cliente.data.mapper.toEntity
 import com.megamarket.cliente.data.mapper.toModel
 import com.megamarket.cliente.model.ResultadoDescuentoStock
 import com.megamarket.modelo.Categoria
-import com.megamarket.modelo.CategoriasBootstrap
 import com.megamarket.modelo.ContratoCatalogo
 import com.megamarket.modelo.Producto
 import com.megamarket.modelo.decodificarImagen
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.IOException
 
 /**
- * Catálogo offline-first:
- * Room local es la fuente de la UI (Producto.id = PK cliente).
- * ContentProvider usa providerId de la fila local.
+ * Catálogo offline-first: Room local es la fuente de la UI.
+ * La fuente autoritativa remota es API REST (via CatalogoRemotoRepository).
+ * ContentProvider queda aislado por compatibilidad; no alimenta el arranque.
  */
 class CatalogoRepository(
     private val resolver: ContentResolver,
     private val productoDao: ProductoDao,
-    private val categoriaDao: CategoriaDao,
-    private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val categoriaDao: CategoriaDao
 ) {
     private val mutexImportacion = Mutex()
-    @Volatile
-    private var observacionIniciada = false
 
     fun observarProductos(): Flow<List<Producto>> =
         productoDao.observarActivos().map { lista -> lista.map { it.toModel() } }
@@ -58,56 +44,15 @@ class CatalogoRepository(
     fun observarProducto(id: Long): Flow<Producto?> =
         productoDao.observarPorId(id).map { it?.toModel() }
 
-    fun observarCambiosCatalogo(): Flow<Unit> = callbackFlow {
-        val handler = Handler(Looper.getMainLooper())
-        val observer = object : ContentObserver(handler) {
-            override fun onChange(selfChange: Boolean) {
-                trySend(Unit)
-            }
-
-            override fun onChange(selfChange: Boolean, uri: Uri?) {
-                trySend(Unit)
-            }
-        }
-        resolver.registerContentObserver(ContratoCatalogo.URI_PRODUCTOS, true, observer)
-        awaitClose { resolver.unregisterContentObserver(observer) }
-    }.flowOn(Dispatchers.Main.immediate)
-
-    fun iniciarObservacionDelCatalogo() {
-        if (observacionIniciada) return
-        observacionIniciada = true
-        scope.launch {
-            asegurarCatalogoLocal()
-            observarCambiosCatalogo().collect {
-                importarDesdeProvider(silencioso = true)
-            }
-        }
-    }
-
-    suspend fun asegurarCatalogoLocal() = withContext(Dispatchers.IO) {
-        asegurarCategoriasBootstrap()
-        if (productoDao.contar() == 0) {
-            importarDesdeProvider(silencioso = true)
-        }
-    }
-
     suspend fun obtenerActivos(): List<Producto> = withContext(Dispatchers.IO) {
-        asegurarCategoriasBootstrap()
-        var locales = productoDao.obtenerActivos().map { it.toModel() }
-        if (locales.isEmpty()) {
-            importarDesdeProvider(silencioso = false)
-            locales = productoDao.obtenerActivos().map { it.toModel() }
-        }
-        locales
+        productoDao.obtenerActivos().map { it.toModel() }
     }
 
     suspend fun obtenerPorId(id: Long): Producto? = withContext(Dispatchers.IO) {
-        asegurarCatalogoLocal()
         productoDao.obtenerPorId(id)?.toModel()
     }
 
     suspend fun obtenerCategorias(): List<Categoria> = withContext(Dispatchers.IO) {
-        asegurarCategoriasBootstrap()
         categoriaDao.obtenerActivas().map { it.toModel() }
     }
 
@@ -118,12 +63,10 @@ class CatalogoRepository(
         runBlockingIo { productoDao.obtenerPorId(id)?.toModel() }
 
     /**
-     * Importa/actualiza Room desde Provider por [ProductoProviderSnapshot.providerId].
-     * No usa el id admin como PK local.
+     * Compatibilidad local opcional. No se usa como fuente inicial del catálogo.
      */
     suspend fun importarDesdeProvider(silencioso: Boolean = true): Int = mutexImportacion.withLock {
         withContext(Dispatchers.IO) {
-            asegurarCategoriasBootstrap()
             val snapshots = try {
                 leerSnapshotsDesdeProvider(ContratoCatalogo.URI_PRODUCTOS)
             } catch (error: CatalogoNoDisponibleException) {
@@ -152,6 +95,9 @@ class CatalogoRepository(
         }
     }
 
+    private suspend fun obtenerProviderId(productoIdLocal: Long): Long? =
+        productoDao.obtenerPorId(productoIdLocal)?.providerId
+
     suspend fun descontarStock(productoIdLocal: Long, cantidad: Int): ResultadoDescuentoStock =
         withContext(Dispatchers.IO) {
             aplicarCambioDeStock(
@@ -174,21 +120,6 @@ class CatalogoRepository(
             )
         }
 
-    private suspend fun obtenerProviderId(productoIdLocal: Long): Long? =
-        productoDao.obtenerPorId(productoIdLocal)?.providerId
-
-    private suspend fun asegurarCategoriasBootstrap() {
-        if (categoriaDao.contar() > 0) return
-        categoriaDao.insertarVarias(
-            CategoriasBootstrap.NOMBRES.map { nombre -> CategoriaRoom(nombre = nombre) }
-        )
-    }
-
-    /**
-     * Limitación de transición: el Provider publica categoria_id de Room admin.
-     * Mientras ambas apps inserten [CategoriasBootstrap] en el mismo orden, los Long coinciden.
-     * Si no existe, se usa la primera categoría local.
-     */
     private suspend fun resolverCategoriaLocal(categoriaProviderId: Long): Long {
         val categorias = categoriaDao.obtenerActivas()
         if (categorias.any { it.id == categoriaProviderId }) return categoriaProviderId
@@ -225,9 +156,7 @@ class CatalogoRepository(
         val local = productoDao.obtenerPorId(productoIdLocal)
             ?: return ResultadoDescuentoStock.Fallo(errorGenerico)
         val providerId = local.providerId
-            ?: return ResultadoDescuentoStock.Fallo(
-                "El producto todavía no está disponible para actualización local de stock."
-            )
+            ?: return ResultadoDescuentoStock.Fallo(MENSAJE_SIN_PROVIDER_ID)
 
         val values = ContentValues().apply {
             put(ContratoCatalogo.COL_CANTIDAD, cantidad)

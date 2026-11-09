@@ -14,5 +14,6 @@ data class Cliente(
     val nombre: String,
     @ColumnInfo(collate = ColumnInfo.NOCASE) val usuario: String,
     val correo: String,
+    val remoteId: String? = null,
     val claveHash: String
 )

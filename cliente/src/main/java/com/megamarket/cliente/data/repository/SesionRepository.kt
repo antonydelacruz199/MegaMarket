@@ -29,13 +29,15 @@ class SesionRepository(
     private val sesionLocal: SesionLocalStore,
     private val api: ApiService,
     private val catalogoRemoto: CatalogoRemotoRepository,
-    private val observadorConexion: ObservadorConexion
+    private val observadorConexion: ObservadorConexion,
+    private val programarSincronizacion: () -> Unit = {}
 ) {
     private val _usuario = MutableStateFlow<Usuario?>(null)
     val usuario: StateFlow<Usuario?> = _usuario.asStateFlow()
 
     suspend fun iniciarSesion(nombreUsuario: String, clave: String): ResultadoInicioSesion =
         withContext(Dispatchers.IO) {
+            sesionLocal.owner.value = 0L
             val usuarioTrim = nombreUsuario.trim()
             if (usuarioTrim.isBlank() || clave.isBlank()) {
                 return@withContext ResultadoInicioSesion.Error("Completa usuario y contraseña")
@@ -71,7 +73,8 @@ class SesionRepository(
                             rol = remoto.rol,
                             expiresAt = cuerpo.expiresAt
                         )
-                        val local = guardarPerfilLocal(remoto.nombre, remoto.usuario, remoto.correo, clave)
+                        val local = guardarPerfilLocal(remoto.nombre, remoto.usuario, remoto.correo, clave, remoto.id)
+                        sesionLocal.activar(local.id, remoto.id)
                         val descarga = catalogoRemoto.descargarYGuardarCatalogo()
                         if (descarga is ResultadoDescargaCatalogo.Error &&
                             !catalogoRemoto.hayCatalogoLocal()
@@ -80,7 +83,7 @@ class SesionRepository(
                                 "Error de configuración inicial: ${descarga.mensaje}"
                             )
                         }
-                        local.toModel().also { _usuario.value = it }
+                        local.toModel().also { _usuario.value = it; programarSincronizacion() }
                             .let { ResultadoInicioSesion.Exito(it) }
                     }
                     400 -> ResultadoInicioSesion.Error("Datos de inicio de sesión inválidos.")
@@ -148,14 +151,17 @@ class SesionRepository(
                 "Se requiere conexión a Internet para realizar la configuración inicial."
             )
         }
-        return cuenta.toModel().also { _usuario.value = it }.let { ResultadoInicioSesion.Exito(it) }
+        sesionLocal.activar(cuenta.id, cuenta.remoteId)
+        sesionLocal.accessToken = sesionLocal.tokenGuardado(cuenta.remoteId)
+        return cuenta.toModel().also { _usuario.value = it; programarSincronizacion() }.let { ResultadoInicioSesion.Exito(it) }
     }
 
     private suspend fun guardarPerfilLocal(
         nombre: String,
         usuario: String,
         correo: String,
-        clave: String
+        clave: String,
+        remoteId: String
     ): Cliente {
         val hash = ClaveAcceso.generar(clave)
         val existente = clienteDao.buscarPorUsuario(usuario)
@@ -165,7 +171,7 @@ class SesionRepository(
                     nombre = nombre,
                     usuario = usuario,
                     correo = correo,
-                    claveHash = hash
+                    remoteId = remoteId, claveHash = hash
                 )
             )
             clienteDao.buscarPorUsuario(usuario)
@@ -174,6 +180,7 @@ class SesionRepository(
             val actualizado = existente.copy(
                 nombre = nombre,
                 correo = correo,
+                remoteId = remoteId,
                 claveHash = hash
             )
             clienteDao.actualizarCliente(actualizado)
@@ -182,6 +189,7 @@ class SesionRepository(
     }
 
     suspend fun cerrarSesion() {
+        sesionLocal.owner.value = 0L
         _usuario.value = null
         sesionLocal.limpiarToken()
     }

@@ -35,6 +35,8 @@ class CatalogoRepository(
 ) {
     private val mutexImportacion = Mutex()
 
+    fun observarTodos(): Flow<List<Producto>> = productoDao.observarTodos().map { lista -> lista.map { it.toModel() } }
+
     fun observarProductos(): Flow<List<Producto>> =
         productoDao.observarActivos().map { lista -> lista.map { it.toModel() } }
 

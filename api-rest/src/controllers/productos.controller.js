@@ -12,7 +12,9 @@ function mapearProducto(fila) {
       fila.precio_oferta_centimos === null || fila.precio_oferta_centimos === undefined
         ? null
         : Number(fila.precio_oferta_centimos),
-    stock: Number(fila.stock),
+    stock: Number(fila.disponible ?? fila.stock),
+    stockFisico: Number(fila.stock),
+    reservas: fila.reservas || [],
     imagenKey: fila.imagen_key == null || fila.imagen_key === '' ? null : fila.imagen_key,
     esOferta: Boolean(fila.es_oferta),
     activo: Boolean(fila.activo),
@@ -125,32 +127,27 @@ function validarCamposCreacion(body) {
 }
 
 async function listar(req, res) {
-  try {
-    const resultado = await pool.query(
-      `SELECT id, nombre, marca, descripcion, categoria_id,
-              precio_centimos, precio_oferta_centimos, stock, imagen_key,
-              es_oferta, activo, version, created_at, updated_at
-       FROM productos
-       WHERE deleted_at IS NULL AND activo = true
-       ORDER BY nombre ASC`
-    );
-    return res.status(200).json({ productos: resultado.rows.map(mapearProducto) });
-  } catch (error) {
-    console.error('Error al listar productos:', error.message);
-    return res.status(500).json({ error: 'No se pudieron obtener los productos' });
-  }
+ try {
+ const result = await pool.query(`SELECT p.*,
+ p.stock - COALESCE((SELECT SUM(r.cantidad) FROM reservas_carrito r WHERE r.producto_id=p.id),0) AS disponible,
+ COALESCE((SELECT json_agg(json_build_object('carritoId',r.carrito_id,'cantidad',r.cantidad))
+ FROM reservas_carrito r JOIN carritos c ON c.id=r.carrito_id WHERE r.producto_id=p.id AND c.usuario_id=$1),'[]'::json) AS reservas
+ FROM productos p WHERE p.deleted_at IS NULL AND ($2::boolean OR p.activo=true) ORDER BY p.nombre`,[req.usuario.id,req.usuario.rol==='ADMINISTRADOR']);
+ return res.json({productos:result.rows.map(row=>mapearProducto(req.usuario.rol==='ADMINISTRADOR'?{...row,disponible:row.stock}:row))});
+ }catch(e){console.error(e.message);return res.status(500).json({error:'No se pudieron obtener los productos'});}
 }
 
 async function obtenerPorId(req, res) {
   try {
     const resultado = await pool.query(
       `SELECT id, nombre, marca, descripcion, categoria_id,
+              CASE WHEN $2::boolean THEN stock ELSE stock-COALESCE((SELECT SUM(r.cantidad) FROM reservas_carrito r WHERE r.producto_id=productos.id),0) END AS disponible,
               precio_centimos, precio_oferta_centimos, stock, imagen_key,
               es_oferta, activo, version, created_at, updated_at
        FROM productos
-       WHERE id = $1 AND deleted_at IS NULL AND activo = true
+       WHERE id = $1 AND deleted_at IS NULL AND ($2::boolean OR activo = true)
        LIMIT 1`,
-      [req.params.id]
+      [req.params.id,req.usuario.rol==='ADMINISTRADOR']
     );
     if (!resultado.rows[0]) {
       return res.status(404).json({ error: 'Producto no encontrado' });
@@ -264,6 +261,7 @@ async function crear(req, res) {
     } catch (_e) {
       // ignore
     }
+    if(error.code==='23505') return res.status(409).json({error:'Ya existe un producto con ese nombre. Sincroniza y abre el producto existente para editarlo.',codigo:'NOMBRE_DUPLICADO'});
     console.error('Error al crear producto:', error.message);
     return res.status(500).json({ error: 'No se pudo crear el producto' });
   } finally {
@@ -274,6 +272,7 @@ async function crear(req, res) {
 async function actualizar(req, res) {
   const cliente = await pool.connect();
   try {
+    if (req.body.stock !== undefined) return res.status(400).json({error:'Actualice stock mediante movimientos de inventario'});
     if (req.body.version === undefined || req.body.version === null) {
       return res.status(400).json({ error: 'version es obligatoria para actualizar' });
     }
@@ -413,6 +412,7 @@ async function actualizar(req, res) {
     } catch (_e) {
       // ignore
     }
+    if(error.code==='23505') return res.status(409).json({error:'Ya existe un producto con ese nombre',codigo:'NOMBRE_DUPLICADO'});
     console.error('Error al actualizar producto:', error.message);
     return res.status(500).json({ error: 'No se pudo actualizar el producto' });
   } finally {

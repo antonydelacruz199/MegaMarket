@@ -97,9 +97,10 @@ async function registrarMovimiento(req, res) {
     const stockActual = Number(producto.stock);
     const delta = deltaStock(tipo, cantidad);
     const stockFinal = stockActual + delta;
-    if (stockFinal < 0) {
+    const {rows:[reservas]} = await cliente.query('SELECT COALESCE(SUM(cantidad),0) total FROM reservas_carrito WHERE producto_id=$1',[productoId]);
+    if (stockFinal < Number(reservas.total)) {
       await cliente.query('ROLLBACK');
-      return res.status(409).json({ error: 'La salida dejaría stock negativo' });
+      return res.status(409).json({ error: 'La salida afectaría unidades reservadas o dejaría stock negativo' });
     }
 
     // version/updated_at los incrementa el trigger

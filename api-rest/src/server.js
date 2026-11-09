@@ -41,6 +41,7 @@ app.use('/api/auth', sesionRoutes);
 app.use('/api/categorias', categoriasRoutes);
 app.use('/api/productos', productosRoutes);
 app.use('/api/pedidos', pedidosRoutes);
+app.use('/api/carritos', require('./routes/carritos.routes'));
 app.use('/api/inventario', inventarioRoutes);
 
 app.use((_req, res) => {

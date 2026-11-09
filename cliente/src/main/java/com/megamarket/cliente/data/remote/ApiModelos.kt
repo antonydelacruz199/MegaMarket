@@ -53,6 +53,7 @@ data class ProductoApiDto(
     val precioCentimos: Long,
     val precioOfertaCentimos: Long?,
     val stock: Int,
+    val reservas: List<ReservaApiDto>? = null,
     val imagenKey: String?,
     val esOferta: Boolean,
     val activo: Boolean,
@@ -63,6 +64,7 @@ data class ProductoApiDto(
 
 data class CrearPedidoRequest(
     val clientUuid: String,
+    val contratoVersion: Int = 2,
     val direccion: DireccionPedidoRequest,
     val items: List<ItemPedidoRequest>
 )
@@ -77,12 +79,14 @@ data class DireccionPedidoRequest(
 
 data class ItemPedidoRequest(
     val productoId: String,
-    val cantidad: Int
+    val cantidad: Int,
+    val precioEsperadoCentimos: Long = 0
 )
 
 data class CrearPedidoResponse(
     val idempotente: Boolean?,
-    val pedido: PedidoApiDto?
+    val pedido: PedidoApiDto?,
+    val detalles: List<DetallePedidoApiDto>? = null
 )
 
 data class PedidoApiDto(
@@ -93,4 +97,15 @@ data class PedidoApiDto(
     val estado: String?,
     val version: Long?,
     val fecha: String?
+)
+
+data class ReservaApiDto(val carritoId: String, val cantidad: Int)
+data class ReservaRequest(val revision: Long, val items: List<ItemPedidoRequest>)
+data class ReservaResponse(val revision: Long)
+
+data class DetallePedidoApiDto(
+    @SerializedName("producto_id") val productoId: String,
+    @SerializedName("precio_unitario_centimos") val precioUnitarioCentimos: Long,
+    @SerializedName("subtotal_centimos") val subtotalCentimos: Long,
+    val cantidad: Int
 )

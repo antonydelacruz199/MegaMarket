@@ -9,6 +9,12 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ProductoDao {
+    @Query("SELECT * FROM productos ORDER BY nombre")
+    fun observarTodos(): Flow<List<Producto>>
+
+    @Query("UPDATE productos SET stock=stock+:cantidad WHERE id=:productoId AND stock+:cantidad >= 0")
+    suspend fun ajustarDisponible(productoId: Long, cantidad: Int): Int
+
     @Query(
         """
         SELECT * FROM productos

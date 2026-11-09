@@ -29,6 +29,7 @@ data class FormularioProductoUiState(
     val guardando: Boolean = false,
 
     val error: String? = null,
+    val duplicadoId: Long? = null,
     val guardadoCorrectamente: Boolean = false,
     val noDisponible: Boolean = false
 ) {

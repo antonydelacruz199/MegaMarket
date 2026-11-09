@@ -35,7 +35,7 @@ class ViewModelFactory(
             modelClass.isAssignableFrom(ConfirmacionViewModel::class.java) ->
                 ConfirmacionViewModel(extras.createSavedStateHandle(), container.pedidoRepository)
             modelClass.isAssignableFrom(PerfilViewModel::class.java) ->
-                PerfilViewModel(container.sesionRepository)
+                PerfilViewModel(container.sesionRepository,container.pedidoRepository)
             modelClass.isAssignableFrom(SincronizacionViewModel::class.java) ->
                 SincronizacionViewModel(container.sincronizacionRepository)
             else -> throw IllegalArgumentException("ViewModel no registrado: ${modelClass.name}")

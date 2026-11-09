@@ -9,18 +9,18 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface FavoritoDao {
-    @Query("SELECT * FROM favoritos ORDER BY productoId")
-    fun observarFavoritos(): Flow<List<Favorito>>
+    @Query("SELECT * FROM favoritos WHERE ownerId = :ownerId ORDER BY productoId")
+    fun observarFavoritos(ownerId: Long = 0): Flow<List<Favorito>>
 
-    @Query("SELECT EXISTS(SELECT 1 FROM favoritos WHERE productoId = :productoId)")
-    fun observarExiste(productoId: Long): Flow<Boolean>
+    @Query("SELECT EXISTS(SELECT 1 FROM favoritos WHERE ownerId = :ownerId AND productoId = :productoId)")
+    fun observarExiste(productoId: Long, ownerId: Long = 0): Flow<Boolean>
 
     @Insert(onConflict = OnConflictStrategy.IGNORE)
     suspend fun insertar(entidad: Favorito)
 
-    @Query("DELETE FROM favoritos WHERE productoId = :productoId")
-    suspend fun quitarFavorito(productoId: Long)
+    @Query("DELETE FROM favoritos WHERE ownerId = :ownerId AND productoId = :productoId")
+    suspend fun quitarFavorito(productoId: Long, ownerId: Long = 0)
 
-    @Query("SELECT EXISTS(SELECT 1 FROM favoritos WHERE productoId = :productoId)")
-    suspend fun existe(productoId: Long): Boolean
+    @Query("SELECT EXISTS(SELECT 1 FROM favoritos WHERE ownerId = :ownerId AND productoId = :productoId)")
+    suspend fun existe(productoId: Long, ownerId: Long = 0): Boolean
 }

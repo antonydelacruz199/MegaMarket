@@ -34,7 +34,7 @@ import java.util.UUID
         MovimientoInventario::class,
         SyncMetadata::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -53,6 +53,27 @@ abstract class AppDatabase : RoomDatabase() {
 
         @Volatile
         private var instancia: AppDatabase? = null
+
+        val MIGRACION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE clientes ADD COLUMN remoteId TEXT")
+                db.execSQL("ALTER TABLE carrito ADD COLUMN ownerId INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("ALTER TABLE carrito ADD COLUMN cartUuid TEXT NOT NULL DEFAULT ''")
+                db.execSQL("DROP INDEX index_carrito_productoId")
+                db.execSQL("CREATE UNIQUE INDEX index_carrito_ownerId_productoId ON carrito(ownerId,productoId)")
+                db.execSQL("ALTER TABLE favoritos RENAME TO favoritos_legacy")
+                db.execSQL("CREATE TABLE favoritos(productoId INTEGER NOT NULL, ownerId INTEGER NOT NULL, PRIMARY KEY(ownerId,productoId))")
+                db.execSQL("INSERT INTO favoritos SELECT productoId,0 FROM favoritos_legacy")
+                db.execSQL("DROP TABLE favoritos_legacy")
+                db.execSQL("ALTER TABLE operaciones_pendientes ADD COLUMN ownerId INTEGER NOT NULL DEFAULT 0")
+                db.execSQL("UPDATE operaciones_pendientes SET ownerId=COALESCE((SELECT clienteId FROM pedidos WHERE pedidos.id=entidadIdLocal),0) WHERE tipoEntidad='PEDIDO'")
+                db.execSQL("UPDATE operaciones_pendientes SET ownerId=COALESCE((SELECT p.clienteId FROM movimientos_inventario m JOIN pedidos p ON p.id=m.pedidoId WHERE m.uuidOperacion=operaciones_pendientes.uuidOperacion),0) WHERE tipoEntidad='MOVIMIENTO_INVENTARIO'")
+                // La marca antigua también se escribía tras envíos parciales; no acredita frescura.
+                db.execSQL("UPDATE sync_metadata SET ultimaSincronizacionExitosa=NULL")
+                db.execSQL("ALTER TABLE sync_metadata ADD COLUMN sincronizadoElapsed INTEGER")
+                db.execSQL("ALTER TABLE sync_metadata ADD COLUMN bootCount INTEGER")
+            }
+        }
 
         val MIGRACION_2_3 = object : Migration(2, 3) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -462,7 +483,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRACION_3_4,
                         MIGRACION_4_5,
                         MIGRACION_5_6,
-                        MIGRACION_6_7
+                        MIGRACION_6_7,
+                        MIGRACION_7_8
                     )
                     .fallbackToDestructiveMigrationFrom(true, 1)
                     .build()

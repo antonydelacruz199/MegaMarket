@@ -17,6 +17,8 @@ import com.megamarket.app.data.remote.ProductoResponse
 import com.megamarket.modelo.EstadoSincronizacion
 import com.megamarket.modelo.TipoOperacionPendiente
 import com.google.gson.Gson
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
@@ -36,6 +38,7 @@ class SincronizacionRepository(
     private val conectado: Flow<Boolean> = flowOf(false)
 ) {
     private val gson = Gson()
+    private val mutex = Mutex()
 
     data class ResumenSincronizacion(
         val pendientes: Int,
@@ -60,15 +63,15 @@ class SincronizacionRepository(
         )
     }
 
-    suspend fun sincronizarPendientes(): ResultadoSincronizacion = withContext(Dispatchers.IO) {
+    suspend fun sincronizarPendientes(): ResultadoSincronizacion = mutex.withLock { withContext(Dispatchers.IO) {
         val ahora = System.currentTimeMillis()
         operacionDao.recuperarEnviandoAtascadas(ahora)
         registrarIntentoDeSincronizacion(ahora)
 
         val pendientes = operacionDao.obtenerOperacionesPorSincronizar()
         if (pendientes.isEmpty()) {
-            catalogoRemoto.descargarYGuardarCatalogo()
-            return@withContext ResultadoSincronizacion.SinTrabajo
+            val descarga=catalogoRemoto.descargarYGuardarCatalogo()
+            return@withContext if(descarga is ResultadoDescargaCatalogo.Error) ResultadoSincronizacion.Reintentar(descarga.mensaje) else ResultadoSincronizacion.SinTrabajo
         }
 
         var huboExito = false
@@ -103,7 +106,8 @@ class SincronizacionRepository(
             }
         }
 
-        catalogoRemoto.descargarYGuardarCatalogo()
+        val descarga=catalogoRemoto.descargarYGuardarCatalogo()
+        if(descarga is ResultadoDescargaCatalogo.Error) return@withContext ResultadoSincronizacion.Reintentar(descarga.mensaje)
 
         when {
             reintentar != null -> ResultadoSincronizacion.Reintentar(reintentar)
@@ -113,6 +117,8 @@ class SincronizacionRepository(
             }
             else -> ResultadoSincronizacion.SinTrabajo
         }
+    }
+
     }
 
     private suspend fun enviarOperacion(op: OperacionPendiente): ResultadoEnvio {

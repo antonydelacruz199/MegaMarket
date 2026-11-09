@@ -136,6 +136,19 @@ class FormularioProductoViewModel(
         if (!pendiente.isNullOrBlank()) imagenes.eliminarEnSegundoPlano(pendiente)
     }
 
+    fun cancelarDuplicado() { _estado.update { it.copy(duplicadoId=null) } }
+    fun editarDuplicado() {
+        val id=_estado.value.duplicadoId ?: return
+        val actual=_estado.value
+        viewModelScope.launch {
+            try {
+                if(actual.id>0 && actual.remoteId.isNullOrBlank()) productos.descartarDuplicadoLocal(actual.id)
+                cancelarDuplicado()
+                cargarProducto(id)
+            } catch(e: Exception) { _estado.update { it.copy(duplicadoId=null,error=e.message) } }
+        }
+    }
+
     fun guardarProducto() {
         val actual = _estado.value
         if (actual.ocupado || actual.guardadoCorrectamente || actual.noDisponible) return
@@ -149,6 +162,8 @@ class FormularioProductoViewModel(
         _estado.update { it.copy(guardando = true, error = null) }
         viewModelScope.launch {
             val guardado = try {
+                val duplicado=productos.buscarDuplicado(producto.nombre,producto.id)
+                if(duplicado!=null) { _estado.update { it.copy(guardando=false,duplicadoId=duplicado.id) }; return@launch }
                 if (producto.id == 0L) {
                     productos.crearProducto(producto) > 0
                 } else {

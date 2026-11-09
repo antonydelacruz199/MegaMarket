@@ -59,6 +59,19 @@ fun PantallaConfirmacion(
                 )
                 else -> ResumenPedido(pedido)
             }
+            if(pedido?.estado=="REQUIERE_REVISION") {
+                Text("El servidor no confirmó el pedido. Revisa stock y precios antes de reintentarlo.")
+                estado.totalPropuesto?.let { total ->
+                    Text("Total actualizado: "+total.formatearSoles())
+                    Button(onClick=viewModel::aceptarPrecios) { Text("Aceptar total y reintentar") }
+                }
+                Button(onClick=viewModel::cancelarPedido) { Text("Cancelar pedido y liberar reserva") }
+            }
+            estado.error?.let { Text(it,color=MaterialTheme.colorScheme.error) }
+            if(pedido?.estado=="PENDIENTE_CONFIRMACION") {
+                Text("Pendiente de confirmación. Las reservas sin conexión son provisionales.")
+                Button(onClick=viewModel::cargarPedido) { Text("Actualizar estado") }
+            }
             Spacer(modifier = Modifier.height(24.dp))
             Button(
                 onClick = alIrAlInicio,
@@ -78,7 +91,7 @@ private fun ResumenPedido(pedido: Pedido) {
     )
     Spacer(modifier = Modifier.height(16.dp))
     Text(
-        text = stringResource(R.string.compra_registrada),
+        text = when(pedido.estado) { "CONFIRMADO" -> "Compra confirmada"; "CANCELADO" -> "Pedido cancelado"; "REQUIERE_REVISION" -> "Pedido requiere revisión"; else -> "Pedido pendiente de confirmación" },
         style = MaterialTheme.typography.headlineSmall,
         fontWeight = FontWeight.Bold,
         textAlign = TextAlign.Center

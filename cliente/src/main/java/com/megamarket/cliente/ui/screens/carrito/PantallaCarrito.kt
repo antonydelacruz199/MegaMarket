@@ -80,6 +80,7 @@ fun PantallaCarrito(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
+                item { Text("Los productos del carrito reservan stock. Sin conexión, la reserva es provisional hasta sincronizar.") }
                 if (estado.error != null) {
                     item {
                         Text(

@@ -35,13 +35,27 @@ class ConfirmacionViewModel(
                 if (pedido == null) {
                     ConfirmacionUiState(cargando = false, error = "No se encontró el pedido")
                 } else {
-                    ConfirmacionUiState(cargando = false, pedido = pedido)
+                    ConfirmacionUiState(cargando = false, pedido = pedido, totalPropuesto=if(pedido.estado=="REQUIERE_REVISION") runCatching { pedidos.totalActual(pedido.id) }.getOrNull() else null)
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: Exception) {
                 ConfirmacionUiState(cargando = false, error = "No se pudo cargar el pedido")
             }
+        }
+    }
+
+    fun aceptarPrecios() {
+        val total=_estado.value.totalPropuesto ?: return
+        viewModelScope.launch {
+            try { pedidos.aceptarPrecios(pedidoId,total); cargarPedido() }
+            catch(e: Exception) { _estado.value=_estado.value.copy(error=e.message) }
+        }
+    }
+    fun cancelarPedido() {
+        viewModelScope.launch {
+            try { pedidos.cancelarPendiente(pedidoId); cargarPedido() }
+            catch(e: Exception) { _estado.value=_estado.value.copy(error=e.message) }
         }
     }
 

@@ -26,9 +26,14 @@ class ProductoRepository(
     private val resolver: ContentResolver,
     private val programarSincronizacion: () -> Unit
 ) {
+    suspend fun buscarDuplicado(nombre: String, excluirId: Long = 0): Producto? = withContext(Dispatchers.IO) {
+        val normalizado = nombre.trim().replace(Regex("\\s+"), " ").lowercase(java.util.Locale.ROOT)
+        productoDao.obtenerTodos().firstOrNull { it.id!=excluirId && it.remoteDeletedAt==null && it.nombre.trim().replace(Regex("\\s+"), " ").lowercase(java.util.Locale.ROOT)==normalizado }?.toModel()
+    }
+
     suspend fun obtenerTodos(): List<Producto> = withContext(Dispatchers.IO) {
         productoDao.eliminarSinDatos()
-        productoDao.obtenerTodos().map { it.toModel() }
+        productoDao.obtenerTodos().filter { it.remoteDeletedAt==null }.map { it.toModel() }
     }
 
     suspend fun obtenerActivos(): List<Producto> = withContext(Dispatchers.IO) {
@@ -40,10 +45,20 @@ class ProductoRepository(
         productoDao.obtenerPorId(id)?.toModel()?.takeIf { it.nombre.isNotBlank() }
     }
 
+    suspend fun descartarDuplicadoLocal(id: Long) = database.withTransaction {
+        val p=productoDao.obtenerPorId(id) ?: return@withTransaction
+        if(!p.remoteId.isNullOrBlank()) return@withTransaction
+        val op=operacionDao.obtenerPendienteDe(TipoOperacionPendiente.PRODUCTO,id,TipoOperacionPendiente.CREAR_PRODUCTO)
+        require(op?.estado!=EstadoSincronizacion.ENVIANDO) { "Espera a que termine la sincronización" }
+        operacionDao.eliminarActivasDe(TipoOperacionPendiente.PRODUCTO,id,TipoOperacionPendiente.CREAR_PRODUCTO)
+        productoDao.actualizarProducto(p.copy(activo=false,remoteDeletedAt=System.currentTimeMillis().toString()))
+    }
+
     suspend fun crearProducto(producto: Producto): Long = withContext(Dispatchers.IO) {
         require(producto.stock >= 0) { "El stock no puede ser negativo" }
         val id = database.withTransaction {
             val ahora = System.currentTimeMillis()
+            require(buscarDuplicado(producto.nombre,producto.id)==null) { "Ya existe un producto con ese nombre. Abre el producto existente para actualizarlo." }
             val entidad = producto.toEntity()
             val nuevoId = productoDao.insertar(entidad.copy(id = 0))
             val uuidOperacion = UUID.randomUUID().toString()
@@ -72,6 +87,7 @@ class ProductoRepository(
         val aplicado = database.withTransaction {
             val ahora = System.currentTimeMillis()
             val entidad = producto.toEntity()
+            require(buscarDuplicado(producto.nombre,producto.id)==null) { "Ya existe un producto con ese nombre" }
             val filas = productoDao.actualizarProducto(entidad)
             if (filas <= 0) return@withTransaction false
 

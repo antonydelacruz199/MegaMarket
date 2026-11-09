@@ -10,6 +10,12 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface OperacionPendienteDao {
+    @Query("UPDATE operaciones_pendientes SET estado='SINCRONIZADO',ultimoError=NULL WHERE ownerId=:ownerId AND operacion='RESERVAR_CARRITO' AND id<=:hastaId AND payload LIKE :patron")
+    suspend fun cerrarReservasSuperadas(ownerId: Long,hastaId: Long,patron: String): Int
+
+    @Query("SELECT * FROM operaciones_pendientes WHERE ownerId=:ownerId AND estado='PENDIENTE' ORDER BY fechaCreacion,id")
+    suspend fun pendientesDelUsuario(ownerId: Long): List<OperacionPendiente>
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertar(entidad: OperacionPendiente): Long
 
@@ -28,18 +34,18 @@ interface OperacionPendienteDao {
     @Query(
         """
         SELECT COUNT(*) FROM operaciones_pendientes
-        WHERE estado IN ('PENDIENTE', 'ENVIANDO', 'ERROR', 'SINCRONIZANDO')
+        WHERE ownerId=:ownerId AND estado IN ('PENDIENTE', 'ENVIANDO', 'ERROR', 'SINCRONIZANDO')
         """
     )
-    fun observarPendientesActivos(): Flow<Int>
+    fun observarPendientesActivos(ownerId: Long = 0): Flow<Int>
 
     @Query(
         """
         SELECT COUNT(*) FROM operaciones_pendientes
-        WHERE estado = 'ERROR'
+        WHERE ownerId=:ownerId AND estado = 'ERROR'
         """
     )
-    fun observarErrores(): Flow<Int>
+    fun observarErrores(ownerId: Long = 0): Flow<Int>
 
     @Query(
         """

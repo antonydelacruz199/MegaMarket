@@ -8,7 +8,9 @@ import java.util.concurrent.TimeUnit
 
 class ApiClient(
     private val baseUrl: String,
-    private val tokenProvider: () -> String?
+    private val tokenProvider: () -> String?,
+    private val ownerProvider: () -> String? = { null },
+    private val tokenForOwner: (String) -> String? = { null }
 ) {
     fun crear(): ApiService {
         val authInterceptor = Interceptor { cadena ->
@@ -18,7 +20,11 @@ class ApiClient(
             val ruta = original.url.encodedPath
             val esLogin = ruta.endsWith("/api/auth/login") || ruta.endsWith("api/auth/login")
             if (!esLogin) {
-                val token = tokenProvider()?.trim().orEmpty()
+                val expected = original.header("X-Expected-User")
+                if (expected != null && expected != ownerProvider()) throw java.io.IOException("La cuenta activa cambió")
+                builder.removeHeader("X-Expected-User")
+                val token = (if(expected!=null) tokenForOwner(expected) else tokenProvider())?.trim().orEmpty()
+                if(expected!=null && expected!=ownerProvider()) throw java.io.IOException("La cuenta activa cambió")
                 if (token.isNotEmpty()) {
                     builder.header("Authorization", "Bearer $token")
                 }

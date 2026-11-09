@@ -26,7 +26,9 @@ class AppContainer(context: Context) {
 
     private val apiService = ApiClient(
         baseUrl = BuildConfig.MEGAMARKET_API_BASE_URL,
-        tokenProvider = { sesionLocal.accessToken }
+        tokenProvider = { sesionLocal.accessToken },
+        ownerProvider = { sesionLocal.usuarioRemotoId.takeIf { sesionLocal.owner.value > 0 } },
+        tokenForOwner = { sesionLocal.tokenGuardado(it) }
     ).crear()
 
     val catalogoRemotoRepository = CatalogoRemotoRepository(
@@ -34,7 +36,10 @@ class AppContainer(context: Context) {
         categoriaDao = database.categoriaDao(),
         productoDao = database.productoDao(),
         operacionDao = database.operacionPendienteDao(),
-        metadatosSincronizacionDao = database.metadatosSincronizacionDao()
+        metadatosSincronizacionDao = database.metadatosSincronizacionDao(),
+        database = database,
+        sesion = sesionLocal,
+        bootCount = { sesionLocal.bootCount() }
     )
 
     val catalogoRepository = CatalogoRepository(
@@ -50,6 +55,7 @@ class AppContainer(context: Context) {
         productoDao = database.productoDao(),
         metadatosSincronizacionDao = database.metadatosSincronizacionDao(),
         catalogoRemoto = catalogoRemotoRepository,
+        sesion = sesionLocal,
         conectado = observadorConexion.observarConexion().map { it == EstadoConexion.CONECTADO }
     )
 
@@ -58,17 +64,21 @@ class AppContainer(context: Context) {
         sesionLocal = sesionLocal,
         api = apiService,
         catalogoRemoto = catalogoRemotoRepository,
-        observadorConexion = observadorConexion
+        observadorConexion = observadorConexion,
+        programarSincronizacion = { SincronizacionWorker.programarSincronizacionInmediata(appContext) }
     )
 
     val carritoRepository = CarritoRepository(
-        database.carritoDao(),
-        catalogoRepository
+        database,
+        catalogoRepository,
+        sesionLocal,
+        { SincronizacionWorker.programar(appContext) }
     )
 
     val favoritosRepository = FavoritosRepository(
         database.favoritoDao(),
-        catalogoRepository
+        catalogoRepository,
+        sesionLocal
     )
 
     val pedidoRepository = PedidoRepository(
@@ -78,6 +88,7 @@ class AppContainer(context: Context) {
         database.productoDao(),
         database.movimientoInventarioDao(),
         database.operacionPendienteDao(),
-        { SincronizacionWorker.programar(appContext) }
+        { SincronizacionWorker.programar(appContext) },
+        sesionLocal
     )
 }

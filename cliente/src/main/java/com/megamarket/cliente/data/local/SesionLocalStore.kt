@@ -2,16 +2,32 @@ package com.megamarket.cliente.data.local
 
 import android.content.Context
 
-class SesionLocalStore(contexto: Context) {
+class SesionLocalStore(contexto: Context) : SesionSincronizacion {
+    override val owner = kotlinx.coroutines.flow.MutableStateFlow(0L)
+    fun tokenGuardado(remoteId: String?): String? = remoteId?.let { prefs.getString("token_"+it,null) }
+    fun activar(id: Long, remoteId: String?) { usuarioRemotoId=remoteId; owner.value=id }
+    fun carritoId(): String {
+        val key="cart_"+owner.value
+        return prefs.getString(key,null) ?: java.util.UUID.randomUUID().toString().also { prefs.edit().putString(key,it).commit() }
+    }
+    fun rotarCarrito() { prefs.edit().remove("cart_"+owner.value).commit() }
+    fun siguienteRevision(cart: String): Long {
+        val value=prefs.getLong("revision_"+cart,0)+1
+        prefs.edit().putLong("revision_"+cart,value).commit()
+        return value
+    }
 
+
+    fun bootCount(): Int = android.provider.Settings.Global.getInt(contextoResolver, android.provider.Settings.Global.BOOT_COUNT, -1)
+    private val contextoResolver=contexto.contentResolver
     private val prefs = contexto.applicationContext
         .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-    var accessToken: String?
+    override var accessToken: String?
         get() = prefs.getString(KEY_TOKEN, null)
         set(value) = prefs.edit().putString(KEY_TOKEN, value).apply()
 
-    var usuarioRemotoId: String?
+    override var usuarioRemotoId: String?
         get() = prefs.getString(KEY_REMOTE_ID, null)
         set(value) = prefs.edit().putString(KEY_REMOTE_ID, value).apply()
 
@@ -44,6 +60,7 @@ class SesionLocalStore(contexto: Context) {
         autenticadoEn: Long = System.currentTimeMillis()
     ) {
         prefs.edit()
+            .putString("token_"+usuarioRemotoId, accessToken)
             .putString(KEY_TOKEN, accessToken)
             .putString(KEY_REMOTE_ID, usuarioRemotoId)
             .putString(KEY_USUARIO, usuario)

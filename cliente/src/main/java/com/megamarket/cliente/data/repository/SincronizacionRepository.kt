@@ -15,7 +15,10 @@ import com.megamarket.cliente.data.remote.ItemPedidoRequest
 import com.megamarket.modelo.EstadoSincronizacion
 import com.megamarket.modelo.TipoMovimientoInventario
 import com.megamarket.modelo.TipoOperacionPendiente
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
@@ -36,9 +39,11 @@ class SincronizacionRepository(
     private val productoDao: ProductoDao,
     private val metadatosSincronizacionDao: SyncMetadataDao,
     private val catalogoRemoto: CatalogoRemotoRepository,
+    private val sesion: com.megamarket.cliente.data.local.SesionSincronizacion,
     private val conectado: Flow<Boolean> = flowOf(false)
 ) {
     private val gson = Gson()
+    private val mutex = Mutex()
 
     data class ResumenSincronizacion(
         val pendientes: Int,
@@ -49,9 +54,10 @@ class SincronizacionRepository(
         val enviando: Boolean = false
     )
 
-    fun observarResumen(): Flow<ResumenSincronizacion> = combine(
-        operacionDao.observarPendientesActivos(),
-        operacionDao.observarErrores(),
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    fun observarResumen(): Flow<ResumenSincronizacion> = sesion.owner.flatMapLatest { owner -> combine(
+        operacionDao.observarPendientesActivos(owner),
+        operacionDao.observarErrores(owner),
         metadatosSincronizacionDao.observarMetadatos(),
         conectado
     ) { pendientes, errores, meta, hayInternet ->
@@ -64,7 +70,12 @@ class SincronizacionRepository(
         )
     }
 
-    suspend fun sincronizarPendientes(): ResultadoSincronizacion = withContext(Dispatchers.IO) {
+    }
+
+    suspend fun sincronizarPendientes(): ResultadoSincronizacion = mutex.withLock { withContext(Dispatchers.IO) {
+        val owner=sesion.owner.value
+        val remoteOwner=sesion.usuarioRemotoId ?: return@withContext ResultadoSincronizacion.SinTrabajo
+        if(owner<=0 || sesion.accessToken.isNullOrBlank()) return@withContext ResultadoSincronizacion.SinTrabajo
         val ahora = System.currentTimeMillis()
         operacionDao.recuperarEnviandoAtascadas(ahora)
         operacionDao.marcarLegacyStockComoError(
@@ -73,23 +84,25 @@ class SincronizacionRepository(
         )
         registrarIntentoDeSincronizacion(ahora)
 
-        val pendientes = operacionDao.obtenerOperacionesPorSincronizar()
+        val pendientes = operacionDao.pendientesDelUsuario(owner)
         if (pendientes.isEmpty()) {
-            catalogoRemoto.descargarYGuardarCatalogo()
-            return@withContext ResultadoSincronizacion.SinTrabajo
+            val descarga=catalogoRemoto.descargarYGuardarCatalogo()
+            return@withContext if(descarga is ResultadoDescargaCatalogo.Error) ResultadoSincronizacion.Reintentar(descarga.mensaje) else ResultadoSincronizacion.SinTrabajo
         }
 
         var huboExito = false
         var reintentar: String? = null
 
         for (op in pendientes) {
+            if(sesion.owner.value!=owner || sesion.accessToken.isNullOrBlank()) break
             operacionDao.marcarOperacionEnviando(op.id, System.currentTimeMillis())
-            when (val resultado = enviarOperacion(op)) {
+            when (val resultado = enviarOperacion(op,remoteOwner)) {
                 is ResultadoEnvio.Ok -> {
                     operacionDao.marcarOperacionSincronizada(op.id, System.currentTimeMillis())
                     huboExito = true
                 }
                 is ResultadoEnvio.ErrorDefinitivo -> {
+                    if(op.operacion==TipoOperacionPendiente.CREAR_PEDIDO) pedidoDao.obtenerPedidoPorId(op.entidadIdLocal)?.let { pedidoDao.actualizarPedido(it.copy(estado="REQUIERE_REVISION",estadoSync=EstadoSincronizacion.ERROR)) }
                     operacionDao.marcarOperacionError(
                         op.id,
                         resultado.mensaje,
@@ -111,22 +124,34 @@ class SincronizacionRepository(
             }
         }
 
-        catalogoRemoto.descargarYGuardarCatalogo()
+        val descarga=catalogoRemoto.descargarYGuardarCatalogo()
+        if(descarga is ResultadoDescargaCatalogo.Error) return@withContext ResultadoSincronizacion.Reintentar(descarga.mensaje)
 
         when {
             reintentar != null -> ResultadoSincronizacion.Reintentar(reintentar)
             huboExito -> {
-                marcarExito(System.currentTimeMillis())
+                Unit
                 ResultadoSincronizacion.Exito
             }
             else -> ResultadoSincronizacion.SinTrabajo
         }
     }
 
-    private suspend fun enviarOperacion(op: OperacionPendiente): ResultadoEnvio {
+    }
+
+    private suspend fun enviarOperacion(op: OperacionPendiente, remoteOwner: String): ResultadoEnvio {
         return try {
             when (op.operacion) {
-                TipoOperacionPendiente.CREAR_PEDIDO -> enviarPedido(op)
+                "RESERVAR_CARRITO" -> {
+                    val data=JSONObject(op.payload)
+                    val array=data.getJSONArray("items")
+                    val items=(0 until array.length()).map { val item=array.getJSONObject(it); ItemPedidoRequest(item.getString("productoId"),item.getInt("cantidad")) }
+                    clasificar(api.reservarCarrito(data.getString("cartId"),com.megamarket.cliente.data.remote.ReservaRequest(data.getLong("revision"),items),remoteOwner)) {
+                        operacionDao.cerrarReservasSuperadas(op.ownerId,op.id,"%"+data.getString("cartId")+"%")
+                        ResultadoEnvio.Ok
+                    }
+                }
+                TipoOperacionPendiente.CREAR_PEDIDO -> enviarPedido(op,remoteOwner)
                 TipoOperacionPendiente.CREAR_MOVIMIENTO_INVENTARIO -> {
                     // Stock de venta ya lo aplica POST /api/pedidos.
                     val tipo = try {
@@ -151,9 +176,10 @@ class SincronizacionRepository(
         }
     }
 
-    private suspend fun enviarPedido(op: OperacionPendiente): ResultadoEnvio {
+    private suspend fun enviarPedido(op: OperacionPendiente, remoteOwner: String): ResultadoEnvio {
         val pedido = pedidoDao.obtenerPedidoPorId(op.entidadIdLocal)
             ?: return ResultadoEnvio.ErrorDefinitivo("Pedido local no encontrado")
+        if(pedido.clienteId != sesion.owner.value || op.ownerId != pedido.clienteId) return ResultadoEnvio.ErrorDefinitivo("El pedido pertenece a otra cuenta")
         val direccion = pedidoDao.obtenerDireccionPedido(pedido.id)
             ?: return ResultadoEnvio.ErrorDefinitivo("Dirección del pedido no encontrada")
         val detalles = pedidoDao.obtenerDetallesPedido(pedido.id)
@@ -170,7 +196,7 @@ class SincronizacionRepository(
                     "Producto sin remoteId: ${detalle.nombreProducto}"
                 )
             }
-            items += ItemPedidoRequest(productoId = remoteId, cantidad = detalle.cantidad)
+            items += ItemPedidoRequest(productoId = remoteId, cantidad = detalle.cantidad, precioEsperadoCentimos = detalle.precioUnitarioCentimos)
         }
 
         val respuesta = api.crearPedido(
@@ -184,16 +210,24 @@ class SincronizacionRepository(
                     telefono = direccion.telefono
                 ),
                 items = items
-            )
+            ), remoteOwner
         )
 
         return clasificar(respuesta) {
             val cuerpo = respuesta.body()
-            val remoto = cuerpo?.pedido
+            val remoto = cuerpo?.pedido ?: return@clasificar ResultadoEnvio.Reintentar("Respuesta de pedido vacía")
+            if(remoto.clienteId != remoteOwner || remoto.clientUuid != pedido.clientUuid) return@clasificar ResultadoEnvio.ErrorDefinitivo("Respuesta del servidor no corresponde al pedido")
+            for(d in detalles) {
+                val remoteId=productoDao.obtenerPorId(d.productoId)?.remoteId
+                val final=cuerpo.detalles?.find { it.productoId==remoteId }
+                if(final!=null) pedidoDao.actualizarDetalle(d.copy(precioUnitarioCentimos=final.precioUnitarioCentimos,subtotalCentimos=final.subtotalCentimos,cantidad=final.cantidad))
+            }
             pedidoDao.actualizarPedido(
                 pedido.copy(
-                    remoteId = remoto?.id ?: pedido.remoteId,
-                    remoteVersion = remoto?.version ?: pedido.remoteVersion,
+                    remoteId = remoto.id ?: return@clasificar ResultadoEnvio.Reintentar("Pedido sin identificador"),
+                    totalCentimos = remoto.totalCentimos ?: pedido.totalCentimos,
+                    estado = remoto.estado ?: "CONFIRMADO",
+                    remoteVersion = remoto.version ?: pedido.remoteVersion,
                     estadoSync = EstadoSincronizacion.SINCRONIZADO
                 )
             )
@@ -212,7 +246,7 @@ class SincronizacionRepository(
             408, 429 -> ResultadoEnvio.Reintentar(mensaje)
             in 500..599 -> ResultadoEnvio.Reintentar(mensaje)
             409 -> ResultadoEnvio.ErrorDefinitivo("Conflicto: $mensaje")
-            401 -> ResultadoEnvio.ErrorDefinitivo("Sesión expirada. Inicia sesión de nuevo.")
+            401 -> ResultadoEnvio.Reintentar("Sesión expirada. Inicia sesión de nuevo.")
             403, 404, 400 -> ResultadoEnvio.ErrorDefinitivo(mensaje)
             else -> ResultadoEnvio.ErrorDefinitivo(mensaje)
         }
@@ -234,6 +268,7 @@ class SincronizacionRepository(
                 id = SyncMetadata.FILA_UNICA,
                 ultimaSincronizacionExitosa = actual?.ultimaSincronizacionExitosa,
                 ultimoIntento = ahora,
+                sincronizadoElapsed=actual?.sincronizadoElapsed, bootCount=actual?.bootCount,
                 ultimoErrorGeneral = actual?.ultimoErrorGeneral
             )
         )
@@ -257,6 +292,7 @@ class SincronizacionRepository(
                 id = SyncMetadata.FILA_UNICA,
                 ultimaSincronizacionExitosa = actual?.ultimaSincronizacionExitosa,
                 ultimoIntento = System.currentTimeMillis(),
+                sincronizadoElapsed=actual?.sincronizadoElapsed, bootCount=actual?.bootCount,
                 ultimoErrorGeneral = mensaje
             )
         )

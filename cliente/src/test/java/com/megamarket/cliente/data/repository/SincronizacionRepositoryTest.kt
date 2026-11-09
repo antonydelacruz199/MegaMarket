@@ -37,7 +37,7 @@ class SincronizacionRepositoryTest {
         val operaciones = DaoOperacionesPendientesFalso()
         val sincronizacion = crearRepositorio(operaciones)
         val resultado = sincronizacion.sincronizarPendientes()
-        assertTrue(resultado is ResultadoSincronizacion.SinTrabajo)
+        assertTrue(resultado is ResultadoSincronizacion.Reintentar)
     }
 
     @Test
@@ -75,12 +75,34 @@ class SincronizacionRepositoryTest {
         assertEquals(EstadoSincronizacion.PENDIENTE, operacionPendiente.estado)
     }
 
-    private fun crearRepositorio(operaciones: OperacionPendienteDao): SincronizacionRepository {
+    @Test
+    fun pedidosDeOtraCuentaPermanecenPendientes() = runBlocking {
+        val op=OperacionPendiente(id=12,uuidOperacion="ana",tipoEntidad="PEDIDO",entidadIdLocal=1,operacion="CREAR_PEDIDO",ownerId=1,payload="{}",fechaCreacion=1)
+        val dao=DaoOperacionesPendientesFalso(op)
+        crearRepositorio(dao,ownerActivo=2).sincronizarPendientes()
+        assertEquals(EstadoSincronizacion.PENDIENTE,dao.porId(12)?.estado)
+        assertEquals(0,dao.porId(12)?.intentos)
+    }
+
+    @Test
+    fun sinSesionNoProcesaOperaciones() = runBlocking {
+        val op=OperacionPendiente(id=13,uuidOperacion="ana",tipoEntidad="PEDIDO",entidadIdLocal=1,operacion="CREAR_PEDIDO",ownerId=1,payload="{}",fechaCreacion=1)
+        val dao=DaoOperacionesPendientesFalso(op)
+        assertTrue(crearRepositorio(dao,ownerActivo=0).sincronizarPendientes() is ResultadoSincronizacion.SinTrabajo)
+        assertEquals(EstadoSincronizacion.PENDIENTE,dao.porId(13)?.estado)
+    }
+
+    private fun crearRepositorio(operaciones: OperacionPendienteDao, ownerActivo: Long = 1L): SincronizacionRepository {
         val api = ApiServiceSinRed()
         val productoDao = DaoProductoFalso()
         val categoriaDao = DaoCategoriaFalso()
         val meta = DaoMetadatosSincronizacionFalso()
         return SincronizacionRepository(
+            sesion = object : com.megamarket.cliente.data.local.SesionSincronizacion {
+                override val owner=kotlinx.coroutines.flow.MutableStateFlow(ownerActivo)
+                override val usuarioRemotoId="usuario-1"
+                override val accessToken="token-1"
+            },
             api = api,
             operacionDao = operaciones,
             pedidoDao = DaoPedidoFalso(),
@@ -97,16 +119,18 @@ class SincronizacionRepositoryTest {
     }
 
     private class ApiServiceSinRed : ApiService {
+        override suspend fun reservarCarrito(id: String, body: com.megamarket.cliente.data.remote.ReservaRequest, owner: String): Response<com.megamarket.cliente.data.remote.ReservaResponse> = throw IOException("sin red")
+
         override suspend fun login(body: LoginRequest): Response<LoginResponse> =
             throw IOException("sin red")
 
-        override suspend fun listarCategorias(): Response<CategoriasResponse> =
+        override suspend fun listarCategorias(owner: String?): Response<CategoriasResponse> =
             throw IOException("sin red")
 
-        override suspend fun listarProductos(): Response<ProductosResponse> =
+        override suspend fun listarProductos(owner: String?): Response<ProductosResponse> =
             throw IOException("sin red")
 
-        override suspend fun crearPedido(body: CrearPedidoRequest): Response<CrearPedidoResponse> =
+        override suspend fun crearPedido(body: CrearPedidoRequest, owner: String?): Response<CrearPedidoResponse> =
             throw IOException("sin red")
     }
 
@@ -120,6 +144,10 @@ class SincronizacionRepositoryTest {
     }
 
     private class DaoPedidoFalso : PedidoDao {
+        override fun observarDelUsuario(ownerId: Long) = flowOf(emptyList<Pedido>())
+        override suspend fun reservasPendientes() = emptyList<Pedido>()
+        override suspend fun actualizarDetalle(detalle: PedidoDetalle) = 0
+
         override suspend fun insertarPedido(pedido: Pedido) = 0L
         override suspend fun insertarDetalles(detalles: List<PedidoDetalle>) = Unit
         override suspend fun insertarDireccion(direccion: Direccion) = 0L
@@ -130,6 +158,8 @@ class SincronizacionRepositoryTest {
     }
 
     private class DaoProductoFalso : ProductoDao {
+        override fun observarTodos(): Flow<List<Producto>> = flowOf(emptyList())
+        override suspend fun ajustarDisponible(productoId: Long, cantidad: Int) = 0
         override fun observarActivos(): Flow<List<Producto>> = flowOf(emptyList())
         override suspend fun obtenerActivos() = emptyList<Producto>()
         override suspend fun contar() = 0
@@ -166,6 +196,8 @@ class SincronizacionRepositoryTest {
             }
         }
 
+        override suspend fun pendientesDelUsuario(ownerId: Long) = mapa.values.filter { it.ownerId==ownerId && it.estado==EstadoSincronizacion.PENDIENTE }
+        override suspend fun cerrarReservasSuperadas(ownerId: Long,hastaId: Long,patron: String) = 0
         fun porId(id: Long) = mapa[id]
 
         override suspend fun insertar(entidad: OperacionPendiente): Long {
@@ -183,8 +215,8 @@ class SincronizacionRepositoryTest {
                 it.estado == EstadoSincronizacion.PENDIENTE || it.estado == EstadoSincronizacion.ERROR
             }.toList()
 
-        override fun observarPendientesActivos() = flowOf(mapa.size)
-        override fun observarErrores() = flowOf(0)
+        override fun observarPendientesActivos(ownerId: Long) = flowOf(mapa.size)
+        override fun observarErrores(ownerId: Long) = flowOf(0)
         override suspend fun contarPendientesActivos() = mapa.size
         override suspend fun contarErrores() = 0
         override suspend fun contarActivasDeEntidad(tipoEntidad: String, entidadIdLocal: Long) = 0

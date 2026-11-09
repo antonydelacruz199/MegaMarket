@@ -13,49 +13,50 @@ import com.megamarket.modelo.TipoOperacionPendiente
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
+import androidx.room.withTransaction
 
 class CatalogoRemotoRepository(
     private val api: ApiService,
     private val categoriaDao: CategoriaDao,
     private val productoDao: ProductoDao,
     private val operacionDao: OperacionPendienteDao,
-    private val metadatosSincronizacionDao: SyncMetadataDao
+    private val metadatosSincronizacionDao: SyncMetadataDao,
+    private val database: com.megamarket.cliente.data.local.AppDatabase? = null,
+    private val sesion: com.megamarket.cliente.data.local.SesionSincronizacion? = null,
+    private val bootCount: () -> Int = { -1 }
 ) {
 
     suspend fun descargarYGuardarCatalogo(): ResultadoDescargaCatalogo = withContext(Dispatchers.IO) {
+        val ownerAlIniciar=sesion?.owner?.value
+        val remoteOwner=sesion?.usuarioRemotoId
         try {
-            val catsResp = api.listarCategorias()
+            val catsResp = api.listarCategorias(remoteOwner)
             if (!catsResp.isSuccessful) {
                 return@withContext ResultadoDescargaCatalogo.Error(
                     "No se pudieron descargar las categorías (${catsResp.code()})"
                 )
             }
-            upsertCategorias(catsResp.body()?.categorias.orEmpty())
+            val categorias = catsResp.body()?.categorias ?: return@withContext ResultadoDescargaCatalogo.Error("Respuesta de categorías inválida")
 
-            val prodResp = api.listarProductos()
+            val prodResp = api.listarProductos(remoteOwner)
             if (!prodResp.isSuccessful) {
                 return@withContext ResultadoDescargaCatalogo.Error(
                     "No se pudieron descargar los productos (${prodResp.code()})"
                 )
             }
-            val productos = prodResp.body()?.productos.orEmpty()
-            upsertProductos(productos)
-
-            val ahora = System.currentTimeMillis()
-            metadatosSincronizacionDao.guardar(
-                SyncMetadata(
-                    id = SyncMetadata.FILA_UNICA,
-                    ultimaSincronizacionExitosa = ahora,
-                    ultimoIntento = ahora,
-                    ultimoErrorGeneral = null
-                )
-            )
-
-            if (categoriaDao.contar() == 0 || productoDao.contar() == 0) {
-                return@withContext ResultadoDescargaCatalogo.Error(
-                    "La configuración inicial falló: el catálogo remoto está vacío o no se pudo guardar."
-                )
+            val productos = prodResp.body()?.productos ?: return@withContext ResultadoDescargaCatalogo.Error("Respuesta de catálogo inválida")
+            suspend fun guardarCatalogo() {
+                if(sesion?.owner?.value!=ownerAlIniciar) throw IOException("La cuenta activa cambió")
+                upsertCategorias(categorias)
+                upsertProductos(productos)
+                if(categoriaDao.contar()==0) throw IOException("El catálogo no contiene categorías")
+                val ahora=System.currentTimeMillis()
+                metadatosSincronizacionDao.guardar(SyncMetadata(
+                    ultimaSincronizacionExitosa=ahora,ultimoIntento=ahora,
+                    sincronizadoElapsed=android.os.SystemClock.elapsedRealtime(),bootCount=bootCount()
+                ))
             }
+            if(database!=null) database.withTransaction { guardarCatalogo() } else guardarCatalogo()
             ResultadoDescargaCatalogo.Exito(
                 categorias = catsResp.body()?.categorias?.size ?: 0,
                 productos = productos.size
@@ -87,23 +88,21 @@ class CatalogoRemotoRepository(
 
     private suspend fun upsertProductos(remotas: List<ProductoApiDto>) {
         val idsRemotos = remotas.map { it.id }.toSet()
+        val reservas=database?.carritoDao()?.todasLasReservas().orEmpty().filter { it.ownerId==sesion?.owner?.value }.map { Triple(it.productoId,it.cartUuid,it.cantidad) }.toMutableList()
+        for(pedido in database?.pedidoDao()?.reservasPendientes().orEmpty().filter { it.clienteId==sesion?.owner?.value }) {
+            for(d in database!!.pedidoDao().obtenerDetallesPedido(pedido.id)) reservas.add(Triple(d.productoId,pedido.clientUuid,d.cantidad))
+        }
         for (remota in remotas) {
             val categoriaLocal = categoriaDao.obtenerPorRemoteId(remota.categoriaId) ?: continue
             val existente = productoDao.obtenerPorRemoteId(remota.id)
             if (existente != null) {
-                val pendientesPedido = operacionDao.contarActivasDeEntidad(
-                    TipoOperacionPendiente.PEDIDO,
-                    existente.id
-                )
-                // No hay ops de producto en cliente; proteger stock local con movimientos pendientes.
-                val pendientesMov = operacionDao.contarActivasDeEntidad(
-                    TipoOperacionPendiente.MOVIMIENTO_INVENTARIO,
-                    existente.id
-                )
-                if (pendientesPedido > 0 || pendientesMov > 0) continue
+                val propias=reservas.filter { it.first==existente.id }
+                val ids=propias.map { it.second }.toSet()
+                val reconocidas=remota.reservas.orEmpty().filter { it.carritoId in ids }.sumOf { it.cantidad }
+                val disponible=(remota.stock+reconocidas-propias.sumOf { it.third }).coerceAtLeast(0)
                 productoDao.actualizarProducto(
                     remota.aEntidadLocal(idLocal = existente.id, categoriaIdLocal = categoriaLocal.id)
-                        .copy(providerId = existente.providerId)
+                        .copy(providerId = existente.providerId,stock=disponible)
                 )
             } else {
                 productoDao.insertar(

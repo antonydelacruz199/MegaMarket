@@ -11,6 +11,15 @@ import com.megamarket.cliente.data.local.Pedido
 
 @Dao
 interface PedidoDao {
+    @Query("SELECT * FROM pedidos WHERE clienteId=:ownerId ORDER BY fecha DESC")
+    fun observarDelUsuario(ownerId: Long): kotlinx.coroutines.flow.Flow<List<Pedido>>
+
+    @Query("SELECT * FROM pedidos WHERE remote_id IS NULL AND estado IN ('PENDIENTE_CONFIRMACION','REQUIERE_REVISION','CONFIRMADO')")
+    suspend fun reservasPendientes(): List<Pedido>
+
+    @Update
+    suspend fun actualizarDetalle(detalle: PedidoDetalle): Int
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insertarPedido(pedido: Pedido): Long
 

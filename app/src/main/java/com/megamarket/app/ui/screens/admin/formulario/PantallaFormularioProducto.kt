@@ -75,6 +75,15 @@ fun PantallaFormularioProducto(
     alVolver: () -> Unit
 ) {
     val estado by viewModel.estado.collectAsStateWithLifecycle()
+    if(estado.duplicadoId!=null) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest=viewModel::cancelarDuplicado,
+            title={Text("Producto ya registrado")},
+            text={Text("Ya existe un producto con ese nombre. ¿Deseas actualizar los datos del producto registrado?")},
+            confirmButton={TextButton(onClick=viewModel::editarDuplicado){Text("Actualizar existente")}},
+            dismissButton={TextButton(onClick=viewModel::cancelarDuplicado){Text("Cancelar")}}
+        )
+    }
     val estadoMensaje = remember { SnackbarHostState() }
     val selectorImagen = rememberLauncherForActivityResult(
         ActivityResultContracts.PickVisualMedia()

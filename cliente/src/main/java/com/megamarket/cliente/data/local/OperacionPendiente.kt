@@ -26,6 +26,7 @@ data class OperacionPendiente(
     val entidadIdLocal: Long,
     val operacion: String,
     val payload: String,
+    @androidx.room.ColumnInfo(defaultValue = "0") val ownerId: Long = 0,
     val estado: String = EstadoSincronizacion.PENDIENTE,
     val intentos: Int = 0,
     val ultimoError: String? = null,

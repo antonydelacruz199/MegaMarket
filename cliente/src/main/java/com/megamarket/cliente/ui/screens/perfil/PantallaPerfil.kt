@@ -1,5 +1,7 @@
 package com.megamarket.cliente.ui.screens.perfil
 
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -33,10 +35,16 @@ fun PantallaPerfil(
     ) { relleno ->
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .fillMaxSize().verticalScroll(rememberScrollState())
                 .padding(relleno)
                 .padding(16.dp)
         ) {
+            Text("Mis pedidos",style=MaterialTheme.typography.titleLarge)
+            for(pedido in estado.pedidos) {
+                androidx.compose.material3.TextButton(onClick={ alNavegar(Ruta.Confirmacion.crear(pedido.id)) }) {
+                    Text("Pedido #"+pedido.id+" · "+pedido.estado.replace('_',' '))
+                }
+            }
             Text(estado.nombre, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
             Text(estado.correo, style = MaterialTheme.typography.bodyLarge)

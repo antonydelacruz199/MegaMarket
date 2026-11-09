@@ -8,7 +8,7 @@ const router = express.Router();
 router.post(
   '/movimientos',
   verificarToken,
-  verificarRol('ADMINISTRADOR', 'CLIENTE'),
+  verificarRol('ADMINISTRADOR'),
   inventarioController.registrarMovimiento
 );
 

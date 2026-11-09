@@ -8,7 +8,9 @@ data class SyncMetadata(
     @PrimaryKey val id: Int = FILA_UNICA,
     val ultimaSincronizacionExitosa: Long? = null,
     val ultimoIntento: Long? = null,
-    val ultimoErrorGeneral: String? = null
+    val ultimoErrorGeneral: String? = null,
+    val sincronizadoElapsed: Long? = null,
+    val bootCount: Int? = null
 ) {
     companion object {
         const val FILA_UNICA = 1

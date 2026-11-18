@@ -3,7 +3,6 @@ package com.megamarket.cliente.data.repository
 import android.content.ContentResolver
 import android.content.ContentValues
 import android.database.Cursor
-import android.graphics.Bitmap
 import android.net.Uri
 import com.megamarket.cliente.data.local.ProductoProviderSnapshot
 import com.megamarket.cliente.data.local.dao.CategoriaDao
@@ -14,14 +13,12 @@ import com.megamarket.cliente.model.ResultadoDescuentoStock
 import com.megamarket.modelo.Categoria
 import com.megamarket.modelo.ContratoCatalogo
 import com.megamarket.modelo.Producto
-import com.megamarket.modelo.decodificarImagen
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import java.io.IOException
 
 /**
  * Catálogo offline-first: Room local es la fuente de la UI.
@@ -85,18 +82,6 @@ class CatalogoRepository(
         }
     }
 
-    suspend fun cargarImagen(productoIdLocal: Long, lado: Int): Bitmap? = withContext(Dispatchers.IO) {
-        val providerId = obtenerProviderId(productoIdLocal) ?: return@withContext null
-        try {
-            resolver.openInputStream(ContratoCatalogo.uriImagen(providerId))
-                ?.use { entrada -> entrada.readBytes().decodificarImagen(lado) }
-        } catch (_: IOException) {
-            null
-        } catch (_: SecurityException) {
-            null
-        }
-    }
-
     private suspend fun obtenerProviderId(productoIdLocal: Long): Long? =
         productoDao.obtenerPorId(productoIdLocal)?.providerId
 
@@ -157,7 +142,7 @@ class CatalogoRepository(
         }
         val local = productoDao.obtenerPorId(productoIdLocal)
             ?: return ResultadoDescuentoStock.Fallo(errorGenerico)
-        val providerId = local.providerId
+        val providerId = obtenerProviderId(productoIdLocal)
             ?: return ResultadoDescuentoStock.Fallo(MENSAJE_SIN_PROVIDER_ID)
 
         val values = ContentValues().apply {
@@ -215,6 +200,8 @@ class CatalogoRepository(
         val remoteVersionIdx = getColumnIndex(ContratoCatalogo.COL_REMOTE_VERSION)
         val remoteUpdatedIdx = getColumnIndex(ContratoCatalogo.COL_REMOTE_UPDATED_AT)
         val remoteDeletedIdx = getColumnIndex(ContratoCatalogo.COL_REMOTE_DELETED_AT)
+        val codigoIdx = getColumnIndex(ContratoCatalogo.COL_CODIGO_BARRAS)
+        val pasilloIdx = getColumnIndex(ContratoCatalogo.COL_PASILLO)
 
         while (moveToNext()) {
             productos += ProductoProviderSnapshot(
@@ -232,7 +219,9 @@ class CatalogoRepository(
                 activo = getInt(activo) != 0,
                 remoteVersion = longOpcional(remoteVersionIdx),
                 remoteUpdatedAt = stringOpcional(remoteUpdatedIdx),
-                remoteDeletedAt = stringOpcional(remoteDeletedIdx)
+                remoteDeletedAt = stringOpcional(remoteDeletedIdx),
+                codigoBarras = stringOpcional(codigoIdx),
+                pasillo = stringOpcional(pasilloIdx)
             )
         }
         return productos

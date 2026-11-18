@@ -10,6 +10,7 @@ import com.megamarket.app.data.local.MovimientoInventario
 import com.megamarket.app.data.local.OperacionPendiente
 import com.megamarket.app.data.mapper.toEntity
 import com.megamarket.app.data.mapper.toModel
+import com.megamarket.modelo.ClavesImagen
 import com.megamarket.modelo.ContratoCatalogo
 import com.megamarket.modelo.EstadoSincronizacion
 import com.megamarket.modelo.Producto
@@ -26,9 +27,23 @@ class ProductoRepository(
     private val resolver: ContentResolver,
     private val programarSincronizacion: () -> Unit
 ) {
-    suspend fun buscarDuplicado(nombre: String, excluirId: Long = 0): Producto? = withContext(Dispatchers.IO) {
+    suspend fun buscarDuplicado(nombre: String, excluirId: Long = 0): Producto? =
+        withContext(Dispatchers.IO) { buscarDuplicadoEnCurso(nombre, excluirId) }
+
+    /** Sin cambiar de dispatcher: Room rechaza otro contexto dentro de withTransaction. */
+    private suspend fun buscarCodigoEnCurso(codigo: String?, excluirId: Long): Producto? {
+        val normalizado = codigo?.trim().orEmpty()
+        if (normalizado.isEmpty()) return null
+        return productoDao.obtenerPorCodigoBarras(normalizado, excluirId)?.toModel()
+    }
+
+    private suspend fun buscarDuplicadoEnCurso(nombre: String, excluirId: Long): Producto? {
         val normalizado = nombre.trim().replace(Regex("\\s+"), " ").lowercase(java.util.Locale.ROOT)
-        productoDao.obtenerTodos().firstOrNull { it.id!=excluirId && it.remoteDeletedAt==null && it.nombre.trim().replace(Regex("\\s+"), " ").lowercase(java.util.Locale.ROOT)==normalizado }?.toModel()
+        return productoDao.obtenerTodos().firstOrNull {
+            it.id != excluirId &&
+                it.remoteDeletedAt == null &&
+                it.nombre.trim().replace(Regex("\\s+"), " ").lowercase(java.util.Locale.ROOT) == normalizado
+        }?.toModel()
     }
 
     suspend fun obtenerTodos(): List<Producto> = withContext(Dispatchers.IO) {
@@ -39,6 +54,20 @@ class ProductoRepository(
     suspend fun obtenerActivos(): List<Producto> = withContext(Dispatchers.IO) {
         productoDao.eliminarSinDatos()
         productoDao.obtenerActivos().map { it.toModel() }
+    }
+
+    suspend fun ultimoErrorProducto(id: Long): String? = withContext(Dispatchers.IO) {
+        val crear = operacionDao.obtenerPendienteDe(
+            TipoOperacionPendiente.PRODUCTO,
+            id,
+            TipoOperacionPendiente.CREAR_PRODUCTO
+        )
+        val actualizar = operacionDao.obtenerPendienteDe(
+            TipoOperacionPendiente.PRODUCTO,
+            id,
+            TipoOperacionPendiente.ACTUALIZAR_PRODUCTO
+        )
+        crear?.ultimoError ?: actualizar?.ultimoError
     }
 
     suspend fun obtenerPorId(id: Long): Producto? = withContext(Dispatchers.IO) {
@@ -58,7 +87,12 @@ class ProductoRepository(
         require(producto.stock >= 0) { "El stock no puede ser negativo" }
         val id = database.withTransaction {
             val ahora = System.currentTimeMillis()
-            require(buscarDuplicado(producto.nombre,producto.id)==null) { "Ya existe un producto con ese nombre. Abre el producto existente para actualizarlo." }
+            require(buscarDuplicadoEnCurso(producto.nombre, producto.id) == null) {
+                "Ya existe un producto con ese nombre. Abre el producto existente para actualizarlo."
+            }
+            require(buscarCodigoEnCurso(producto.codigoBarras, producto.id) == null) {
+                "Ya existe un producto con ese código de barras"
+            }
             val entidad = producto.toEntity()
             val nuevoId = productoDao.insertar(entidad.copy(id = 0))
             val uuidOperacion = UUID.randomUUID().toString()
@@ -87,7 +121,12 @@ class ProductoRepository(
         val aplicado = database.withTransaction {
             val ahora = System.currentTimeMillis()
             val entidad = producto.toEntity()
-            require(buscarDuplicado(producto.nombre,producto.id)==null) { "Ya existe un producto con ese nombre" }
+            require(buscarDuplicadoEnCurso(producto.nombre, producto.id) == null) {
+                "Ya existe un producto con ese nombre"
+            }
+            require(buscarCodigoEnCurso(producto.codigoBarras, producto.id) == null) {
+                "Ya existe un producto con ese código de barras"
+            }
             val filas = productoDao.actualizarProducto(entidad)
             if (filas <= 0) return@withTransaction false
 
@@ -120,6 +159,35 @@ class ProductoRepository(
             programarSincronizacion()
         }
         aplicado
+    }
+
+    /**
+     * Guarda la clave que devolvió POST /api/medios. No encola otra sincronización
+     * y no borra la imagen anterior del servidor.
+     */
+    suspend fun registrarImagenRemota(
+        idLocal: Long,
+        imagenKey: String,
+        version: Long?,
+        updatedAt: String?
+    ): Boolean = withContext(Dispatchers.IO) {
+        val actual = productoDao.obtenerPorId(idLocal) ?: return@withContext false
+        if (!ClavesImagen.perteneceAProducto(imagenKey, actual.remoteId)) return@withContext false
+        val versionLocal = actual.remoteVersion
+        val versionNueva = when {
+            version == null -> versionLocal
+            versionLocal == null || version > versionLocal -> version
+            else -> versionLocal
+        }
+        val filas = productoDao.actualizarProducto(
+            actual.copy(
+                imagenKey = imagenKey,
+                remoteVersion = versionNueva,
+                remoteUpdatedAt = updatedAt ?: actual.remoteUpdatedAt
+            )
+        )
+        if (filas > 0) notificarCambio(idLocal)
+        filas > 0
     }
 
     suspend fun eliminarLogico(id: Long): Boolean = withContext(Dispatchers.IO) {

@@ -25,7 +25,10 @@ data class UsuarioApiDto(
 )
 
 data class ErrorApiDto(
-    val error: String?
+    val error: String? = null,
+    val codigo: String? = null,
+    val sustitucion: SustitucionDto? = null,
+    val sustitucionId: String? = null
 )
 
 data class CategoriasResponse(
@@ -57,6 +60,8 @@ data class ProductoApiDto(
     val imagenKey: String?,
     val esOferta: Boolean,
     val activo: Boolean,
+    val codigoBarras: String? = null,
+    val pasillo: String? = null,
     val version: Long?,
     val createdAt: String?,
     val updatedAt: String?

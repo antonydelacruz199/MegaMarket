@@ -45,6 +45,11 @@ fun PantallaPerfil(
                     Text("Pedido #"+pedido.id+" · "+pedido.estado.replace('_',' '))
                 }
             }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Sustituciones", style = MaterialTheme.typography.titleLarge)
+            androidx.compose.material3.TextButton(onClick = { alNavegar(Ruta.Sustituciones.ruta) }) {
+                Text("Ver propuestas de sustitución")
+            }
             Text(estado.nombre, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
             Text(estado.correo, style = MaterialTheme.typography.bodyLarge)

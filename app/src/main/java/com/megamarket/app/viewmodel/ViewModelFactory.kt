@@ -21,7 +21,8 @@ class ViewModelFactory(
                     extras.createSavedStateHandle(),
                     container.productoRepository,
                     container.categoriaRepository,
-                    container.imagenRepository
+                    container.imagenRepository,
+                    container.sincronizacionRepository
                 )
             modelClass.isAssignableFrom(SincronizacionViewModel::class.java) ->
                 SincronizacionViewModel(container.sincronizacionRepository)

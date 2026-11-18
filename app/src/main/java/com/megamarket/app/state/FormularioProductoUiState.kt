@@ -12,6 +12,8 @@ data class FormularioProductoUiState(
     val precio: String = "",
     val descuentoPorcentaje: String = "",
     val stock: String = "",
+    val codigoBarras: String = "",
+    val pasillo: String = "",
     val esOferta: Boolean = false,
     val activo: Boolean = true,
 

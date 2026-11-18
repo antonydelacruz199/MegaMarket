@@ -15,7 +15,7 @@ class Migracion23Test {
         val archivo = File("src/main/java/com/megamarket/app/data/local/AppDatabase.kt")
         assertTrue(archivo.exists())
         val fuente = archivo.readText(Charsets.UTF_8)
-        assertTrue(fuente.contains("version = 4"))
+        assertTrue(fuente.contains("version = 5"))
         assertTrue(fuente.contains("MIGRACION_2_3"))
         assertTrue(fuente.contains("migrarProductosYCategorias"))
         assertTrue(fuente.contains("productos_nueva"))

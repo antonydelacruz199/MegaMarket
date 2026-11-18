@@ -23,10 +23,12 @@ class AppContainer(context: Context) {
     private val observadorConexion = ObservadorConexion(appContext)
     val sesionLocal = SesionLocalStore(appContext)
 
-    private val apiService = ApiClient(
+    private val apiClient = ApiClient(
         baseUrl = BuildConfig.MEGAMARKET_API_BASE_URL,
         tokenProvider = { sesionLocal.accessToken }
-    ).crear()
+    )
+    private val apiService = apiClient.crear()
+    val clienteHttp = apiClient.http
 
     val catalogoRemotoRepository = CatalogoRemotoRepository(
         api = apiService,
@@ -65,5 +67,9 @@ class AppContainer(context: Context) {
         programarSincronizacion = { SincronizacionWorker.programar(appContext) }
     )
 
-    val imagenRepository = ImagenRepository(appContext)
+    val imagenRepository = ImagenRepository(
+        contexto = appContext,
+        api = apiService,
+        baseUrl = BuildConfig.MEGAMARKET_API_BASE_URL
+    )
 }

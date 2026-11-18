@@ -7,6 +7,8 @@ import com.megamarket.app.data.repository.ImagenRepository
 import com.megamarket.app.data.repository.ProductoRepository
 import com.megamarket.app.model.FiltroProducto
 import com.megamarket.app.state.ProductoUiState
+import com.megamarket.modelo.Producto
+import com.megamarket.modelo.SolicitudImagenProducto
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -47,6 +49,9 @@ class ProductoViewModel(
     fun seleccionarFiltro(filtro: FiltroProducto) {
         _estado.update { it.copy(filtro = filtro) }
     }
+
+    fun solicitudImagen(producto: Producto): SolicitudImagenProducto? =
+        imagenes.solicitud(producto.remoteId, producto.imagenKey)
 
     suspend fun cargarImagen(clave: String, lado: Int): Bitmap? = imagenes.cargarImagen(clave, lado)
 }

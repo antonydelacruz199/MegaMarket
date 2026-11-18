@@ -35,6 +35,9 @@ interface PedidoDao {
     @Query("SELECT * FROM pedidos WHERE id = :pedidoId LIMIT 1")
     suspend fun obtenerPedidoPorId(pedidoId: Long): Pedido?
 
+    @Query("SELECT * FROM pedidos WHERE remote_id = :remoteId LIMIT 1")
+    suspend fun obtenerPorRemoteId(remoteId: String): Pedido?
+
     @Query("SELECT * FROM pedido_detalle WHERE pedidoId = :pedidoId ORDER BY id")
     suspend fun obtenerDetallesPedido(pedidoId: Long): List<PedidoDetalle>
 

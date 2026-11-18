@@ -29,6 +29,8 @@ class ValidacionProductoTest {
         assertEquals(0, producto.descuentoPorcentaje)
         assertNull(producto.precioOfertaCentimos)
         assertNull(producto.remoteId)
+        assertNull(producto.codigoBarras)
+        assertNull(producto.pasillo)
     }
 
     @Test
@@ -81,6 +83,24 @@ class ValidacionProductoTest {
         assertEquals("El descuento debe ser menor a 100", mensaje(conOferta.copy(descuentoPorcentaje = "100")))
         assertEquals("El descuento debe estar entre 0 y 100", mensaje(conOferta.copy(descuentoPorcentaje = "150")))
         assertNull(mensaje(conOferta.copy(descuentoPorcentaje = "15")))
+    }
+
+    @Test
+    fun codigoYPasillo_sonOpcionalesYSeNormalizan() {
+        val resultado = ValidacionProducto.validar(
+            valido.copy(codigoBarras = " 770001 ", pasillo = "  Lácteos  2 ")
+        )
+        val producto = (resultado as ValidacionProducto.Resultado.Valido).producto
+        assertEquals("770001", producto.codigoBarras)
+        assertEquals("Lácteos 2", producto.pasillo)
+        assertEquals(
+            "El código de barras solo admite letras y dígitos",
+            mensaje(valido.copy(codigoBarras = "77 0001"))
+        )
+        assertEquals(
+            "El pasillo solo admite letras, números, espacios y guiones",
+            mensaje(valido.copy(pasillo = "A/1"))
+        )
     }
 
     @Test

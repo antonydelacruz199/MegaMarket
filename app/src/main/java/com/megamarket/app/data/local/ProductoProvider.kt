@@ -54,7 +54,9 @@ class ProductoProvider : ContentProvider() {
                         if (producto.activo) 1 else 0,
                         producto.remoteVersion,
                         producto.remoteUpdatedAt,
-                        producto.remoteDeletedAt
+                        producto.remoteDeletedAt,
+                        producto.codigoBarras,
+                        producto.pasillo
                     )
                 )
             }

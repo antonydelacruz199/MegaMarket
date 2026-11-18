@@ -22,16 +22,24 @@ import com.megamarket.cliente.ui.screens.perfil.PantallaPerfil
 import com.megamarket.cliente.ui.screens.presentacion.PantallaPresentacion
 import com.megamarket.cliente.ui.screens.producto.PantallaDetalleProducto
 import com.megamarket.cliente.ui.screens.sesion.PantallaSesion
+import com.megamarket.cliente.ui.screens.pedidos.PantallaDetallePedido
+import com.megamarket.cliente.ui.screens.pedidos.PantallaMisPedidos
+import com.megamarket.cliente.ui.screens.sustituciones.PantallaDetalleSustitucion
+import com.megamarket.cliente.ui.screens.sustituciones.PantallaSustituciones
 import com.megamarket.cliente.viewmodel.SesionViewModel
 import com.megamarket.cliente.viewmodel.CarritoViewModel
 import com.megamarket.cliente.viewmodel.CatalogoViewModel
 import com.megamarket.cliente.viewmodel.CheckoutViewModel
 import com.megamarket.cliente.viewmodel.ConfirmacionViewModel
+import com.megamarket.cliente.viewmodel.DetallePedidoViewModel
 import com.megamarket.cliente.viewmodel.DetalleProductoViewModel
+import com.megamarket.cliente.viewmodel.DetalleSustitucionViewModel
 import com.megamarket.cliente.viewmodel.FavoritosViewModel
 import com.megamarket.cliente.viewmodel.InicioViewModel
+import com.megamarket.cliente.viewmodel.MisPedidosViewModel
 import com.megamarket.cliente.viewmodel.PerfilViewModel
 import com.megamarket.cliente.viewmodel.SincronizacionViewModel
+import com.megamarket.cliente.viewmodel.SustitucionesViewModel
 import com.megamarket.cliente.viewmodel.ViewModelFactory
 
 @Composable
@@ -123,6 +131,51 @@ fun NavegacionCliente(
                 viewModel = viewModel<PerfilViewModel>(factory = fabrica),
                 alNavegar = controlador::irARaiz,
                 alCerrarSesion = cerrarSesion
+            )
+        }
+
+        composable(Ruta.MisPedidos.ruta) {
+            PantallaMisPedidos(
+                viewModel = viewModel<MisPedidosViewModel>(factory = fabrica),
+                alNavegar = controlador::irARaiz,
+                alCerrarSesion = cerrarSesion,
+                alAbrirDetalle = { id -> controlador.navigate(Ruta.DetallePedido.crear(id)) }
+            )
+        }
+
+        composable(
+            route = Ruta.DetallePedido.ruta,
+            arguments = listOf(navArgument(Ruta.ARG_PEDIDO_REMOTO) { type = NavType.StringType })
+        ) {
+            PantallaDetallePedido(
+                viewModel = viewModel<DetallePedidoViewModel>(factory = fabrica),
+                alVolver = { controlador.popBackStack() },
+                alCerrarSesion = cerrarSesion
+            )
+        }
+
+        composable(Ruta.Sustituciones.ruta) {
+            PantallaSustituciones(
+                viewModel = viewModel<SustitucionesViewModel>(factory = fabrica),
+                alNavegar = controlador::irARaiz,
+                alCerrarSesion = cerrarSesion,
+                alAbrirDetalle = { id -> controlador.navigate(Ruta.DetalleSustitucion.crear(id)) }
+            )
+        }
+
+        composable(
+            route = Ruta.DetalleSustitucion.ruta,
+            arguments = listOf(navArgument(Ruta.ARG_SUSTITUCION) { type = NavType.StringType })
+        ) {
+            PantallaDetalleSustitucion(
+                viewModel = viewModel<DetalleSustitucionViewModel>(factory = fabrica),
+                alVolver = { controlador.popBackStack() },
+                alCerrarSesion = cerrarSesion,
+                alAbrirPedido = { pedidoId ->
+                    controlador.navigate(Ruta.Confirmacion.crear(pedidoId)) {
+                        popUpTo(Ruta.Sustituciones.ruta)
+                    }
+                }
             )
         }
 

@@ -1,6 +1,5 @@
 package com.megamarket.cliente.ui.components
 
-import android.graphics.Bitmap
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -29,12 +28,13 @@ import com.megamarket.cliente.ui.theme.FeriaCoral
 import com.megamarket.cliente.ui.theme.FeriaPetalo
 import com.megamarket.cliente.ui.theme.MegaSobrePrimario
 import com.megamarket.modelo.Producto
+import com.megamarket.modelo.SolicitudImagenProducto
 
 @Composable
 fun TarjetaProducto(
     producto: Producto,
     alPulsar: () -> Unit,
-    cargarImagen: suspend (productoId: Long, lado: Int) -> Bitmap?,
+    solicitudImagen: SolicitudImagenProducto?,
     modifier: Modifier = Modifier,
     esFavorito: Boolean = false,
     alAlternarFavorito: (() -> Unit)? = null
@@ -59,13 +59,10 @@ fun TarjetaProducto(
             verticalAlignment = Alignment.CenterVertically
         ) {
             ImagenProducto(
-                productoId = producto.id,
-                imagenKey = producto.imagenKey,
-                cargarImagen = cargarImagen,
+                solicitud = solicitudImagen,
                 modifier = Modifier
                     .padding(end = 12.dp)
                     .size(72.dp),
-                lado = 200,
                 descripcion = producto.nombre
             )
             Column(modifier = Modifier.weight(1f)) {

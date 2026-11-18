@@ -94,13 +94,10 @@ fun PantallaCarrito(
                         Column(modifier = Modifier.padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 ImagenProducto(
-                                    productoId = linea.producto.id,
-                                    imagenKey = linea.producto.imagenKey,
-                                    cargarImagen = viewModel::cargarImagen,
+                                    solicitud = viewModel.solicitudImagen(linea.producto),
                                     modifier = Modifier
                                         .padding(end = 12.dp)
                                         .size(56.dp),
-                                    lado = 160,
                                     descripcion = linea.producto.nombre
                                 )
                                 Column(modifier = Modifier.weight(1f)) {

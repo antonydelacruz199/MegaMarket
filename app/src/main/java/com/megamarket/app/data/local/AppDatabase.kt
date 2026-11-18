@@ -28,7 +28,7 @@ import com.megamarket.modelo.PrecioDescuento
         MovimientoInventario::class,
         SyncMetadata::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -55,6 +55,14 @@ abstract class AppDatabase : RoomDatabase() {
         val MIGRACION_3_4 = object : Migration(3, 4) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 migrarAVersion4(db)
+            }
+        }
+
+        /** Código de barras y pasillo. NULL conserva los productos ya guardados. */
+        val MIGRACION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `productos` ADD COLUMN `codigo_barras` TEXT")
+                db.execSQL("ALTER TABLE `productos` ADD COLUMN `pasillo` TEXT")
             }
         }
 
@@ -232,7 +240,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     NOMBRE
                 )
-                    .addMigrations(MIGRACION_2_3, MIGRACION_3_4)
+                    .addMigrations(MIGRACION_2_3, MIGRACION_3_4, MIGRACION_4_5)
                     .fallbackToDestructiveMigrationFrom(true, 1)
                     .build()
                     .also { instancia = it }

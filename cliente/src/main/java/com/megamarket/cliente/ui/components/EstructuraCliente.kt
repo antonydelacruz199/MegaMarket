@@ -62,6 +62,8 @@ fun EstructuraCliente(
         ItemMenu(etiquetaOfertas, Ruta.Ofertas.ruta, Icons.Default.Star),
         ItemMenu("Favoritos", Ruta.Favoritos.ruta, Icons.Default.Favorite),
         ItemMenu("Carrito", Ruta.Carrito.ruta, Icons.Default.ShoppingCart),
+        ItemMenu("Mis Pedidos", Ruta.MisPedidos.ruta, Icons.AutoMirrored.Filled.List),
+        ItemMenu("Sustituciones", Ruta.Sustituciones.ruta, Icons.Default.Star),
         ItemMenu("Perfil", Ruta.Perfil.ruta, Icons.Default.Person),
         ItemMenu(etiquetaCerrar, Ruta.Sesion.ruta, Icons.Default.Close, esCerrarSesion = true)
     )

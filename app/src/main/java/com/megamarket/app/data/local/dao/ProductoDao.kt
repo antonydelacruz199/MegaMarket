@@ -23,6 +23,17 @@ interface ProductoDao {
     @Query("SELECT * FROM productos WHERE remote_id IS NOT NULL AND trim(remote_id) != ''")
     fun obtenerConRemoteId(): List<Producto>
 
+    @Query(
+        """
+        SELECT * FROM productos
+        WHERE codigo_barras = :codigo
+          AND id != :excluirId
+          AND remote_deleted_at IS NULL
+        LIMIT 1
+        """
+    )
+    suspend fun obtenerPorCodigoBarras(codigo: String, excluirId: Long): Producto?
+
     @Insert
     suspend fun insertar(entidad: Producto): Long
 

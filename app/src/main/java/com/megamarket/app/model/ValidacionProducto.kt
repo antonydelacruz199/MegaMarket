@@ -3,6 +3,7 @@ package com.megamarket.app.model
 import com.megamarket.app.state.FormularioProductoUiState
 import com.megamarket.modelo.PrecioDescuento
 import com.megamarket.modelo.Producto
+import com.megamarket.modelo.UbicacionProducto
 import java.math.RoundingMode
 
 /** Reglas del formulario de producto. Sin dependencias de Android para poder probarlas. */
@@ -20,6 +21,8 @@ object ValidacionProducto {
         val stock = formulario.stock.trim().toIntOrNull()
         val categoriaId = formulario.categoriaId
         val descuento = formulario.descuentoPorcentaje.trim().toIntOrNull()
+        val codigo = UbicacionProducto.normalizarCodigo(formulario.codigoBarras)
+        val pasillo = UbicacionProducto.normalizarPasillo(formulario.pasillo)
 
         val mensaje = when {
             nombre.isEmpty() -> "Ingresa el nombre del producto"
@@ -39,6 +42,8 @@ object ValidacionProducto {
                 "El descuento debe ser mayor a 0 cuando hay oferta"
             formulario.esOferta && descuento != null && descuento >= 100 ->
                 "El descuento debe ser menor a 100"
+            codigo is UbicacionProducto.Resultado.Error -> codigo.mensaje
+            pasillo is UbicacionProducto.Resultado.Error -> pasillo.mensaje
             else -> null
         }
         if (mensaje != null) return Resultado.Invalido(mensaje)
@@ -66,7 +71,9 @@ object ValidacionProducto {
                 remoteId = formulario.remoteId,
                 remoteVersion = formulario.remoteVersion,
                 remoteUpdatedAt = formulario.remoteUpdatedAt,
-                remoteDeletedAt = formulario.remoteDeletedAt
+                remoteDeletedAt = formulario.remoteDeletedAt,
+                codigoBarras = (codigo as UbicacionProducto.Resultado.Ok).valor,
+                pasillo = (pasillo as UbicacionProducto.Resultado.Ok).valor
             )
         )
     }

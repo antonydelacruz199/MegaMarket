@@ -46,6 +46,7 @@ import com.megamarket.app.ui.components.ImagenProducto
 import com.megamarket.app.ui.components.TarjetaResumenAdmin
 import com.megamarket.app.ui.navigation.Ruta
 import com.megamarket.app.ui.theme.MegaAdvertencia
+import com.megamarket.modelo.SolicitudImagenProducto
 import com.megamarket.app.ui.theme.MegaContenedorAdvertencia
 import com.megamarket.app.ui.theme.MegaContenedorError
 import com.megamarket.app.ui.theme.MegaError
@@ -159,6 +160,7 @@ fun PantallaPanelAdmin(
                         TarjetaStockBajo(
                             producto = producto,
                             alPulsar = { alNavegar(Ruta.EditarProductoAdmin.crear(producto.id)) },
+                            solicitudImagen = viewModel.solicitudImagen(producto),
                             cargarImagen = viewModel::cargarImagen
                         )
                     }
@@ -178,6 +180,7 @@ fun PantallaPanelAdmin(
 private fun TarjetaStockBajo(
     producto: Producto,
     alPulsar: () -> Unit,
+    solicitudImagen: SolicitudImagenProducto?,
     cargarImagen: suspend (clave: String, lado: Int) -> Bitmap?
 ) {
     Card(
@@ -206,12 +209,14 @@ private fun TarjetaStockBajo(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 ImagenProducto(
-                    identificador = producto.imagenKey,
+                    clave = producto.imagenKey,
+                    solicitud = solicitudImagen,
                     modifier = Modifier
                         .padding(end = 12.dp)
                         .size(56.dp),
                     descripcion = producto.nombre,
-                    cargar = { cargarImagen(producto.imagenKey, 200) }
+                    ladoLocal = 200,
+                    cargarLocal = cargarImagen
                 )
                 Column(modifier = Modifier.weight(1f)) {
                     Text(

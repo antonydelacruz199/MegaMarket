@@ -1,11 +1,12 @@
 package com.megamarket.app.data.repository
 
+import com.megamarket.app.data.local.OperacionPendiente
+import com.megamarket.app.data.local.Producto
 import com.megamarket.app.data.local.SyncMetadata
 import com.megamarket.app.data.local.dao.CategoriaDao
 import com.megamarket.app.data.local.dao.OperacionPendienteDao
 import com.megamarket.app.data.local.dao.ProductoDao
 import com.megamarket.app.data.local.dao.SyncMetadataDao
-import com.megamarket.app.data.local.OperacionPendiente
 import com.megamarket.app.data.mapper.aActualizarProductoRequest
 import com.megamarket.app.data.mapper.aCrearProductoRequest
 import com.megamarket.app.data.remote.ApiService
@@ -13,20 +14,22 @@ import com.megamarket.app.data.remote.EliminarProductoRequest
 import com.megamarket.app.data.remote.ErrorApiDto
 import com.megamarket.app.data.remote.MovimientoInventarioRequest
 import com.megamarket.app.data.remote.MovimientoInventarioResponse
+import com.megamarket.app.data.remote.ProductoApiDto
 import com.megamarket.app.data.remote.ProductoResponse
 import com.megamarket.modelo.EstadoSincronizacion
 import com.megamarket.modelo.TipoOperacionPendiente
 import com.google.gson.Gson
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import retrofit2.Response
 import java.io.IOException
+import java.util.UUID
 
 class SincronizacionRepository(
     private val api: ApiService,
@@ -147,46 +150,86 @@ class SincronizacionRepository(
             producto.aCrearProductoRequest(categoriaRemota, op.uuidOperacion)
         )
         return cuandoRespuestaProducto(respuesta) { cuerpo ->
-            val remoto = cuerpo.producto
-            productoDao.actualizarProducto(
-                producto.copy(
-                    remoteId = remoto.id,
-                    remoteVersion = remoto.version,
-                    remoteUpdatedAt = remoto.updatedAt,
-                    activo = remoto.activo,
-                    stock = remoto.stock
-                )
-            )
+            aplicarProductoRemoto(producto, cuerpo.producto, esAlta = true)
             ResultadoEnvio.Ok
         }
     }
 
     private suspend fun enviarActualizarProducto(op: OperacionPendiente): ResultadoEnvio {
-        val producto = productoDao.obtenerPorId(op.entidadIdLocal)
+        val inicial = productoDao.obtenerPorId(op.entidadIdLocal)
             ?: return ResultadoEnvio.ErrorDefinitivo("Producto local no encontrado")
-        val remoteId = producto.remoteId
+        val remoteId = inicial.remoteId
             ?: return ResultadoEnvio.ErrorDefinitivo("Producto sin remoteId para actualizar")
-        val categoria = categoriaDao.obtenerPorId(producto.categoriaId)
+        val categoria = categoriaDao.obtenerPorId(inicial.categoriaId)
         val categoriaRemota = categoria?.remoteId
             ?: return ResultadoEnvio.ErrorDefinitivo("La categoría aún no tiene remoteId")
-        val respuesta = api.actualizarProducto(
+
+        var producto = inicial
+        var respuesta = api.actualizarProducto(
             remoteId,
             producto.aActualizarProductoRequest(categoriaRemota, op.uuidOperacion)
         )
-        return cuandoRespuestaProducto(respuesta) { cuerpo ->
-            val remoto = cuerpo.producto
-            productoDao.actualizarProducto(
-                producto.copy(
-                    remoteVersion = remoto.version,
-                    remoteUpdatedAt = remoto.updatedAt,
-                    activo = remoto.activo,
-                    nombre = remoto.nombre,
-                    marca = remoto.marca,
-                    descripcion = remoto.descripcion.orEmpty()
+        if (respuesta.code() == 409) {
+            val refrescado = refrescarVersionRemota(producto, remoteId)
+            if (refrescado != null) {
+                producto = refrescado
+                // Nuevo UUID: la respuesta idempotente previa no debe bloquear el reintento con versión fresca.
+                val uuidReintento = UUID.randomUUID().toString()
+                respuesta = api.actualizarProducto(
+                    remoteId,
+                    producto.aActualizarProductoRequest(categoriaRemota, uuidReintento)
                 )
-            )
+            }
+        }
+        return cuandoRespuestaProducto(respuesta) { cuerpo ->
+            aplicarProductoRemoto(producto, cuerpo.producto, esAlta = false)
             ResultadoEnvio.Ok
         }
+    }
+
+    private suspend fun refrescarVersionRemota(
+        local: Producto,
+        remoteId: String
+    ): Producto? {
+        val respuesta = try {
+            api.obtenerProducto(remoteId)
+        } catch (_: IOException) {
+            return null
+        }
+        if (!respuesta.isSuccessful) return null
+        val remoto = respuesta.body()?.producto ?: return null
+        val version = remoto.version ?: return null
+        val actualizado = local.copy(
+            remoteVersion = version,
+            remoteUpdatedAt = remoto.updatedAt ?: local.remoteUpdatedAt,
+            // Conserva código/pasillo locales pendientes de enviar; no los pisa con null remoto.
+            codigoBarras = local.codigoBarras ?: remoto.codigoBarras?.trim()?.ifBlank { null },
+            pasillo = local.pasillo ?: remoto.pasillo?.trim()?.ifBlank { null }
+        )
+        productoDao.actualizarProducto(actualizado)
+        return actualizado
+    }
+
+    private suspend fun aplicarProductoRemoto(
+        local: Producto,
+        remoto: ProductoApiDto,
+        esAlta: Boolean
+    ) {
+        productoDao.actualizarProducto(
+            local.copy(
+                remoteId = if (esAlta) remoto.id else local.remoteId,
+                remoteVersion = remoto.version,
+                remoteUpdatedAt = remoto.updatedAt,
+                activo = remoto.activo,
+                nombre = remoto.nombre,
+                marca = remoto.marca,
+                descripcion = remoto.descripcion.orEmpty(),
+                stock = if (esAlta) remoto.stock else local.stock,
+                // Si la respuesta omite ubicación, no borrar lo que acabamos de enviar.
+                codigoBarras = remoto.codigoBarras?.trim()?.ifBlank { null } ?: local.codigoBarras,
+                pasillo = remoto.pasillo?.trim()?.ifBlank { null } ?: local.pasillo
+            )
+        )
     }
 
     private suspend fun enviarEliminarProducto(op: OperacionPendiente): ResultadoEnvio {

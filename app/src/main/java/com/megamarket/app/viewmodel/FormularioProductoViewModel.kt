@@ -8,9 +8,14 @@ import androidx.lifecycle.viewModelScope
 import com.megamarket.app.data.repository.CategoriaRepository
 import com.megamarket.app.data.repository.ImagenRepository
 import com.megamarket.app.data.repository.ProductoRepository
+import com.megamarket.app.data.repository.ResultadoSubidaImagen
+import com.megamarket.app.data.repository.ResultadoSincronizacion
+import com.megamarket.app.data.repository.SincronizacionRepository
 import com.megamarket.app.model.ValidacionProducto
 import com.megamarket.app.model.aTextoDecimal
 import com.megamarket.app.state.FormularioProductoUiState
+import com.megamarket.modelo.ClavesImagen
+import com.megamarket.modelo.SolicitudImagenProducto
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -22,7 +27,8 @@ class FormularioProductoViewModel(
     private val estadoGuardado: SavedStateHandle,
     private val productos: ProductoRepository,
     private val categorias: CategoriaRepository,
-    private val imagenes: ImagenRepository
+    private val imagenes: ImagenRepository,
+    private val sincronizacion: SincronizacionRepository
 ) : ViewModel() {
 
     private val _estado = MutableStateFlow(restaurar() ?: FormularioProductoUiState())
@@ -55,6 +61,8 @@ class FormularioProductoViewModel(
     fun actualizarPrecio(valor: String) = actualizarFormulario { it.copy(precio = valor) }
     fun actualizarDescuentoPorcentaje(valor: String) = actualizarFormulario { it.copy(descuentoPorcentaje = valor) }
     fun actualizarStock(valor: String) = actualizarFormulario { it.copy(stock = valor) }
+    fun actualizarCodigoBarras(valor: String) = actualizarFormulario { it.copy(codigoBarras = valor) }
+    fun actualizarPasillo(valor: String) = actualizarFormulario { it.copy(pasillo = valor) }
     fun actualizarOferta(valor: Boolean) = actualizarFormulario { it.copy(esOferta = valor) }
     fun actualizarActivo(valor: Boolean) = actualizarFormulario { it.copy(activo = valor) }
 
@@ -92,6 +100,8 @@ class FormularioProductoViewModel(
                         ""
                     },
                     stock = producto.stock.toString(),
+                    codigoBarras = producto.codigoBarras.orEmpty(),
+                    pasillo = producto.pasillo.orEmpty(),
                     esOferta = producto.esOferta,
                     activo = producto.activo,
                     imagenActualKey = producto.imagenKey,
@@ -149,6 +159,9 @@ class FormularioProductoViewModel(
         }
     }
 
+    fun solicitudImagen(remoteId: String?, imagenKey: String): SolicitudImagenProducto? =
+        imagenes.solicitud(remoteId, imagenKey)
+
     fun guardarProducto() {
         val actual = _estado.value
         if (actual.ocupado || actual.guardadoCorrectamente || actual.noDisponible) return
@@ -159,41 +172,185 @@ class FormularioProductoViewModel(
             }
             is ValidacionProducto.Resultado.Valido -> resultado.producto
         }
+        val pendienteLocal = actual.imagenPendienteKey?.takeIf { ClavesImagen.esLocal(it) }
         _estado.update { it.copy(guardando = true, error = null) }
         viewModelScope.launch {
             val guardado = try {
-                val duplicado=productos.buscarDuplicado(producto.nombre,producto.id)
-                if(duplicado!=null) { _estado.update { it.copy(guardando=false,duplicadoId=duplicado.id) }; return@launch }
-                if (producto.id == 0L) {
-                    productos.crearProducto(producto) > 0
+                val enRoom = if (producto.id != 0L) productos.obtenerPorId(producto.id) else null
+                val claveGuardada = claveParaRoom(actual, pendienteLocal, enRoom?.imagenKey)
+                val productoLocal = producto.copy(
+                    imagenKey = claveGuardada,
+                    remoteId = producto.remoteId ?: enRoom?.remoteId,
+                    remoteVersion = producto.remoteVersion ?: enRoom?.remoteVersion,
+                    remoteUpdatedAt = producto.remoteUpdatedAt ?: enRoom?.remoteUpdatedAt,
+                    remoteDeletedAt = producto.remoteDeletedAt ?: enRoom?.remoteDeletedAt
+                )
+                val duplicado = productos.buscarDuplicado(productoLocal.nombre, productoLocal.id)
+                if (duplicado != null) {
+                    _estado.update { it.copy(guardando = false, duplicadoId = duplicado.id) }
+                    return@launch
+                }
+                val idLocal = if (productoLocal.id == 0L) {
+                    val nuevo = productos.crearProducto(productoLocal)
+                    if (nuevo <= 0L) 0L else nuevo
+                } else if (productos.actualizarProducto(productoLocal)) {
+                    productoLocal.id
                 } else {
-                    productos.actualizarProducto(producto)
+                    0L
+                }
+                if (idLocal == 0L) {
+                    _estado.update { it.copy(guardando = false, error = "No se pudo guardar el producto") }
+                    return@launch
+                }
+                actualizarFormulario {
+                    it.copy(
+                        id = idLocal,
+                        remoteId = productoLocal.remoteId,
+                        remoteVersion = productoLocal.remoteVersion,
+                        remoteUpdatedAt = productoLocal.remoteUpdatedAt,
+                        remoteDeletedAt = productoLocal.remoteDeletedAt
+                    )
+                }
+                if (pendienteLocal == null && actual.imagenQuitada && ClavesImagen.esLocal(actual.imagenActualKey)) {
+                    imagenes.eliminarEnSegundoPlano(actual.imagenActualKey)
+                }
+                idLocal to claveGuardada
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _estado.update {
+                    it.copy(guardando = false, error = error.message ?: "No se pudo guardar el producto")
+                }
+                return@launch
+            }
+            val (idLocal, claveGuardada) = guardado
+            // Siempre intenta sincronizar ya: código de barras y pasillo deben llegar a Neon
+            // antes de que el picker los use. Si solo se encola WorkManager, el guardado local
+            // parece exitoso pero el servidor sigue sin ubicación.
+            val avisoSync = try {
+                when (val resultado = sincronizacion.sincronizarPendientes()) {
+                    is ResultadoSincronizacion.Reintentar -> resultado.motivo
+                    else -> null
                 }
             } catch (error: CancellationException) {
                 throw error
-            } catch (error: IllegalArgumentException) {
-                _estado.update { it.copy(guardando = false, error = error.message) }
+            } catch (error: Exception) {
+                error.message
+            }
+            val fresco = productos.obtenerPorId(idLocal)
+            val remoteId = fresco?.remoteId?.trim().orEmpty()
+            if (fresco != null) {
+                actualizarFormulario {
+                    it.copy(
+                        remoteId = fresco.remoteId,
+                        remoteVersion = fresco.remoteVersion,
+                        remoteUpdatedAt = fresco.remoteUpdatedAt,
+                        remoteDeletedAt = fresco.remoteDeletedAt,
+                        codigoBarras = fresco.codigoBarras.orEmpty(),
+                        pasillo = fresco.pasillo.orEmpty()
+                    )
+                }
+            }
+            if (remoteId.isEmpty()) {
+                val detalle = productos.ultimoErrorProducto(idLocal) ?: avisoSync
+                _estado.update {
+                    it.copy(
+                        guardando = false,
+                        error = detalle ?: "El producto todavía no está en el servidor. Reintenta cuando haya conexión."
+                    )
+                }
                 return@launch
-            } catch (_: Exception) {
-                false
             }
-            if (!guardado) {
-                _estado.update { it.copy(guardando = false, error = "No se pudo guardar el producto") }
+            val errorUbicacion = productos.ultimoErrorProducto(idLocal)
+            if (errorUbicacion != null && pendienteLocal == null) {
+                _estado.update {
+                    it.copy(
+                        guardando = false,
+                        error = "Guardado local ok, pero no se pudo sincronizar con el servidor: $errorUbicacion"
+                    )
+                }
                 return@launch
             }
-            val anterior = actual.imagenActualKey
-            if (anterior.isNotBlank() && anterior != producto.imagenKey) {
-                imagenes.eliminarEnSegundoPlano(anterior)
+            val fotoLocal = pendienteLocal
+            if (fotoLocal == null) {
+                if (avisoSync != null) {
+                    _estado.update {
+                        it.copy(
+                            guardando = false,
+                            error = "Guardado local ok, pero la sincronización quedó pendiente: $avisoSync"
+                        )
+                    }
+                } else {
+                    finalizarGuardado(fresco?.imagenKey ?: claveGuardada)
+                }
+                return@launch
             }
-            actualizarFormulario {
-                it.copy(
-                    guardando = false,
-                    guardadoCorrectamente = true,
-                    imagenActualKey = producto.imagenKey,
-                    imagenPendienteKey = null,
-                    imagenQuitada = false
-                )
+            when (val subida = imagenes.subirProducto(remoteId, fotoLocal)) {
+                is ResultadoSubidaImagen.Error -> {
+                    _estado.update { it.copy(guardando = false, error = subida.mensaje) }
+                }
+                is ResultadoSubidaImagen.Ok -> {
+                    val registrada = productos.registrarImagenRemota(
+                        idLocal,
+                        subida.imagenKey,
+                        subida.version,
+                        subida.updatedAt
+                    )
+                    if (!registrada) {
+                        _estado.update {
+                            it.copy(
+                                guardando = false,
+                                error = "La imagen se subió, pero no se pudo guardar la referencia local"
+                            )
+                        }
+                        return@launch
+                    }
+                    imagenes.eliminarEnSegundoPlano(fotoLocal)
+                    if (ClavesImagen.esLocal(actual.imagenActualKey)) {
+                        imagenes.eliminarEnSegundoPlano(actual.imagenActualKey)
+                    }
+                    actualizarFormulario {
+                        it.copy(
+                            guardando = false,
+                            guardadoCorrectamente = true,
+                            imagenActualKey = subida.imagenKey,
+                            imagenPendienteKey = null,
+                            imagenQuitada = false,
+                            remoteId = remoteId,
+                            remoteVersion = subida.version ?: it.remoteVersion,
+                            remoteUpdatedAt = subida.updatedAt ?: it.remoteUpdatedAt
+                        )
+                    }
+                }
             }
+        }
+    }
+
+    private fun claveParaRoom(
+        actual: FormularioProductoUiState,
+        pendienteLocal: String?,
+        claveEnRoom: String?
+    ): String {
+        val remota = actual.imagenActualKey.takeIf { ClavesImagen.esRemotaProducto(it) }
+            ?: claveEnRoom?.takeIf { ClavesImagen.esRemotaProducto(it) }
+        return when {
+            actual.imagenQuitada -> ""
+            pendienteLocal != null -> remota.orEmpty()
+            remota != null -> remota
+            ClavesImagen.esLocal(actual.imagenActualKey) -> actual.imagenActualKey
+            else -> ""
+        }
+    }
+
+    private fun finalizarGuardado(clave: String) {
+        actualizarFormulario {
+            it.copy(
+                guardando = false,
+                guardadoCorrectamente = true,
+                imagenActualKey = clave,
+                imagenPendienteKey = null,
+                imagenQuitada = false
+            )
         }
     }
 
@@ -225,12 +382,16 @@ class FormularioProductoViewModel(
         estadoGuardado[CLAVE_PRECIO] = estado.precio
         estadoGuardado[CLAVE_DESCUENTO] = estado.descuentoPorcentaje
         estadoGuardado[CLAVE_STOCK] = estado.stock
+        estadoGuardado[CLAVE_CODIGO] = estado.codigoBarras
+        estadoGuardado[CLAVE_PASILLO] = estado.pasillo
         estadoGuardado[CLAVE_ES_OFERTA] = estado.esOferta
         estadoGuardado[CLAVE_ACTIVO] = estado.activo
         estadoGuardado[CLAVE_IMAGEN_ACTUAL] = estado.imagenActualKey
         estadoGuardado[CLAVE_IMAGEN_PENDIENTE] = estado.imagenPendienteKey
         estadoGuardado[CLAVE_IMAGEN_QUITADA] = estado.imagenQuitada
         estadoGuardado[CLAVE_REMOTE_ID] = estado.remoteId
+        estadoGuardado[CLAVE_REMOTE_VERSION] = estado.remoteVersion
+        estadoGuardado[CLAVE_REMOTE_UPDATED] = estado.remoteUpdatedAt
         estadoGuardado[CLAVE_RESTAURABLE] = true
     }
 
@@ -245,12 +406,16 @@ class FormularioProductoViewModel(
             precio = estadoGuardado[CLAVE_PRECIO] ?: "",
             descuentoPorcentaje = estadoGuardado[CLAVE_DESCUENTO] ?: "",
             stock = estadoGuardado[CLAVE_STOCK] ?: "",
+            codigoBarras = estadoGuardado[CLAVE_CODIGO] ?: "",
+            pasillo = estadoGuardado[CLAVE_PASILLO] ?: "",
             esOferta = estadoGuardado[CLAVE_ES_OFERTA] ?: false,
             activo = estadoGuardado[CLAVE_ACTIVO] ?: true,
             imagenActualKey = estadoGuardado[CLAVE_IMAGEN_ACTUAL] ?: "",
             imagenPendienteKey = estadoGuardado[CLAVE_IMAGEN_PENDIENTE],
             imagenQuitada = estadoGuardado[CLAVE_IMAGEN_QUITADA] ?: false,
-            remoteId = estadoGuardado[CLAVE_REMOTE_ID]
+            remoteId = estadoGuardado[CLAVE_REMOTE_ID],
+            remoteVersion = estadoGuardado[CLAVE_REMOTE_VERSION],
+            remoteUpdatedAt = estadoGuardado[CLAVE_REMOTE_UPDATED]
         )
     }
 
@@ -266,11 +431,15 @@ class FormularioProductoViewModel(
         private const val CLAVE_PRECIO = "form_precio"
         private const val CLAVE_DESCUENTO = "form_descuento_porcentaje"
         private const val CLAVE_STOCK = "form_stock"
+        private const val CLAVE_CODIGO = "form_codigo_barras"
+        private const val CLAVE_PASILLO = "form_pasillo"
         private const val CLAVE_ES_OFERTA = "form_es_oferta"
         private const val CLAVE_ACTIVO = "form_activo"
         private const val CLAVE_IMAGEN_ACTUAL = "form_imagen_actual"
         private const val CLAVE_IMAGEN_PENDIENTE = "form_imagen_pendiente"
         private const val CLAVE_IMAGEN_QUITADA = "form_imagen_quitada"
         private const val CLAVE_REMOTE_ID = "form_remote_id"
+        private const val CLAVE_REMOTE_VERSION = "form_remote_version"
+        private const val CLAVE_REMOTE_UPDATED = "form_remote_updated_at"
     }
 }

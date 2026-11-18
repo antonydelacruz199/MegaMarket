@@ -34,7 +34,7 @@ import java.util.UUID
         MovimientoInventario::class,
         SyncMetadata::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -53,6 +53,14 @@ abstract class AppDatabase : RoomDatabase() {
 
         @Volatile
         private var instancia: AppDatabase? = null
+
+        /** Código de barras y pasillo. NULL conserva el catálogo ya descargado. */
+        val MIGRACION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `productos` ADD COLUMN `codigo_barras` TEXT")
+                db.execSQL("ALTER TABLE `productos` ADD COLUMN `pasillo` TEXT")
+            }
+        }
 
         val MIGRACION_7_8 = object : Migration(7, 8) {
             override fun migrate(db: SupportSQLiteDatabase) {
@@ -484,7 +492,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRACION_4_5,
                         MIGRACION_5_6,
                         MIGRACION_6_7,
-                        MIGRACION_7_8
+                        MIGRACION_7_8,
+                        MIGRACION_8_9
                     )
                     .fallbackToDestructiveMigrationFrom(true, 1)
                     .build()

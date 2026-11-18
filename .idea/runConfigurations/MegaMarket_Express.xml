@@ -2,6 +2,7 @@
   <configuration default="false" name="MegaMarket Express" type="CompoundRunConfigurationType">
     <toRun name="app" type="AndroidRunConfigurationType" />
     <toRun name="cliente" type="AndroidRunConfigurationType" />
+    <toRun name="picker" type="AndroidRunConfigurationType" />
     <method v="2" />
   </configuration>
 </component>

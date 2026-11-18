@@ -12,8 +12,11 @@ import com.megamarket.cliente.data.repository.SesionRepository
 import com.megamarket.cliente.data.repository.CarritoRepository
 import com.megamarket.cliente.data.repository.CatalogoRepository
 import com.megamarket.cliente.data.repository.FavoritosRepository
+import com.megamarket.cliente.data.repository.MediosImagenRepository
+import com.megamarket.cliente.data.repository.MisPedidosRepository
 import com.megamarket.cliente.data.repository.PedidoRepository
 import com.megamarket.cliente.data.repository.SincronizacionRepository
+import com.megamarket.cliente.data.repository.SustitucionesRepository
 import com.megamarket.cliente.worker.SincronizacionWorker
 import kotlinx.coroutines.flow.map
 
@@ -24,12 +27,15 @@ class AppContainer(context: Context) {
     private val observadorConexion = ObservadorConexion(appContext)
     val sesionLocal = SesionLocalStore(appContext)
 
-    private val apiService = ApiClient(
+    private val apiClient = ApiClient(
         baseUrl = BuildConfig.MEGAMARKET_API_BASE_URL,
         tokenProvider = { sesionLocal.accessToken },
         ownerProvider = { sesionLocal.usuarioRemotoId.takeIf { sesionLocal.owner.value > 0 } },
         tokenForOwner = { sesionLocal.tokenGuardado(it) }
-    ).crear()
+    )
+    private val apiService = apiClient.crear()
+    val clienteHttp = apiClient.http
+    val mediosImagenRepository = MediosImagenRepository(BuildConfig.MEGAMARKET_API_BASE_URL)
 
     val catalogoRemotoRepository = CatalogoRemotoRepository(
         api = apiService,
@@ -90,5 +96,22 @@ class AppContainer(context: Context) {
         database.operacionPendienteDao(),
         { SincronizacionWorker.programar(appContext) },
         sesionLocal
+    )
+
+    val sustitucionesRepository = SustitucionesRepository(
+        api = apiService,
+        productoDao = database.productoDao(),
+        pedidoDao = database.pedidoDao(),
+        medios = mediosImagenRepository,
+        usuarioRemotoId = { sesionLocal.usuarioRemotoId },
+        ownerLocalId = { sesionLocal.owner.value }
+    )
+
+    val misPedidosRepository = MisPedidosRepository(
+        api = apiService,
+        pedidoDao = database.pedidoDao(),
+        sustituciones = sustitucionesRepository,
+        usuarioRemotoId = { sesionLocal.usuarioRemotoId },
+        ownerLocalId = { sesionLocal.owner.value }
     )
 }

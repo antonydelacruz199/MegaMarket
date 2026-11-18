@@ -9,6 +9,7 @@ import com.megamarket.app.data.mapper.aEntidadLocal
 import com.megamarket.app.data.remote.ApiService
 import com.megamarket.app.data.remote.CategoriaApiDto
 import com.megamarket.app.data.remote.ProductoApiDto
+import com.megamarket.modelo.ClavesImagen
 import com.megamarket.modelo.TipoOperacionPendiente
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -105,8 +106,19 @@ class CatalogoRemotoRepository(
                     existente.id
                 )
                 if (pendientesProducto > 0 || pendientesMovimiento > 0) continue
+                val entrante = remota.aEntidadLocal(
+                    idLocal = existente.id,
+                    categoriaIdLocal = categoriaLocal.id
+                )
                 productoDao.actualizarProducto(
-                    remota.aEntidadLocal(idLocal = existente.id, categoriaIdLocal = categoriaLocal.id)
+                    entrante.copy(
+                        imagenKey = conservarClaveImagen(
+                            local = existente.imagenKey,
+                            versionLocal = existente.remoteVersion,
+                            remota = entrante.imagenKey,
+                            versionRemota = entrante.remoteVersion
+                        )
+                    )
                 )
             } else {
                 productoDao.insertar(
@@ -133,6 +145,18 @@ class CatalogoRemotoRepository(
                 )
             )
         }
+    }
+
+    private fun conservarClaveImagen(
+        local: String,
+        versionLocal: Long?,
+        remota: String,
+        versionRemota: Long?
+    ): String {
+        if (ClavesImagen.esRemotaProducto(remota)) return remota
+        val localMasNueva = (versionRemota ?: 0L) <= (versionLocal ?: 0L)
+        if (ClavesImagen.esRemotaProducto(local) && localMasNueva) return local
+        return remota
     }
 
     suspend fun hayCatalogoLocal(): Boolean = withContext(Dispatchers.IO) {

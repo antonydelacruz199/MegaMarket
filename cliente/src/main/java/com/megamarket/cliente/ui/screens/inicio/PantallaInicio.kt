@@ -126,7 +126,7 @@ fun PantallaInicio(
                             TarjetaProducto(
                                 producto = producto,
                                 alPulsar = { alAbrirProducto(producto.id) },
-                                cargarImagen = viewModel::cargarImagen,
+                                solicitudImagen = viewModel.solicitudImagen(producto),
                                 modifier = Modifier.fillParentMaxWidth(0.86f)
                             )
                         }

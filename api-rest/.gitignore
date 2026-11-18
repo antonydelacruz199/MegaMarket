@@ -3,3 +3,7 @@ node_modules/
 npm-debug.log*
 .DS_Store
 *.log
+
+# Fotografías locales (MEDIA_ROOT). No versionar.
+data/
+*.partial

@@ -1,4 +1,10 @@
 const pool = require('../database');
+const { esClaveLocal, imagenKeyProductoAceptable } = require('../storage/keys');
+const {
+  textoAlmacenado,
+  leerUbicacion,
+  esCodigoBarrasDuplicado
+} = require('../productosUbicacion');
 
 function mapearProducto(fila) {
   return {
@@ -18,6 +24,8 @@ function mapearProducto(fila) {
     imagenKey: fila.imagen_key == null || fila.imagen_key === '' ? null : fila.imagen_key,
     esOferta: Boolean(fila.es_oferta),
     activo: Boolean(fila.activo),
+    codigoBarras: textoAlmacenado(fila.codigo_barras),
+    pasillo: textoAlmacenado(fila.pasillo),
     version: Number(fila.version),
     createdAt: fila.created_at,
     updatedAt: fila.updated_at
@@ -123,6 +131,8 @@ function validarCamposCreacion(body) {
     if (errorOferta) errores.push(errorOferta);
   }
 
+  errores.push(...leerUbicacion(body).errores);
+
   return errores;
 }
 
@@ -143,7 +153,7 @@ async function obtenerPorId(req, res) {
       `SELECT id, nombre, marca, descripcion, categoria_id,
               CASE WHEN $2::boolean THEN stock ELSE stock-COALESCE((SELECT SUM(r.cantidad) FROM reservas_carrito r WHERE r.producto_id=productos.id),0) END AS disponible,
               precio_centimos, precio_oferta_centimos, stock, imagen_key,
-              es_oferta, activo, version, created_at, updated_at
+              es_oferta, activo, codigo_barras, pasillo, version, created_at, updated_at
        FROM productos
        WHERE id = $1 AND deleted_at IS NULL AND ($2::boolean OR activo = true)
        LIMIT 1`,
@@ -180,11 +190,23 @@ async function crear(req, res) {
     );
     const stock = Number(req.body.stock);
     const imagenKeyRaw = valor(req.body, 'imagenKey', 'imagen_key', null);
-    const imagenKey =
+    let imagenKey =
       imagenKeyRaw === null || imagenKeyRaw === undefined || imagenKeyRaw === ''
         ? null
-        : String(imagenKeyRaw);
+        : String(imagenKeyRaw).trim();
+    // En alta: solo null o clave local heredada; remotas vía POST /api/medios/productos/:id
+    if (imagenKey && !esClaveLocal(imagenKey)) {
+      return res.status(400).json({
+        error: 'Sube la imagen con POST /api/medios/productos/:id tras crear el producto',
+        codigo: 'IMAGEN_KEY_INVALIDA'
+      });
+    }
+    if (imagenKey === '') imagenKey = null;
     const activo = Boolean(req.body.activo);
+    const ubicacion = leerUbicacion(req.body);
+    if (ubicacion.errores.length > 0) {
+      return res.status(400).json({ error: ubicacion.errores.join('; ') });
+    }
 
     await cliente.query('BEGIN');
 
@@ -218,13 +240,15 @@ async function crear(req, res) {
          stock,
          imagen_key,
          es_oferta,
-         activo
+         activo,
+         codigo_barras,
+         pasillo
        ) VALUES (
-         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+         $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
        )
        RETURNING id, nombre, marca, descripcion, categoria_id,
                  precio_centimos, precio_oferta_centimos, stock, imagen_key,
-                 es_oferta, activo, version, created_at, updated_at`,
+                 es_oferta, activo, codigo_barras, pasillo, version, created_at, updated_at`,
       [
         nombre,
         marca,
@@ -235,7 +259,9 @@ async function crear(req, res) {
         stock,
         imagenKey,
         esOferta,
-        activo
+        activo,
+        ubicacion.codigoBarras,
+        ubicacion.pasillo
       ]
     );
 
@@ -261,7 +287,18 @@ async function crear(req, res) {
     } catch (_e) {
       // ignore
     }
-    if(error.code==='23505') return res.status(409).json({error:'Ya existe un producto con ese nombre. Sincroniza y abre el producto existente para editarlo.',codigo:'NOMBRE_DUPLICADO'});
+    if (error.code === '23505') {
+      if (esCodigoBarrasDuplicado(error)) {
+        return res.status(409).json({
+          error: 'Ya existe un producto con ese código de barras',
+          codigo: 'CODIGO_BARRAS_DUPLICADO'
+        });
+      }
+      return res.status(409).json({
+        error: 'Ya existe un producto con ese nombre. Sincroniza y abre el producto existente para editarlo.',
+        codigo: 'NOMBRE_DUPLICADO'
+      });
+    }
     console.error('Error al crear producto:', error.message);
     return res.status(500).json({ error: 'No se pudo crear el producto' });
   } finally {
@@ -294,7 +331,7 @@ async function actualizar(req, res) {
     const actual = await cliente.query(
       `SELECT id, nombre, marca, descripcion, categoria_id,
               precio_centimos, precio_oferta_centimos, stock, imagen_key,
-              es_oferta, activo, version, created_at, updated_at
+              es_oferta, activo, codigo_barras, pasillo, version, created_at, updated_at
        FROM productos
        WHERE id = $1 AND deleted_at IS NULL
        FOR UPDATE`,
@@ -331,11 +368,24 @@ async function actualizar(req, res) {
     const precioOfertaCentimos = normalizarOferta(esOferta, ofertaEntrada);
     const stock = Number(req.body.stock !== undefined ? req.body.stock : fila.stock);
     const imagenKeyRaw = valor(req.body, 'imagenKey', 'imagen_key', fila.imagen_key);
-    const imagenKey =
-      imagenKeyRaw === null || imagenKeyRaw === undefined || imagenKeyRaw === ''
-        ? null
-        : String(imagenKeyRaw);
+    const aceptacionImagen = imagenKeyProductoAceptable(imagenKeyRaw, req.params.id);
+    if (!aceptacionImagen.ok) {
+      await cliente.query('ROLLBACK');
+      return res.status(400).json({
+        error: aceptacionImagen.error,
+        codigo: aceptacionImagen.codigo
+      });
+    }
+    const imagenKey = aceptacionImagen.valor;
     const activo = req.body.activo !== undefined ? Boolean(req.body.activo) : Boolean(fila.activo);
+    const ubicacion = leerUbicacion(req.body, {
+      codigoBarras: fila.codigo_barras,
+      pasillo: fila.pasillo
+    });
+    if (ubicacion.errores.length > 0) {
+      await cliente.query('ROLLBACK');
+      return res.status(400).json({ error: ubicacion.errores.join('; ') });
+    }
 
     if (!nombre) {
       await cliente.query('ROLLBACK');
@@ -370,11 +420,13 @@ async function actualizar(req, res) {
          stock = $7,
          imagen_key = $8,
          es_oferta = $9,
-         activo = $10
-       WHERE id = $11 AND deleted_at IS NULL
+         activo = $10,
+         codigo_barras = $11,
+         pasillo = $12
+       WHERE id = $13 AND deleted_at IS NULL
        RETURNING id, nombre, marca, descripcion, categoria_id,
                  precio_centimos, precio_oferta_centimos, stock, imagen_key,
-                 es_oferta, activo, version, created_at, updated_at`,
+                 es_oferta, activo, codigo_barras, pasillo, version, created_at, updated_at`,
       [
         nombre,
         marca,
@@ -386,6 +438,8 @@ async function actualizar(req, res) {
         imagenKey,
         esOferta,
         activo,
+        ubicacion.codigoBarras,
+        ubicacion.pasillo,
         req.params.id
       ]
     );
@@ -412,7 +466,18 @@ async function actualizar(req, res) {
     } catch (_e) {
       // ignore
     }
-    if(error.code==='23505') return res.status(409).json({error:'Ya existe un producto con ese nombre',codigo:'NOMBRE_DUPLICADO'});
+    if (error.code === '23505') {
+      if (esCodigoBarrasDuplicado(error)) {
+        return res.status(409).json({
+          error: 'Ya existe un producto con ese código de barras',
+          codigo: 'CODIGO_BARRAS_DUPLICADO'
+        });
+      }
+      return res.status(409).json({
+        error: 'Ya existe un producto con ese nombre',
+        codigo: 'NOMBRE_DUPLICADO'
+      });
+    }
     console.error('Error al actualizar producto:', error.message);
     return res.status(500).json({ error: 'No se pudo actualizar el producto' });
   } finally {

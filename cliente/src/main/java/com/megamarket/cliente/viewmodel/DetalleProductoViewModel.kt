@@ -1,13 +1,15 @@
 package com.megamarket.cliente.viewmodel
 
-import android.graphics.Bitmap
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.megamarket.cliente.data.repository.CarritoRepository
 import com.megamarket.cliente.data.repository.CatalogoRepository
 import com.megamarket.cliente.data.repository.FavoritosRepository
+import com.megamarket.cliente.data.repository.MediosImagenRepository
 import com.megamarket.cliente.state.DetalleProductoUiState
+import com.megamarket.modelo.Producto
+import com.megamarket.modelo.SolicitudImagenProducto
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -20,7 +22,8 @@ class DetalleProductoViewModel(
     savedStateHandle: SavedStateHandle,
     private val catalogo: CatalogoRepository,
     private val carrito: CarritoRepository,
-    private val favoritos: FavoritosRepository
+    private val favoritos: FavoritosRepository,
+    private val medios: MediosImagenRepository
 ) : ViewModel() {
 
     private val productoId: Long = savedStateHandle.get<Long>(ARG_PRODUCTO)
@@ -77,8 +80,8 @@ class DetalleProductoViewModel(
         viewModelScope.launch { ejecutarAccionDetalle { favoritos.alternarFavorito(productoId) } }
     }
 
-    suspend fun cargarImagen(productoId: Long, lado: Int): Bitmap? =
-        catalogo.cargarImagen(productoId, lado)
+    fun solicitudImagen(producto: Producto): SolicitudImagenProducto? =
+        medios.solicitud(producto.remoteId, producto.imagenKey)
 
     private suspend fun ejecutarAccionDetalle(accion: suspend () -> Unit) {
         try {

@@ -16,7 +16,20 @@ sealed class Ruta(val ruta: String) {
         fun crear(pedidoId: Long) = "confirmacion/$pedidoId"
     }
     data object Perfil : Ruta("perfil")
+    data object MisPedidos : Ruta("mis-pedidos")
+    data object DetallePedido : Ruta("mis-pedidos/{${ARG_PEDIDO_REMOTO}}") {
+        fun crear(pedidoId: String) = "mis-pedidos/$pedidoId"
+    }
+    data object Sustituciones : Ruta("sustituciones")
+    data object DetalleSustitucion : Ruta("sustituciones/{${ARG_SUSTITUCION}}") {
+        fun crear(id: String) = "sustituciones/$id"
+    }
     data object Detalle : Ruta("producto/{${DetalleProductoViewModel.ARG_PRODUCTO}}") {
         fun crear(id: Long) = "producto/$id"
+    }
+
+    companion object {
+        const val ARG_SUSTITUCION = "sustitucionId"
+        const val ARG_PEDIDO_REMOTO = "pedidoRemotoId"
     }
 }

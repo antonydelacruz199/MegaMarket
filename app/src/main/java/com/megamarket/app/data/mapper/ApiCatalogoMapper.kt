@@ -6,6 +6,7 @@ import com.megamarket.app.data.remote.ActualizarProductoRequest
 import com.megamarket.app.data.remote.CategoriaApiDto
 import com.megamarket.app.data.remote.CrearProductoRequest
 import com.megamarket.app.data.remote.ProductoApiDto
+import com.megamarket.modelo.ClavesImagen
 import com.megamarket.modelo.PrecioDescuento
 
 fun CategoriaApiDto.aEntidadLocal(idLocal: Long = 0): Categoria =
@@ -40,7 +41,9 @@ fun ProductoApiDto.aEntidadLocal(idLocal: Long, categoriaIdLocal: Long): Product
         activo = activo,
         remoteVersion = version,
         remoteUpdatedAt = updatedAt,
-        remoteDeletedAt = null
+        remoteDeletedAt = null,
+        codigoBarras = codigoBarras?.trim()?.ifBlank { null },
+        pasillo = pasillo?.trim()?.ifBlank { null }
     )
 }
 
@@ -53,9 +56,11 @@ fun Producto.aCrearProductoRequest(categoriaRemotaId: String, uuidOperacion: Str
         precioCentimos = precioCentimos,
         precioOfertaCentimos = if (esOferta) precioOfertaCentimos else null,
         stock = stock,
-        imagenKey = imagenKeyParaApi(imagenKey),
+        imagenKey = null,
         esOferta = esOferta,
         activo = activo,
+        codigoBarras = codigoBarras.orEmpty(),
+        pasillo = pasillo.orEmpty(),
         uuidOperacion = uuidOperacion
     )
 
@@ -72,22 +77,21 @@ fun Producto.aActualizarProductoRequest(
         precioOfertaCentimos = if (esOferta) precioOfertaCentimos else null,
         esOferta = esOferta,
         activo = activo,
-        imagenKey = imagenKeyParaApi(imagenKey),
+        imagenKey = imagenKeyParaActualizar(imagenKey),
+        codigoBarras = codigoBarras.orEmpty(),
+        pasillo = pasillo.orEmpty(),
         version = remoteVersion ?: 1L,
         uuidOperacion = uuidOperacion
     )
 
-/** No envía rutas locales de Android como si fueran claves remotas. */
-fun imagenKeyParaApi(imagenKey: String?): String? {
+/**
+ * Alta: el servidor solo acepta null. La foto se sube después con /api/medios.
+ * Actualización: clave remota, cadena vacía para quitar la referencia, u omisión
+ * si todavía es una vista previa local.
+ */
+fun imagenKeyParaActualizar(imagenKey: String?): String? {
     val key = imagenKey?.trim().orEmpty()
-    if (key.isEmpty()) return null
-    if (key.startsWith("/") ||
-        key.startsWith("content:") ||
-        key.startsWith("file:") ||
-        key.contains("://") ||
-        key.contains('\\')
-    ) {
-        return null
-    }
-    return key
+    if (key.isEmpty()) return ""
+    if (ClavesImagen.esRemotaProducto(key)) return key
+    return null
 }

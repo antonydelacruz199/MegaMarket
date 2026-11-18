@@ -43,12 +43,14 @@ import com.megamarket.app.ui.theme.MegaNeutro
 import com.megamarket.app.ui.theme.MegaPrimario
 import com.megamarket.app.ui.theme.MegaSecundario
 import com.megamarket.modelo.Producto
+import com.megamarket.modelo.SolicitudImagenProducto
 import com.megamarket.modelo.formatearSoles
 
 @Composable
 fun TarjetaProductoAdmin(
     producto: Producto,
     alEditar: () -> Unit,
+    solicitudImagen: SolicitudImagenProducto?,
     cargarImagen: suspend (clave: String, lado: Int) -> Bitmap?,
     modifier: Modifier = Modifier
 ) {
@@ -78,12 +80,14 @@ fun TarjetaProductoAdmin(
             ) {
                 Row(verticalAlignment = Alignment.Top) {
                     ImagenProducto(
-                        identificador = producto.imagenKey,
+                        clave = producto.imagenKey,
+                        solicitud = solicitudImagen,
                         modifier = Modifier
                             .padding(end = 12.dp)
                             .size(84.dp),
                         descripcion = producto.nombre,
-                        cargar = { cargarImagen(producto.imagenKey, 240) }
+                        ladoLocal = 240,
+                        cargarLocal = cargarImagen
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
@@ -93,6 +97,19 @@ fun TarjetaProductoAdmin(
                             maxLines = 2,
                             overflow = TextOverflow.Ellipsis
                         )
+                        val ubicacion = listOfNotNull(
+                            producto.pasillo?.takeIf { it.isNotBlank() }?.let { "Pasillo $it" },
+                            producto.codigoBarras?.takeIf { it.isNotBlank() }
+                        ).joinToString(" · ")
+                        if (ubicacion.isNotBlank()) {
+                            Text(
+                                text = ubicacion,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                         Text(
                             text = textoMarca(producto),
                             style = MaterialTheme.typography.bodySmall,

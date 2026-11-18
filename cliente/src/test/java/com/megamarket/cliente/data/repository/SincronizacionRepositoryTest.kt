@@ -132,6 +132,13 @@ class SincronizacionRepositoryTest {
 
         override suspend fun crearPedido(body: CrearPedidoRequest, owner: String?): Response<CrearPedidoResponse> =
             throw IOException("sin red")
+
+        override suspend fun listarPedidos(estado: String?, owner: String) = throw IOException("sin red")
+        override suspend fun obtenerPedido(id: String, owner: String) = throw IOException("sin red")
+        override suspend fun listarSustituciones(estado: String?, owner: String) = throw IOException("sin red")
+        override suspend fun obtenerSustitucion(id: String, owner: String) = throw IOException("sin red")
+        override suspend fun aceptarSustitucion(id: String, owner: String) = throw IOException("sin red")
+        override suspend fun rechazarSustitucion(id: String, owner: String) = throw IOException("sin red")
     }
 
     private class DaoMetadatosSincronizacionFalso : SyncMetadataDao {
@@ -153,6 +160,7 @@ class SincronizacionRepositoryTest {
         override suspend fun insertarDireccion(direccion: Direccion) = 0L
         override suspend fun actualizarPedido(pedido: Pedido) = 0
         override suspend fun obtenerPedidoPorId(pedidoId: Long): Pedido? = null
+        override suspend fun obtenerPorRemoteId(remoteId: String): Pedido? = null
         override suspend fun obtenerDetallesPedido(pedidoId: Long) = emptyList<PedidoDetalle>()
         override suspend fun obtenerDireccionPedido(pedidoId: Long): Direccion? = null
     }

@@ -12,4 +12,25 @@ router.post(
   pedidosController.crear
 );
 
+router.get(
+  '/',
+  verificarToken,
+  verificarRol('CLIENTE', 'ADMINISTRADOR', 'PICKER', 'REPARTIDOR'),
+  pedidosController.listar
+);
+
+router.get(
+  '/:id',
+  verificarToken,
+  verificarRol('CLIENTE', 'ADMINISTRADOR', 'PICKER', 'REPARTIDOR'),
+  pedidosController.obtenerPorId
+);
+
+router.patch(
+  '/:id/estado',
+  verificarToken,
+  verificarRol('CLIENTE', 'ADMINISTRADOR', 'PICKER', 'REPARTIDOR'),
+  pedidosController.transicionar
+);
+
 module.exports = router;

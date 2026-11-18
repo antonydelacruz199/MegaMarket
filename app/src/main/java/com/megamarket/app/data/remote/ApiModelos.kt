@@ -60,6 +60,8 @@ data class ProductoApiDto(
     val imagenKey: String?,
     val esOferta: Boolean,
     val activo: Boolean,
+    val codigoBarras: String? = null,
+    val pasillo: String? = null,
     val version: Long?,
     val createdAt: String?,
     val updatedAt: String?
@@ -76,6 +78,8 @@ data class CrearProductoRequest(
     val imagenKey: String?,
     val esOferta: Boolean,
     val activo: Boolean,
+    val codigoBarras: String?,
+    val pasillo: String?,
     val uuidOperacion: String
 )
 
@@ -89,6 +93,8 @@ data class ActualizarProductoRequest(
     val esOferta: Boolean,
     val activo: Boolean,
     val imagenKey: String?,
+    val codigoBarras: String?,
+    val pasillo: String?,
     val version: Long,
     val uuidOperacion: String
 )
@@ -101,6 +107,20 @@ data class EliminarProductoRequest(
 data class EliminarProductoResponse(
     val ok: Boolean?,
     val id: String?
+)
+
+data class SubidaImagenProductoResponse(
+    val imagenKey: String?,
+    val imagenAnterior: String?,
+    val eliminadaAnterior: Boolean?,
+    val producto: ImagenProductoRemotoDto?
+)
+
+data class ImagenProductoRemotoDto(
+    val id: String?,
+    val imagenKey: String?,
+    val version: Long?,
+    val updatedAt: String?
 )
 
 data class MovimientoInventarioRequest(

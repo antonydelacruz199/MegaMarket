@@ -1,10 +1,12 @@
 package com.megamarket.cliente.viewmodel
 
-import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.megamarket.cliente.data.repository.CatalogoRepository
+import com.megamarket.cliente.data.repository.MediosImagenRepository
 import com.megamarket.cliente.state.InicioUiState
+import com.megamarket.modelo.Producto
+import com.megamarket.modelo.SolicitudImagenProducto
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -14,7 +16,8 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class InicioViewModel(
-    private val catalogo: CatalogoRepository
+    private val catalogo: CatalogoRepository,
+    private val medios: MediosImagenRepository
 ) : ViewModel() {
 
     private val bootstrapListo = MutableStateFlow(false)
@@ -51,6 +54,6 @@ class InicioViewModel(
         }
     }
 
-    suspend fun cargarImagen(productoId: Long, lado: Int): Bitmap? =
-        catalogo.cargarImagen(productoId, lado)
+    fun solicitudImagen(producto: Producto): SolicitudImagenProducto? =
+        medios.solicitud(producto.remoteId, producto.imagenKey)
 }

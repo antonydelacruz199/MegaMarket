@@ -100,13 +100,10 @@ fun PantallaDetalleProducto(
                     .padding(16.dp)
             ) {
                 ImagenProducto(
-                    productoId = producto.id,
-                    imagenKey = producto.imagenKey,
-                    cargarImagen = viewModel::cargarImagen,
+                    solicitud = viewModel.solicitudImagen(producto),
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(200.dp),
-                    lado = 1080,
                     descripcion = producto.nombre
                 )
                 if (producto.ofertaValida) {

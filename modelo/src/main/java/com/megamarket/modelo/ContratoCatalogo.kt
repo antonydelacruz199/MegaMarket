@@ -33,6 +33,8 @@ object ContratoCatalogo {
     const val COL_REMOTE_VERSION = "remote_version"
     const val COL_REMOTE_UPDATED_AT = "remote_updated_at"
     const val COL_REMOTE_DELETED_AT = "remote_deleted_at"
+    const val COL_CODIGO_BARRAS = "codigo_barras"
+    const val COL_PASILLO = "pasillo"
 
     const val COL_CANTIDAD = "cantidad"
     const val COL_OPERACION = "operacion"
@@ -54,7 +56,9 @@ object ContratoCatalogo {
         COL_ACTIVO,
         COL_REMOTE_VERSION,
         COL_REMOTE_UPDATED_AT,
-        COL_REMOTE_DELETED_AT
+        COL_REMOTE_DELETED_AT,
+        COL_CODIGO_BARRAS,
+        COL_PASILLO
     )
 
     fun uriProducto(id: Long): Uri = ContentUris.withAppendedId(URI_PRODUCTOS, id)

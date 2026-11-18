@@ -3,10 +3,11 @@ package com.megamarket.cliente.data.remote
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.Header
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
-import retrofit2.http.Header
+import retrofit2.http.Query
 
 interface ApiService {
     @PUT("api/carritos/{id}")
@@ -24,4 +25,40 @@ interface ApiService {
 
     @POST("api/pedidos")
     suspend fun crearPedido(@Body body: CrearPedidoRequest, @Header("X-Expected-User") owner: String? = null): Response<CrearPedidoResponse>
+
+    @GET("api/pedidos")
+    suspend fun listarPedidos(
+        @Query("estado") estado: String? = null,
+        @Header("X-Expected-User") owner: String
+    ): Response<ListaPedidosResponse>
+
+    @GET("api/pedidos/{id}")
+    suspend fun obtenerPedido(
+        @Path("id") id: String,
+        @Header("X-Expected-User") owner: String
+    ): Response<PedidoCompletoResponse>
+
+    @GET("api/sustituciones")
+    suspend fun listarSustituciones(
+        @Query("estado") estado: String? = null,
+        @Header("X-Expected-User") owner: String
+    ): Response<ListaSustitucionesResponse>
+
+    @GET("api/sustituciones/{id}")
+    suspend fun obtenerSustitucion(
+        @Path("id") id: String,
+        @Header("X-Expected-User") owner: String
+    ): Response<SustitucionDecisionResponse>
+
+    @POST("api/sustituciones/{id}/aceptar")
+    suspend fun aceptarSustitucion(
+        @Path("id") id: String,
+        @Header("X-Expected-User") owner: String
+    ): Response<SustitucionDecisionResponse>
+
+    @POST("api/sustituciones/{id}/rechazar")
+    suspend fun rechazarSustitucion(
+        @Path("id") id: String,
+        @Header("X-Expected-User") owner: String
+    ): Response<SustitucionDecisionResponse>
 }

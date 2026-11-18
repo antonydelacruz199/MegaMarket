@@ -25,7 +25,9 @@ class ProductoMapperTest {
             remoteId = "550e8400-e29b-41d4-a716-446655440000",
             remoteVersion = 3,
             remoteUpdatedAt = "2026-01-01T00:00:00Z",
-            remoteDeletedAt = null
+            remoteDeletedAt = null,
+            codigoBarras = "770001",
+            pasillo = "A"
         )
         val entidad = modelo.toEntity()
         assertEquals(modelo.remoteId, entidad.remoteId)
@@ -35,6 +37,8 @@ class ProductoMapperTest {
         val vuelta = entidad.toModel()
         assertEquals(modelo.remoteId, vuelta.remoteId)
         assertEquals(modelo.id, vuelta.id)
+        assertEquals("770001", vuelta.codigoBarras)
+        assertEquals("A", vuelta.pasillo)
     }
 
     @Test

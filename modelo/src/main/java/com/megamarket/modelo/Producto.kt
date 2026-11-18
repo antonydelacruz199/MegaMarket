@@ -23,7 +23,9 @@ data class Producto(
     val remoteId: String? = null,
     val remoteVersion: Long? = null,
     val remoteUpdatedAt: String? = null,
-    val remoteDeletedAt: String? = null
+    val remoteDeletedAt: String? = null,
+    val codigoBarras: String? = null,
+    val pasillo: String? = null
 ) {
     val ofertaValida: Boolean
         get() {

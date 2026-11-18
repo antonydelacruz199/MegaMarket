@@ -137,7 +137,7 @@ fun PantallaCatalogo(
                             TarjetaProducto(
                                 producto = producto,
                                 alPulsar = { alAbrirProducto(producto.id) },
-                                cargarImagen = viewModel::cargarImagen
+                                solicitudImagen = viewModel.solicitudImagen(producto)
                             )
                         }
                     }

@@ -16,20 +16,25 @@ class ViewModelFactory(
             modelClass.isAssignableFrom(SesionViewModel::class.java) ->
                 SesionViewModel(container.sesionRepository)
             modelClass.isAssignableFrom(InicioViewModel::class.java) ->
-                InicioViewModel(container.catalogoRepository)
+                InicioViewModel(container.catalogoRepository, container.mediosImagenRepository)
             modelClass.isAssignableFrom(CatalogoViewModel::class.java) ->
-                CatalogoViewModel(container.catalogoRepository, soloOfertas)
+                CatalogoViewModel(
+                    container.catalogoRepository,
+                    soloOfertas,
+                    container.mediosImagenRepository
+                )
             modelClass.isAssignableFrom(DetalleProductoViewModel::class.java) ->
                 DetalleProductoViewModel(
                     extras.createSavedStateHandle(),
                     container.catalogoRepository,
                     container.carritoRepository,
-                    container.favoritosRepository
+                    container.favoritosRepository,
+                    container.mediosImagenRepository
                 )
             modelClass.isAssignableFrom(FavoritosViewModel::class.java) ->
-                FavoritosViewModel(container.favoritosRepository, container.catalogoRepository)
+                FavoritosViewModel(container.favoritosRepository, container.mediosImagenRepository)
             modelClass.isAssignableFrom(CarritoViewModel::class.java) ->
-                CarritoViewModel(container.carritoRepository, container.catalogoRepository)
+                CarritoViewModel(container.carritoRepository, container.mediosImagenRepository)
             modelClass.isAssignableFrom(CheckoutViewModel::class.java) ->
                 CheckoutViewModel(container.sesionRepository, container.pedidoRepository)
             modelClass.isAssignableFrom(ConfirmacionViewModel::class.java) ->
@@ -38,6 +43,21 @@ class ViewModelFactory(
                 PerfilViewModel(container.sesionRepository,container.pedidoRepository)
             modelClass.isAssignableFrom(SincronizacionViewModel::class.java) ->
                 SincronizacionViewModel(container.sincronizacionRepository)
+            modelClass.isAssignableFrom(SustitucionesViewModel::class.java) ->
+                SustitucionesViewModel(container.sustitucionesRepository)
+            modelClass.isAssignableFrom(DetalleSustitucionViewModel::class.java) ->
+                DetalleSustitucionViewModel(
+                    extras.createSavedStateHandle(),
+                    container.sustitucionesRepository
+                )
+            modelClass.isAssignableFrom(MisPedidosViewModel::class.java) ->
+                MisPedidosViewModel(container.misPedidosRepository)
+            modelClass.isAssignableFrom(DetallePedidoViewModel::class.java) ->
+                DetallePedidoViewModel(
+                    extras.createSavedStateHandle(),
+                    container.misPedidosRepository,
+                    container.sustitucionesRepository
+                )
             else -> throw IllegalArgumentException("ViewModel no registrado: ${modelClass.name}")
         }
         @Suppress("UNCHECKED_CAST")

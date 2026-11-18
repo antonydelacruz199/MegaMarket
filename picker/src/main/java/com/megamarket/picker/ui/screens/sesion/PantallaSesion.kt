@@ -1,0 +1,209 @@
+package com.megamarket.picker.ui.screens.sesion
+
+import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import com.megamarket.picker.BuildConfig
+import com.megamarket.picker.R
+import com.megamarket.picker.data.connectivity.MENSAJE_PERMISO_RED_LOCAL
+import com.megamarket.picker.data.connectivity.PERMISO_RED_LOCAL
+import com.megamarket.picker.data.connectivity.registrarEstadoPermisoRedLocal
+import com.megamarket.picker.data.connectivity.requierePermisoRedLocal
+import com.megamarket.picker.data.connectivity.tienePermisoRedLocal
+
+private const val TAG = "MegaMarketPickerSesion"
+
+@Composable
+fun PantallaSesion(
+    restaurando: Boolean,
+    cargando: Boolean,
+    error: String?,
+    alIngresar: (usuario: String, clave: String) -> Unit
+) {
+    if (restaurando) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            CircularProgressIndicator()
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(stringResource(R.string.restaurando_sesion))
+        }
+        return
+    }
+
+    val contexto = LocalContext.current
+    var usuario by rememberSaveable { mutableStateOf("") }
+    var contrasena by rememberSaveable { mutableStateOf("") }
+    var contrasenaVisible by rememberSaveable { mutableStateOf(false) }
+    var errorLocal by rememberSaveable { mutableStateOf<String?>(null) }
+    var credencialesPendientes by remember { mutableStateOf<Pair<String, String>?>(null) }
+    val mensajeError = errorLocal ?: error
+
+    val launcherPermiso = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { concedido ->
+        registrarEstadoPermisoRedLocal(concedido)
+        val pendientes = credencialesPendientes
+        credencialesPendientes = null
+        if (concedido && pendientes != null) {
+            alIngresar(pendientes.first, pendientes.second)
+        } else {
+            errorLocal = MENSAJE_PERMISO_RED_LOCAL
+        }
+    }
+
+    fun intentarIngresar(nombreUsuario: String, clave: String) {
+        val baseUrl = BuildConfig.MEGAMARKET_API_BASE_URL
+        Log.i(TAG, "Login: baseUrl=$baseUrl")
+        if (requierePermisoRedLocal(baseUrl) && !tienePermisoRedLocal(contexto)) {
+            credencialesPendientes = nombreUsuario to clave
+            launcherPermiso.launch(PERMISO_RED_LOCAL)
+            return
+        }
+        alIngresar(nombreUsuario, clave)
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Image(
+            painter = painterResource(R.drawable.logo_megamarket),
+            contentDescription = "Logo MegaMarket",
+            modifier = Modifier.size(72.dp),
+            contentScale = ContentScale.Fit
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        Text(
+            text = stringResource(R.string.titulo_sesion),
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = stringResource(R.string.subtitulo_sesion),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(32.dp))
+        OutlinedTextField(
+            value = usuario,
+            onValueChange = {
+                usuario = it
+                errorLocal = null
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.usuario)) },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+            isError = mensajeError != null
+        )
+        Spacer(modifier = Modifier.height(12.dp))
+        OutlinedTextField(
+            value = contrasena,
+            onValueChange = {
+                contrasena = it
+                errorLocal = null
+            },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.contrasena)) },
+            singleLine = true,
+            isError = mensajeError != null,
+            visualTransformation = if (contrasenaVisible) {
+                VisualTransformation.None
+            } else {
+                PasswordVisualTransformation()
+            },
+            trailingIcon = {
+                IconButton(onClick = { contrasenaVisible = !contrasenaVisible }) {
+                    Icon(
+                        imageVector = if (contrasenaVisible) Icons.Default.Info else Icons.Default.Lock,
+                        contentDescription = if (contrasenaVisible) "Ocultar contraseña" else "Mostrar contraseña"
+                    )
+                }
+            }
+        )
+        if (mensajeError != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = mensajeError,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+            onClick = {
+                if (usuario.isBlank() || contrasena.isBlank()) {
+                    errorLocal = contexto.getString(R.string.completa_credenciales)
+                } else {
+                    errorLocal = null
+                    intentarIngresar(usuario.trim(), contrasena)
+                }
+            },
+            enabled = !cargando,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text(
+                if (cargando) {
+                    stringResource(R.string.ingresando)
+                } else {
+                    stringResource(R.string.iniciar_sesion)
+                }
+            )
+        }
+    }
+}

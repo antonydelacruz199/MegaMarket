@@ -1,11 +1,12 @@
 package com.megamarket.cliente.viewmodel
 
-import android.graphics.Bitmap
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.megamarket.cliente.data.repository.CarritoRepository
-import com.megamarket.cliente.data.repository.CatalogoRepository
+import com.megamarket.cliente.data.repository.MediosImagenRepository
 import com.megamarket.cliente.state.CarritoUiState
+import com.megamarket.modelo.Producto
+import com.megamarket.modelo.SolicitudImagenProducto
 import com.megamarket.cliente.model.totalCentimos
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,7 +17,7 @@ import kotlinx.coroutines.launch
 
 class CarritoViewModel(
     private val carrito: CarritoRepository,
-    private val catalogo: CatalogoRepository
+    private val medios: MediosImagenRepository
 ) : ViewModel() {
 
     private val _estado = MutableStateFlow(CarritoUiState())
@@ -56,8 +57,8 @@ class CarritoViewModel(
         aplicarCambioEnCarrito { carrito.quitarDelCarrito(productoId) }
     }
 
-    suspend fun cargarImagen(productoId: Long, lado: Int): Bitmap? =
-        catalogo.cargarImagen(productoId, lado)
+    fun solicitudImagen(producto: Producto): SolicitudImagenProducto? =
+        medios.solicitud(producto.remoteId, producto.imagenKey)
 
     private fun aplicarCambioEnCarrito(accion: suspend () -> Unit) {
         viewModelScope.launch {

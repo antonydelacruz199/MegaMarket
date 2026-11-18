@@ -38,5 +38,7 @@ data class Producto(
     val activo: Boolean,
     @ColumnInfo(name = "remote_version") val remoteVersion: Long? = null,
     @ColumnInfo(name = "remote_updated_at") val remoteUpdatedAt: String? = null,
-    @ColumnInfo(name = "remote_deleted_at") val remoteDeletedAt: String? = null
+    @ColumnInfo(name = "remote_deleted_at") val remoteDeletedAt: String? = null,
+    @ColumnInfo(name = "codigo_barras") val codigoBarras: String? = null,
+    val pasillo: String? = null
 )

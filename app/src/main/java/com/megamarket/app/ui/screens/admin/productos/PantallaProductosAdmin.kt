@@ -136,6 +136,7 @@ fun PantallaProductosAdmin(
                     TarjetaProductoAdmin(
                         producto = producto,
                         alEditar = { alNavegar(Ruta.EditarProductoAdmin.crear(producto.id)) },
+                        solicitudImagen = viewModel.solicitudImagen(producto),
                         cargarImagen = viewModel::cargarImagen
                     )
                 }

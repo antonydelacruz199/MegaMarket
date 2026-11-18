@@ -12,6 +12,7 @@
             <option value="$PROJECT_DIR$/app" />
             <option value="$PROJECT_DIR$/cliente" />
             <option value="$PROJECT_DIR$/modelo" />
+            <option value="$PROJECT_DIR$/picker" />
           </set>
         </option>
       </GradleProjectSettings>

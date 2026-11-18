@@ -21,5 +21,7 @@ data class ProductoProviderSnapshot(
     val activo: Boolean,
     val remoteVersion: Long? = null,
     val remoteUpdatedAt: String? = null,
-    val remoteDeletedAt: String? = null
+    val remoteDeletedAt: String? = null,
+    val codigoBarras: String? = null,
+    val pasillo: String? = null
 )

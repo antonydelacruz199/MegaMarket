@@ -78,7 +78,7 @@ fun PantallaFavoritos(
                         producto = producto,
                         esFavorito = true,
                         alPulsar = { alAbrirProducto(producto.id) },
-                        cargarImagen = viewModel::cargarImagen,
+                        solicitudImagen = viewModel.solicitudImagen(producto),
                         alAlternarFavorito = { viewModel.alternarFavorito(producto.id) }
                     )
                 }

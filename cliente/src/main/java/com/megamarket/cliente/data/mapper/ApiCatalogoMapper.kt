@@ -39,6 +39,8 @@ fun ProductoApiDto.aEntidadLocal(idLocal: Long, categoriaIdLocal: Long): Product
         activo = activo,
         remoteVersion = version,
         remoteUpdatedAt = updatedAt,
-        remoteDeletedAt = null
+        remoteDeletedAt = null,
+        codigoBarras = codigoBarras?.trim()?.ifBlank { null },
+        pasillo = pasillo?.trim()?.ifBlank { null }
     )
 }

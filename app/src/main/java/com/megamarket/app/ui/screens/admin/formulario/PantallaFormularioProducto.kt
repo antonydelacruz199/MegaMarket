@@ -151,7 +151,11 @@ private fun ContenidoFormulario(
     alElegirImagen: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val etiquetaAccion = if (estado.esEdicion) "Guardar cambios" else "Crear producto"
+    val etiquetaAccion = when {
+        estado.guardando && !estado.imagenPendienteKey.isNullOrBlank() -> "Subiendo imagen..."
+        estado.esEdicion -> "Guardar cambios"
+        else -> "Crear producto"
+    }
 
     Column(
         modifier = modifier
@@ -166,6 +170,7 @@ private fun ContenidoFormulario(
         ) {
             SelectorImagen(
                 claveVisible = estado.imagenVisibleKey,
+                solicitud = viewModel.solicitudImagen(estado.remoteId, estado.imagenVisibleKey),
                 copiando = estado.procesandoImagen,
                 alElegir = alElegirImagen,
                 alQuitar = viewModel::quitarImagen,
@@ -241,6 +246,24 @@ private fun ContenidoFormulario(
             }
         }
         SeccionFormulario(
+            titulo = "Ubicación",
+            descripcion = "Opcional. El pasillo ordena la preparación y el código identifica el producto.",
+            colorAcento = MegaSecundario
+        ) {
+            CampoFormulario(
+                valor = estado.pasillo,
+                alCambiarValor = viewModel::actualizarPasillo,
+                etiqueta = "Pasillo",
+                ayuda = "Letras, números, espacios o guiones. Déjalo vacío si todavía no tiene ubicación."
+            )
+            CampoFormulario(
+                valor = estado.codigoBarras,
+                alCambiarValor = viewModel::actualizarCodigoBarras,
+                etiqueta = "Código de barras",
+                ayuda = "Letras y dígitos, hasta 32. Vacío en productos antiguos."
+            )
+        }
+        SeccionFormulario(
             titulo = "Publicación",
             descripcion = "Controla si el producto aparece en el catálogo.",
             colorAcento = MaterialTheme.colorScheme.primary
@@ -261,7 +284,7 @@ private fun ContenidoFormulario(
                 .height(48.dp),
             shape = RoundedCornerShape(12.dp)
         ) {
-            Text(if (estado.guardando) "Guardando..." else etiquetaAccion)
+            Text(if (estado.guardando && estado.imagenPendienteKey.isNullOrBlank()) "Guardando..." else etiquetaAccion)
         }
     }
 }
@@ -316,6 +339,7 @@ private fun SeccionFormulario(
 @Composable
 private fun SelectorImagen(
     claveVisible: String,
+    solicitud: com.megamarket.modelo.SolicitudImagenProducto?,
     copiando: Boolean,
     alElegir: () -> Unit,
     alQuitar: () -> Unit,
@@ -334,12 +358,14 @@ private fun SelectorImagen(
     }
     if (claveVisible.isNotBlank()) {
         ImagenProducto(
-            identificador = claveVisible,
+            clave = claveVisible,
+            solicitud = solicitud,
             modifier = Modifier
                 .fillMaxWidth()
                 .height(180.dp),
             descripcion = "Imagen seleccionada",
-            cargar = { cargarImagen(claveVisible, 720) }
+            ladoLocal = 720,
+            cargarLocal = cargarImagen
         )
         Spacer(modifier = Modifier.height(8.dp))
         Row(

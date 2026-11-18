@@ -33,7 +33,9 @@ fun ProductoRoom.toModel(): Producto = Producto(
     remoteId = remoteId,
     remoteVersion = remoteVersion,
     remoteUpdatedAt = remoteUpdatedAt,
-    remoteDeletedAt = remoteDeletedAt
+    remoteDeletedAt = remoteDeletedAt,
+    codigoBarras = codigoBarras,
+    pasillo = pasillo
 )
 
 fun ProductoProviderSnapshot.toEntity(
@@ -64,6 +66,8 @@ fun ProductoProviderSnapshot.toEntity(
         activo = activo && remoteDeletedAt.isNullOrBlank(),
         remoteVersion = remoteVersion,
         remoteUpdatedAt = remoteUpdatedAt,
-        remoteDeletedAt = remoteDeletedAt
+        remoteDeletedAt = remoteDeletedAt,
+        codigoBarras = codigoBarras,
+        pasillo = pasillo
     )
 }

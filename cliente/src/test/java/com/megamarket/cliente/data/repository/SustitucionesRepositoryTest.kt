@@ -289,6 +289,8 @@ private class ApiFake : ApiService {
     override suspend fun obtenerPagoDelPedido(pedidoId: String, owner: String) = error("n/a")
     override suspend fun obtenerPago(id: String, owner: String) = error("n/a")
     override suspend fun confirmarPago(id: String, body: ConfirmarPagoRequest, owner: String) = error("n/a")
+    override suspend fun autorizarBilleteraPago(id: String, body: ConfirmarPagoRequest, owner: String) =
+        error("n/a")
     override suspend fun confirmarAjustePago(id: String, body: ConfirmarPagoRequest, owner: String) =
         error("n/a")
 }

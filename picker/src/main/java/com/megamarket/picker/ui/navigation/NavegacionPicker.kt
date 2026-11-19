@@ -287,7 +287,12 @@ fun NavegacionPicker(
                 alRegistrar = entregaViewModel::registrar,
                 alGenerarQr = entregaViewModel::generarQrPago,
                 alOcultarQr = entregaViewModel::ocultarQrPago,
-                alConfirmarPago = entregaViewModel::confirmarPago
+                alConfirmarPago = { entregaViewModel.confirmarPago() },
+                alConfirmarPagoBilletera = {
+                    entregaViewModel.confirmarPago(
+                        com.megamarket.picker.data.repository.FORMA_COBRO_BILLETERA
+                    )
+                }
             )
         }
     }

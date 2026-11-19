@@ -246,7 +246,7 @@ class SincronizacionRepository(
                 pedido.copy(
                     remoteId = remoto.id ?: return@clasificar ResultadoEnvio.Reintentar("Pedido sin identificador"),
                     totalCentimos = remoto.totalCentimos ?: pedido.totalCentimos,
-                    estado = remoto.estado ?: "CONFIRMADO",
+                    estado = remoto.estado ?: "RECIBIDO",
                     remoteVersion = remoto.version ?: pedido.remoteVersion,
                     estadoSync = EstadoSincronizacion.SINCRONIZADO,
                     franjaEntregaId = remoto.franjaEntregaId ?: pedido.franjaEntregaId

@@ -119,7 +119,7 @@ class DetallePreparacionViewModel(
             return
         }
         viewModelScope.launch {
-            // Impide cierres concurrentes: solo un PATCH LISTO a la vez.
+            // Impide cierres concurrentes: solo un PATCH CONFIRMADO a la vez.
             var iniciar = false
             _estado.update { actual ->
                 if (actual.marcandoListo || actual.listoOk) {

@@ -84,15 +84,37 @@ function puedeConfirmarPago(usuario, pedido, pago) {
         error: 'Solo el cliente del pedido puede confirmar este pago'
       };
     }
-    if (pago.modalidad !== 'ONLINE') {
-      return {
-        ok: false,
-        http: 409,
-        codigo: 'CONFIRMACION_NO_PERMITIDA',
-        error: 'El pago contraentrega lo confirma el repartidor en la entrega'
-      };
+    if (pago.modalidad === 'ONLINE') {
+      // ONLINE solo tras preparación validada (CONFIRMADO).
+      if (pedido.estado !== 'CONFIRMADO') {
+        return {
+          ok: false,
+          http: 409,
+          codigo: 'PAGO_REQUIERE_CONFIRMACION',
+          error:
+            'El pago online solo está disponible cuando el pedido está CONFIRMADO tras la preparación'
+        };
+      }
+      return { ok: true };
     }
-    return { ok: true };
+    if (pago.modalidad === 'CONTRAENTREGA') {
+      // Cliente puede pagar con billetera en entrega (alternativa al cobro del repartidor).
+      if (!['LISTO', 'EN_CAMINO'].includes(pedido.estado)) {
+        return {
+          ok: false,
+          http: 409,
+          codigo: 'PEDIDO_NO_EN_ENTREGA',
+          error: 'El pago contraentrega del cliente solo aplica cuando el pedido está en entrega'
+        };
+      }
+      return { ok: true };
+    }
+    return {
+      ok: false,
+      http: 409,
+      codigo: 'CONFIRMACION_NO_PERMITIDA',
+      error: 'Modalidad de pago no confirmable por el cliente'
+    };
   }
   if (usuario.rol === 'REPARTIDOR') {
     if (!pedido.repartidor_id || pedido.repartidor_id !== usuario.id) {
@@ -127,6 +149,41 @@ function puedeConfirmarPago(usuario, pedido, pago) {
     codigo: 'PERMISO_DENEGADO',
     error: 'Rol no autorizado para confirmar pagos'
   };
+}
+
+function normalizarFormaCobro(raw) {
+  const v = String(raw || '').trim().toUpperCase();
+  if (!v) return null;
+  if (v === 'EFECTIVO' || v === 'BILLETERA') return v;
+  return undefined;
+}
+
+async function cargarAutorizacionBilletera(clienteDb, pagoId, autorizacionUuid) {
+  if (esUuid(autorizacionUuid)) {
+    const { rows } = await clienteDb.query(
+      `SELECT uuid_operacion, usuario_id, tipo_operacion, recurso, entidad_id, estado, respuesta
+       FROM operaciones_idempotentes
+       WHERE uuid_operacion = $1
+         AND tipo_operacion = 'AUTORIZAR_BILLETERA'
+         AND recurso = 'pagos'
+         AND entidad_id = $2
+       LIMIT 1`,
+      [autorizacionUuid, pagoId]
+    );
+    return rows[0] || null;
+  }
+  // Sin uuid explícito: usar cualquier autorización vigente del pago.
+  const { rows } = await clienteDb.query(
+    `SELECT uuid_operacion, usuario_id, tipo_operacion, recurso, entidad_id, estado, respuesta
+     FROM operaciones_idempotentes
+     WHERE tipo_operacion = 'AUTORIZAR_BILLETERA'
+       AND recurso = 'pagos'
+       AND entidad_id = $1
+       AND estado = 'PROCESADA'
+     LIMIT 1`,
+    [pagoId]
+  );
+  return rows[0] || null;
 }
 
 async function obtenerPorPedido(req, res) {
@@ -209,6 +266,14 @@ async function generarQr(req, res) {
       await clienteDb.query('ROLLBACK');
       return res.status(404).json({ error: 'Pago no encontrado', codigo: 'PAGO_NO_ENCONTRADO' });
     }
+    if (pago.modalidad === 'ONLINE' && pedido.estado !== 'CONFIRMADO') {
+      await clienteDb.query('ROLLBACK');
+      return res.status(409).json({
+        error:
+          'El QR online solo está disponible cuando el pedido está CONFIRMADO tras la preparación',
+        codigo: 'PAGO_REQUIERE_CONFIRMACION'
+      });
+    }
     if (pago.estado === 'CONFIRMADO') {
       await clienteDb.query('COMMIT');
       return res.status(200).json({
@@ -218,7 +283,15 @@ async function generarQr(req, res) {
         simulacion: true
       });
     }
-    if (['CANCELADO', 'RECHAZADO', 'EXPIRADO'].includes(pago.estado)) {
+    // EXPIRADO se puede recuperar regenerando QR mientras el pedido siga vigente.
+    if (['CANCELADO', 'RECHAZADO'].includes(pago.estado)) {
+      await clienteDb.query('ROLLBACK');
+      return res.status(409).json({
+        error: `El pago está ${pago.estado} y no admite QR`,
+        codigo: 'PAGO_NO_PAGABLE'
+      });
+    }
+    if (!['PENDIENTE', 'QR_GENERADO', 'EXPIRADO'].includes(pago.estado)) {
       await clienteDb.query('ROLLBACK');
       return res.status(409).json({
         error: `El pago está ${pago.estado} y no admite QR`,
@@ -310,9 +383,13 @@ async function generarQr(req, res) {
 }
 
 /**
- * Confirma el pago: valida saldo, mueve billetera y marca CONFIRMADO.
+ * Confirma el pago: valida saldo cuando aplica, mueve billetera y marca CONFIRMADO.
  * No marca PAGADO solo por mostrar el QR.
- * POST /api/pagos/:id/confirmar  body: { uuidOperacion }
+ * POST /api/pagos/:id/confirmar
+ * body: { uuidOperacion, formaCobro?, autorizacionClienteUuid? }
+ * - ONLINE: debita billetera del cliente.
+ * - CONTRAENTREGA + EFECTIVO (default): confirma sin debitar billetera.
+ * - CONTRAENTREGA + BILLETERA: exige autorización previa del cliente.
  */
 async function confirmar(req, res) {
   const clienteDb = await pool.connect();
@@ -320,6 +397,15 @@ async function confirmar(req, res) {
     const pagoId = String(req.params.id || '').trim();
     const uuidOperacion = String(
       req.body.uuidOperacion || req.body.uuid_operacion || ''
+    ).trim();
+    const formaRaw = normalizarFormaCobro(
+      req.body.formaCobro || req.body.forma_cobro || req.body.medioCobro
+    );
+    const autorizacionClienteUuid = String(
+      req.body.autorizacionClienteUuid ||
+        req.body.autorizacion_cliente_uuid ||
+        req.body.autorizacionUuid ||
+        ''
     ).trim();
 
     if (!esUuid(pagoId)) {
@@ -329,6 +415,12 @@ async function confirmar(req, res) {
       return res.status(400).json({
         error: 'uuidOperacion es obligatorio y debe ser UUID',
         codigo: 'UUID_OPERACION_INVALIDO'
+      });
+    }
+    if (formaRaw === undefined) {
+      return res.status(400).json({
+        error: 'formaCobro debe ser EFECTIVO o BILLETERA',
+        codigo: 'FORMA_COBRO_INVALIDA'
       });
     }
 
@@ -362,13 +454,34 @@ async function confirmar(req, res) {
       return res.status(404).json({ error: 'Pedido no encontrado', codigo: 'PEDIDO_NO_ENCONTRADO' });
     }
 
-    const auth = puedeConfirmarPago(req.usuario, pedido, pago);
-    if (!auth.ok) {
+    if (['CANCELADO', 'ENTREGADO'].includes(pedido.estado)) {
       await clienteDb.query('ROLLBACK');
-      return res.status(auth.http).json({ error: auth.error, codigo: auth.codigo });
+      return res.status(409).json({
+        error: 'El pedido ya no admite confirmación de pago',
+        codigo: 'PEDIDO_NO_PAGABLE'
+      });
     }
 
+    // Idempotencia antes de auth de estado: tras ONLINE el pedido ya puede ser PAGADO/LISTO.
     if (pago.estado === 'CONFIRMADO') {
+      if (req.usuario.rol === 'CLIENTE' && pedido.cliente_id !== req.usuario.id) {
+        await clienteDb.query('ROLLBACK');
+        return res.status(403).json({
+          error: 'Solo el cliente del pedido puede confirmar este pago',
+          codigo: 'PERMISO_DENEGADO'
+        });
+      }
+      if (
+        req.usuario.rol !== 'CLIENTE' &&
+        req.usuario.rol !== 'ADMINISTRADOR' &&
+        req.usuario.rol !== 'REPARTIDOR'
+      ) {
+        await clienteDb.query('ROLLBACK');
+        return res.status(403).json({
+          error: 'Rol no autorizado para confirmar pagos',
+          codigo: 'PERMISO_DENEGADO'
+        });
+      }
       const respuesta = {
         idempotente: true,
         yaConfirmado: true,
@@ -388,7 +501,14 @@ async function confirmar(req, res) {
       return res.status(200).json(respuesta);
     }
 
-    if (!['PENDIENTE', 'QR_GENERADO'].includes(pago.estado)) {
+    const auth = puedeConfirmarPago(req.usuario, pedido, pago);
+    if (!auth.ok) {
+      await clienteDb.query('ROLLBACK');
+      return res.status(auth.http).json({ error: auth.error, codigo: auth.codigo });
+    }
+
+    // PENDIENTE / QR_GENERADO / EXPIRADO recuperable (sin cobro previo).
+    if (!['PENDIENTE', 'QR_GENERADO', 'EXPIRADO'].includes(pago.estado)) {
       await clienteDb.query('ROLLBACK');
       return res.status(409).json({
         error: `El pago en estado ${pago.estado} no se puede confirmar`,
@@ -396,6 +516,7 @@ async function confirmar(req, res) {
       });
     }
 
+    // QR vencido: marcar EXPIRADO y pedir regeneración (sin mover saldos).
     if (
       pago.fecha_expiracion_qr &&
       pago.estado === 'QR_GENERADO' &&
@@ -407,31 +528,69 @@ async function confirmar(req, res) {
       );
       await clienteDb.query('COMMIT');
       return res.status(409).json({
-        error: 'El código QR expiró; genera uno nuevo',
+        error: 'El código QR expiró; genera uno nuevo o paga sin QR',
         codigo: 'QR_EXPIRADO'
       });
     }
 
-    await asegurarCuentaCliente(clienteDb, pedido.cliente_id);
+    const esContraentrega = pago.modalidad === 'CONTRAENTREGA';
+    // Cliente que paga su propia contraentrega: billetera. Repartidor: efectivo por defecto.
+    const formaCobro = esContraentrega
+      ? formaRaw || (req.usuario.rol === 'CLIENTE' ? 'BILLETERA' : 'EFECTIVO')
+      : 'BILLETERA';
+    let liquidacion = {
+      ok: true,
+      idempotente: false,
+      saldoCliente: null,
+      saldoComercio: null,
+      movimientos: []
+    };
 
-    const liquidacion = await liquidarCobroPedido(clienteDb, {
-      clienteUsuarioId: pedido.cliente_id,
-      montoCentimos: Number(pago.monto_centimos),
-      pagoId: pago.id,
-      pedidoId: pedido.id,
-      uuidOperacionDebito: uuidOperacion,
-      uuidOperacionCredito: crypto.randomUUID()
-    });
+    if (formaCobro === 'BILLETERA') {
+      if (esContraentrega && req.usuario.rol !== 'CLIENTE') {
+        const autorizacion = await cargarAutorizacionBilletera(
+          clienteDb,
+          pago.id,
+          autorizacionClienteUuid
+        );
+        if (!autorizacion || autorizacion.estado !== 'PROCESADA') {
+          await clienteDb.query('ROLLBACK');
+          return res.status(409).json({
+            error:
+              'Para debitar la billetera del cliente se requiere su autorización verificable',
+            codigo: 'AUTORIZACION_CLIENTE_REQUERIDA'
+          });
+        }
+        if (autorizacion.usuario_id !== pedido.cliente_id) {
+          await clienteDb.query('ROLLBACK');
+          return res.status(409).json({
+            error: 'La autorización no pertenece al cliente del pedido',
+            codigo: 'AUTORIZACION_CLIENTE_INVALIDA'
+          });
+        }
+      }
 
-    if (!liquidacion.ok) {
-      await clienteDb.query('ROLLBACK');
-      return res.status(liquidacion.http || 409).json({
-        error: liquidacion.error,
-        codigo: liquidacion.codigo,
-        saldoCentimos: liquidacion.saldoCentimos,
-        montoCentimos: liquidacion.montoCentimos
+      await asegurarCuentaCliente(clienteDb, pedido.cliente_id);
+      liquidacion = await liquidarCobroPedido(clienteDb, {
+        clienteUsuarioId: pedido.cliente_id,
+        montoCentimos: Number(pago.monto_centimos),
+        pagoId: pago.id,
+        pedidoId: pedido.id,
+        uuidOperacionDebito: uuidOperacion,
+        uuidOperacionCredito: crypto.randomUUID()
       });
+
+      if (!liquidacion.ok) {
+        await clienteDb.query('ROLLBACK');
+        return res.status(liquidacion.http || 409).json({
+          error: liquidacion.error,
+          codigo: liquidacion.codigo,
+          saldoCentimos: liquidacion.saldoCentimos,
+          montoCentimos: liquidacion.montoCentimos
+        });
+      }
     }
+    // EFECTIVO: confirma cobro sin tocar billeteras.
 
     const numeroOp = nuevoNumeroOperacionSimulado(uuidOperacion);
     const confirmadoEn = new Date().toISOString();
@@ -447,8 +606,9 @@ async function confirmar(req, res) {
     );
     const pagoConfirmado = pagoRows[0];
 
+    // ONLINE en CONFIRMADO → PAGADO → LISTO (despacho). No retroceder EN_CAMINO/LISTO.
     let pedidoEstado = pedido.estado;
-    if (pedido.estado !== 'PAGADO') {
+    if (pedido.estado === 'CONFIRMADO' && pago.modalidad === 'ONLINE') {
       const evalT = evaluarTransicion({
         desde: pedido.estado,
         hacia: 'PAGADO',
@@ -459,13 +619,31 @@ async function confirmar(req, res) {
         origenInternoBancario: true
       });
       if (evalT.ok) {
-        const { rows: pedRows } = await clienteDb.query(
-          `UPDATE pedidos SET estado = 'PAGADO', updated_at = now()
-           WHERE id = $1
-           RETURNING estado`,
+        await clienteDb.query(
+          `UPDATE pedidos SET estado = 'PAGADO', updated_at = now() WHERE id = $1`,
           [pedido.id]
         );
-        pedidoEstado = pedRows[0].estado;
+        const evalListo = evaluarTransicion({
+          desde: 'PAGADO',
+          hacia: 'LISTO',
+          rol: 'ADMINISTRADOR',
+          usuarioId: req.usuario.id,
+          pedido: { ...pedido, estado: 'PAGADO' },
+          pago: pagoConfirmado,
+          origenInternoBancario: false,
+          origenInternoPreparacion: true
+        });
+        if (evalListo.ok) {
+          const { rows: pedRows } = await clienteDb.query(
+            `UPDATE pedidos SET estado = 'LISTO', updated_at = now()
+             WHERE id = $1
+             RETURNING estado`,
+            [pedido.id]
+          );
+          pedidoEstado = pedRows[0].estado;
+        } else {
+          pedidoEstado = 'PAGADO';
+        }
       }
     }
 
@@ -473,13 +651,20 @@ async function confirmar(req, res) {
       idempotente: Boolean(liquidacion.idempotente),
       pago: mapearPago(pagoConfirmado),
       pedido: { id: pedido.id, estado: pedidoEstado },
-      billetera: {
-        saldoClienteCentimos: liquidacion.saldoCliente,
-        saldoComercioCentimos: liquidacion.saldoComercio
-      },
+      formaCobro,
+      billetera:
+        formaCobro === 'BILLETERA'
+          ? {
+              saldoClienteCentimos: liquidacion.saldoCliente,
+              saldoComercioCentimos: liquidacion.saldoComercio
+            }
+          : null,
       movimientos: liquidacion.movimientos || [],
       simulacion: true,
-      aviso: 'Pago confirmado.'
+      aviso:
+        formaCobro === 'EFECTIVO'
+          ? 'Cobro en efectivo confirmado sin movimiento de billetera.'
+          : 'Pago confirmado.'
     };
 
     await clienteDb.query(
@@ -507,6 +692,126 @@ async function confirmar(req, res) {
     }
     console.error('Error al confirmar pago:', error.message);
     return res.status(500).json({ error: 'No se pudo confirmar el pago' });
+  } finally {
+    clienteDb.release();
+  }
+}
+
+/**
+ * El cliente autoriza un cobro CONTRAENTREGA contra su billetera.
+ * El repartidor debe presentar este uuid al confirmar con formaCobro=BILLETERA.
+ * POST /api/pagos/:id/autorizar-billetera  body: { uuidOperacion }
+ */
+async function autorizarBilletera(req, res) {
+  const clienteDb = await pool.connect();
+  try {
+    const pagoId = String(req.params.id || '').trim();
+    const uuidOperacion = String(
+      req.body.uuidOperacion || req.body.uuid_operacion || ''
+    ).trim();
+
+    if (!esUuid(pagoId) || !esUuid(uuidOperacion)) {
+      return res.status(400).json({
+        error: 'id y uuidOperacion deben ser UUID',
+        codigo: 'UUID_INVALIDO'
+      });
+    }
+    if (req.usuario.rol !== 'CLIENTE' && req.usuario.rol !== 'ADMINISTRADOR') {
+      return res.status(403).json({
+        error: 'Solo el cliente puede autorizar el débito de su billetera',
+        codigo: 'PERMISO_DENEGADO'
+      });
+    }
+
+    await clienteDb.query('BEGIN');
+
+    const previaOp = await clienteDb.query(
+      `SELECT codigo_http, respuesta FROM operaciones_idempotentes
+       WHERE uuid_operacion = $1 LIMIT 1`,
+      [uuidOperacion]
+    );
+    if (previaOp.rows[0]) {
+      await clienteDb.query('COMMIT');
+      return res.status(previaOp.rows[0].codigo_http).json({
+        ...previaOp.rows[0].respuesta,
+        idempotente: true
+      });
+    }
+
+    const pago = await cargarPagoPorId(clienteDb, pagoId, { forUpdate: true });
+    if (!pago) {
+      await clienteDb.query('ROLLBACK');
+      return res.status(404).json({ error: 'Pago no encontrado', codigo: 'PAGO_NO_ENCONTRADO' });
+    }
+    const pedido = await cargarPedido(clienteDb, pago.pedido_id);
+    if (!pedido || pedido.deleted_at) {
+      await clienteDb.query('ROLLBACK');
+      return res.status(404).json({ error: 'Pedido no encontrado', codigo: 'PEDIDO_NO_ENCONTRADO' });
+    }
+    if (req.usuario.rol === 'CLIENTE' && pedido.cliente_id !== req.usuario.id) {
+      await clienteDb.query('ROLLBACK');
+      return res.status(403).json({ error: 'No autorizado', codigo: 'PERMISO_DENEGADO' });
+    }
+    if (pago.modalidad !== 'CONTRAENTREGA') {
+      await clienteDb.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'La autorización de billetera aplica solo a contraentrega',
+        codigo: 'AUTORIZACION_NO_APLICA'
+      });
+    }
+    if (pago.estado === 'CONFIRMADO') {
+      await clienteDb.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'El pago ya está confirmado',
+        codigo: 'PAGO_YA_CONFIRMADO'
+      });
+    }
+    if (!['LISTO', 'EN_CAMINO'].includes(pedido.estado)) {
+      await clienteDb.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'Solo se autoriza el cobro durante la entrega',
+        codigo: 'PEDIDO_NO_EN_ENTREGA'
+      });
+    }
+    if (['CANCELADO', 'RECHAZADO'].includes(pago.estado)) {
+      await clienteDb.query('ROLLBACK');
+      return res.status(409).json({
+        error: `El pago está ${pago.estado}`,
+        codigo: 'PAGO_NO_AUTORIZABLE'
+      });
+    }
+
+    await asegurarCuentaCliente(clienteDb, pedido.cliente_id);
+
+    const respuesta = {
+      autorizacionUuid: uuidOperacion,
+      pagoId: pago.id,
+      pedidoId: pedido.id,
+      montoCentimos: Number(pago.monto_centimos),
+      vigencia: 'Hasta confirmar el cobro o cancelar el pedido',
+      simulacion: true,
+      aviso: 'Autorización registrada. El repartidor puede confirmar el cobro con billetera.'
+    };
+
+    await clienteDb.query(
+      `INSERT INTO operaciones_idempotentes (
+         uuid_operacion, usuario_id, tipo_operacion, recurso, entidad_id,
+         estado, codigo_http, respuesta
+       ) VALUES ($1,$2,'AUTORIZAR_BILLETERA','pagos',$3,'PROCESADA',200,$4::jsonb)
+       ON CONFLICT (uuid_operacion) DO NOTHING`,
+      [uuidOperacion, pedido.cliente_id, pago.id, JSON.stringify(respuesta)]
+    );
+
+    await clienteDb.query('COMMIT');
+    return res.status(200).json(respuesta);
+  } catch (error) {
+    try {
+      await clienteDb.query('ROLLBACK');
+    } catch (_e) {
+      // ignore
+    }
+    console.error('Error al autorizar billetera:', error.message);
+    return res.status(500).json({ error: 'No se pudo registrar la autorización' });
   } finally {
     clienteDb.release();
   }
@@ -708,5 +1013,6 @@ module.exports = {
   obtenerPorId,
   generarQr,
   confirmar,
-  confirmarAjuste
+  confirmarAjuste,
+  autorizarBilletera
 };

@@ -131,7 +131,7 @@ data class PedidoApiDto(
     val estado: String?,
     val version: Long?,
     val fecha: String?,
-    val franjaEntregaId: String? = null
+    @SerializedName("franja_entrega_id") val franjaEntregaId: String? = null
 )
 
 data class ReservaApiDto(val carritoId: String, val cantidad: Int)

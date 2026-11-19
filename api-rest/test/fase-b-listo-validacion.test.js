@@ -1,5 +1,5 @@
 /**
- * Fase B: validación estricta EN_PICKING → LISTO (PostgreSQL aislado).
+ * Fase B: validación estricta EN_PICKING → CONFIRMADO (→ LISTO CONTRAENTREGA) (PostgreSQL aislado).
  */
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
@@ -25,7 +25,8 @@ async function conEsquema(fn) {
     for (const file of [
       '001_esquema_inicial.sql',
       '002_reservas.sql',
-      '003_operaciones_extendidas.sql'
+      '003_operaciones_extendidas.sql',
+      '005_pedido_recibido.sql'
     ]) {
       await pool.query(fs.readFileSync(path.join(__dirname, '../sql', file), 'utf8'));
     }
@@ -151,7 +152,7 @@ async function semilla(pool) {
 }
 
 test(
-  'Fase B: pedido totalmente preparado pasa a LISTO sin inventario',
+  'Fase B: pedido totalmente preparado pasa a CONFIRMADO/LISTO sin inventario',
   { skip },
   async () => {
     await conEsquema(async (pool, pedidos, picking) => {
@@ -176,12 +177,12 @@ test(
         [s.pedido.id]
       );
 
-      // Si el último escaneo ya marcó LISTO, la transición es idempotente.
+      // Si el último escaneo ya cerró preparación, la transición es idempotente.
       const cierre = await ejecutar(
         pedidos.transicionar,
         s.usuarioPicker,
         { id: s.pedido.id },
-        { estado: 'LISTO' }
+        { estado: 'CONFIRMADO' }
       );
       assert.equal(cierre.code, 200);
       assert.equal(cierre.body.pedido.estado, 'LISTO');
@@ -196,7 +197,7 @@ test(
         pedidos.transicionar,
         s.usuarioPicker,
         { id: s.pedido.id },
-        { estado: 'LISTO' }
+        { estado: 'CONFIRMADO' }
       );
       assert.equal(idem.code, 200);
       assert.equal(idem.body.idempotente, true);
@@ -217,7 +218,7 @@ test('Fase B: productos pendientes / cantidades incompletas / faltantes', { skip
       pedidos.transicionar,
       s.usuarioPicker,
       { id: s.pedido.id },
-      { estado: 'LISTO' }
+      { estado: 'CONFIRMADO' }
     );
     assert.equal(pend.code, 409);
     assert.equal(pend.body.codigo, 'PICKING_INCOMPLETO');
@@ -231,7 +232,7 @@ test('Fase B: productos pendientes / cantidades incompletas / faltantes', { skip
       pedidos.transicionar,
       s.usuarioPicker,
       { id: s.pedido.id },
-      { estado: 'LISTO' }
+      { estado: 'CONFIRMADO' }
     );
     assert.equal(cant.code, 409);
     assert.equal(cant.body.codigo, 'CANTIDAD_INCOMPLETA');
@@ -244,7 +245,7 @@ test('Fase B: productos pendientes / cantidades incompletas / faltantes', { skip
       pedidos.transicionar,
       s.usuarioPicker,
       { id: s.pedido.id },
-      { estado: 'LISTO' }
+      { estado: 'CONFIRMADO' }
     );
     assert.equal(falt.code, 409);
     assert.equal(falt.body.codigo, 'PICKING_INCOMPLETO');
@@ -273,7 +274,7 @@ test('Fase B: sustituciones pendientes y aceptadas sin escanear', { skip }, asyn
       pedidos.transicionar,
       s.usuarioPicker,
       { id: s.pedido.id },
-      { estado: 'LISTO' }
+      { estado: 'CONFIRMADO' }
     );
     assert.equal(pend.code, 409);
     assert.equal(pend.body.codigo, 'SUSTITUCION_PENDIENTE');
@@ -286,14 +287,14 @@ test('Fase B: sustituciones pendientes y aceptadas sin escanear', { skip }, asyn
       pedidos.transicionar,
       s.usuarioPicker,
       { id: s.pedido.id },
-      { estado: 'LISTO' }
+      { estado: 'CONFIRMADO' }
     );
     assert.equal(sinScan.code, 409);
     assert.equal(sinScan.body.codigo, 'SUSTITUTO_SIN_ESCANEAR');
   });
 });
 
-test('Fase B: sustituto escaneado completo permite LISTO', { skip }, async () => {
+test('Fase B: sustituto escaneado completo permite CONFIRMADO/LISTO', { skip }, async () => {
   await conEsquema(async (pool, pedidos, picking, sustCtrl) => {
     const s = await semilla(pool);
     await pool.query(
@@ -316,7 +317,7 @@ test('Fase B: sustituto escaneado completo permite LISTO', { skip }, async () =>
     );
     assert.equal(acc.code, 200, JSON.stringify(acc.body));
 
-    // Aceptar NO debe pasar el pedido a LISTO.
+    // Aceptar NO debe pasar el pedido a CONFIRMADO/LISTO.
     const { rows: [pedTrasAceptar] } = await pool.query(
       `SELECT estado FROM pedidos WHERE id=$1`,
       [s.pedido.id]
@@ -327,7 +328,7 @@ test('Fase B: sustituto escaneado completo permite LISTO', { skip }, async () =>
       pedidos.transicionar,
       s.usuarioPicker,
       { id: s.pedido.id },
-      { estado: 'LISTO' }
+      { estado: 'CONFIRMADO' }
     );
     assert.equal(cierrePrematuro.code, 409);
     assert.equal(cierrePrematuro.body.codigo, 'SUSTITUTO_SIN_ESCANEAR');
@@ -352,7 +353,7 @@ test('Fase B: sustituto escaneado completo permite LISTO', { skip }, async () =>
       pedidos.transicionar,
       s.usuarioPicker,
       { id: s.pedido.id },
-      { estado: 'LISTO' }
+      { estado: 'CONFIRMADO' }
     );
     assert.equal(cierre.code, 200);
     assert.equal(cierre.body.pedido.estado, 'LISTO');
@@ -371,7 +372,7 @@ test('Fase B: autorización picker ajeno y concurrencia escaneo/cierre', { skip 
       pedidos.transicionar,
       s.usuarioOtro,
       { id: s.pedido.id },
-      { estado: 'LISTO' }
+      { estado: 'CONFIRMADO' }
     );
     assert.equal(ajeno.code, 403);
     assert.equal(ajeno.body.codigo, 'PEDIDO_NO_ASIGNADO');
@@ -392,7 +393,7 @@ test('Fase B: autorización picker ajeno y concurrencia escaneo/cierre', { skip 
         pedidos.transicionar,
         s.usuarioPicker,
         { id: s.pedido.id },
-        { estado: 'LISTO' }
+        { estado: 'CONFIRMADO' }
       )
     ]);
     // Uno completa a ARMADO/LISTO o el cierre ve incompleto; nunca inconsistencia.

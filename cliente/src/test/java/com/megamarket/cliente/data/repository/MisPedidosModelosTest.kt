@@ -10,8 +10,11 @@ class MisPedidosModelosTest {
     @Test
     fun filtrosMapeanEstadosReales() {
         assertTrue(FiltroMisPedidos.PENDIENTES_PAGO.coincide("CONFIRMADO", "ONLINE"))
+        assertFalse(FiltroMisPedidos.PENDIENTES_PAGO.coincide("RECIBIDO", "ONLINE"))
         assertFalse(FiltroMisPedidos.PENDIENTES_PAGO.coincide("CONFIRMADO", "CONTRAENTREGA"))
+        assertTrue(FiltroMisPedidos.PENDIENTES_PAGO.coincide("EN_CAMINO", "CONTRAENTREGA"))
         assertFalse(FiltroMisPedidos.PENDIENTES_PAGO.coincide("CONFIRMADO", null))
+        assertTrue(FiltroMisPedidos.EN_PREPARACION.coincide("RECIBIDO", null))
         assertTrue(FiltroMisPedidos.EN_PREPARACION.coincide("EN_PICKING", null))
         assertTrue(FiltroMisPedidos.EN_PREPARACION.coincide("PAGADO", "ONLINE"))
         assertTrue(FiltroMisPedidos.LISTOS.coincide("LISTO", null))
@@ -44,8 +47,9 @@ class MisPedidosModelosTest {
         )
         val etapas = detalle.etapasProgreso()
         assertFalse(etapas.any { it.nombre == "PAGADO" })
-        assertTrue(etapas.first { it.nombre == "CONFIRMADO" }.completada)
+        assertTrue(etapas.first { it.nombre == "RECIBIDO" }.completada)
         assertTrue(etapas.first { it.nombre == "EN_PICKING" }.actual)
+        assertFalse(etapas.first { it.nombre == "CONFIRMADO" }.completada)
         assertFalse(etapas.first { it.nombre == "LISTO" }.completada)
         assertFalse(etapas.first { it.nombre == "LISTO" }.actual)
     }
@@ -76,7 +80,7 @@ class MisPedidosModelosTest {
         assertEquals("Pago en línea", detalle.modalidadVisible)
         val etapas = detalle.etapasProgreso().map { it.nombre }
         assertEquals(
-            listOf("CONFIRMADO", "PAGADO", "EN_PICKING", "LISTO", "EN_CAMINO", "ENTREGADO"),
+            listOf("RECIBIDO", "EN_PICKING", "CONFIRMADO", "PAGADO", "LISTO", "EN_CAMINO", "ENTREGADO"),
             etapas
         )
     }

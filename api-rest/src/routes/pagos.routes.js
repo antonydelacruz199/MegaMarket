@@ -26,6 +26,12 @@ router.get(
 );
 
 router.post(
+  '/:id/autorizar-billetera',
+  verificarRol('CLIENTE', 'ADMINISTRADOR'),
+  pagosController.autorizarBilletera
+);
+
+router.post(
   '/:id/confirmar',
   verificarRol('CLIENTE', 'REPARTIDOR', 'ADMINISTRADOR'),
   pagosController.confirmar

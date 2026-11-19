@@ -194,6 +194,28 @@ class PedidoRepository(
         programarSincronizacion()
     }
 
+    /**
+     * Reencola un pedido en REQUIERE_REVISION sin exigir cambio de precio
+     * (p. ej. fallo transitorio del servidor ya corregido).
+     */
+    suspend fun reintentarEnvio(pedidoId: Long) = database.withTransaction {
+        val p = pedidoDao.obtenerPedidoPorId(pedidoId)
+            ?.takeIf { it.clienteId == sesion.owner.value && it.estado == "REQUIERE_REVISION" }
+            ?: throw CheckoutException("Pedido no disponible para reintento")
+        val op = operacionDao.obtenerPendienteDe(
+            TipoOperacionPendiente.PEDIDO,
+            p.id,
+            TipoOperacionPendiente.CREAR_PEDIDO
+        ) ?: throw CheckoutException("No hay operación pendiente")
+        pedidoDao.actualizarPedido(
+            p.copy(estado = "PENDIENTE_CONFIRMACION", estadoSync = EstadoSincronizacion.PENDIENTE)
+        )
+        operacionDao.actualizarOperacionPendiente(
+            op.copy(estado = EstadoSincronizacion.PENDIENTE, ultimoError = null)
+        )
+        programarSincronizacion()
+    }
+
     suspend fun cancelarPendiente(pedidoId: Long) = database.withTransaction {
         val p=pedidoDao.obtenerPedidoPorId(pedidoId)?.takeIf { it.clienteId==sesion.owner.value && it.estado=="REQUIERE_REVISION" } ?: throw CheckoutException("Solo puedes cancelar un pedido rechazado que requiere revisión")
         val op=operacionDao.obtenerPendienteDe(TipoOperacionPendiente.PEDIDO,p.id,TipoOperacionPendiente.CREAR_PEDIDO) ?: throw CheckoutException("No hay operación pendiente")

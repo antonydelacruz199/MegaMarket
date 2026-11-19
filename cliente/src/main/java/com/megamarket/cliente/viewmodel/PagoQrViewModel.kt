@@ -37,6 +37,8 @@ class PagoQrViewModel(
 ) : ViewModel() {
 
     private val pedidoId: String = savedStateHandle.get<String>(Ruta.ARG_PEDIDO_REMOTO).orEmpty()
+    private val abrirQrAlCargar: Boolean =
+        savedStateHandle.get<Boolean>(Ruta.ARG_ABRIR_QR) == true
 
     private val _estado = MutableStateFlow(PagoQrUiState(pedidoId = pedidoId))
     val estado: StateFlow<PagoQrUiState> = _estado.asStateFlow()
@@ -45,6 +47,7 @@ class PagoQrViewModel(
     private var uuidConfirmacion: String? = null
     private var operacionEnCurso = false
     private var seguimiento: Job? = null
+    private var qrSolicitadoAlInicio = false
 
     init {
         cargar()
@@ -98,16 +101,27 @@ class PagoQrViewModel(
             val (pagoRes, saldoRes) = resultado
             val saldo = (saldoRes as? ResultadoPagos.Exito)?.valor?.cuenta?.saldoCentimos
             when (pagoRes) {
-                is ResultadoPagos.Exito -> _estado.update {
-                    it.copy(
-                        cargando = false,
-                        pago = pagoRes.valor,
-                        confirmado = pagoRes.valor.confirmado,
-                        saldoDisponibleCentimos = saldo ?: it.saldoDisponibleCentimos,
-                        error = null,
-                        codigoError = null,
-                        sesionVencida = false
-                    )
+                is ResultadoPagos.Exito -> {
+                    _estado.update {
+                        it.copy(
+                            cargando = false,
+                            pago = pagoRes.valor,
+                            confirmado = pagoRes.valor.confirmado,
+                            saldoDisponibleCentimos = saldo ?: it.saldoDisponibleCentimos,
+                            error = null,
+                            codigoError = null,
+                            sesionVencida = false
+                        )
+                    }
+                    if (abrirQrAlCargar &&
+                        !qrSolicitadoAlInicio &&
+                        !pagoRes.valor.confirmado
+                    ) {
+                        qrSolicitadoAlInicio = true
+                        operacionEnCurso = false
+                        mostrarQr()
+                        return@launch
+                    }
                 }
                 is ResultadoPagos.Error -> _estado.update {
                     aplicarError(it, pagoRes).copy(
@@ -175,8 +189,10 @@ class PagoQrViewModel(
         val uuid = uuidConfirmacion ?: nuevoUuid().also { uuidConfirmacion = it }
         viewModelScope.launch {
             _estado.update { it.copy(confirmando = true, error = null, codigoError = null) }
+            val formaCobro =
+                if (pago.modalidad.equals("CONTRAENTREGA", ignoreCase = true)) "BILLETERA" else null
             val resultado = try {
-                pagos.confirmar(pago.id, uuid)
+                pagos.confirmar(pago.id, uuid, formaCobro = formaCobro)
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {
@@ -202,9 +218,19 @@ class PagoQrViewModel(
                     refrescarEstadoInterno(silencioso = true)
                 }
                 is ResultadoPagos.Error -> {
-                    _estado.update { aplicarError(it, resultado).copy(confirmando = false) }
-                    operacionEnCurso = false
-                    if (resultado.tipo == TipoErrorSustitucion.RED) iniciarSeguimiento()
+                    // QR expirado: el cobro no ocurrió; se puede retomar sin duplicar.
+                    if (resultado.codigo == "QR_EXPIRADO") {
+                        uuidConfirmacion = null
+                        _estado.update {
+                            aplicarError(it, resultado).copy(confirmando = false, qr = null)
+                        }
+                        operacionEnCurso = false
+                        refrescarEstadoInterno(silencioso = true)
+                    } else {
+                        _estado.update { aplicarError(it, resultado).copy(confirmando = false) }
+                        operacionEnCurso = false
+                        if (resultado.tipo == TipoErrorSustitucion.RED) iniciarSeguimiento()
+                    }
                 }
             }
         }

@@ -153,17 +153,28 @@ class PedidosRepartoRepository(
     }
 
     /**
-     * Confirma el pago simulado. Solo devuelve éxito si el cuerpo del servidor declara CONFIRMADO;
-     * [uuidOperacion] debe reutilizarse en los reintentos para mantener la idempotencia.
+     * Confirma el cobro de contraentrega.
+     * Por defecto usa EFECTIVO (sin debitar billetera). Para BILLETERA exige
+     * [autorizacionClienteUuid] emitida por el cliente.
      */
     suspend fun confirmarPago(
         pagoId: String,
-        uuidOperacion: String
+        uuidOperacion: String,
+        formaCobro: String = FORMA_COBRO_EFECTIVO,
+        autorizacionClienteUuid: String? = null
     ): ResultadoOperacion<ConfirmacionPagoReparto> = withContext(io) {
         exigirRepartidor()?.let { return@withContext it }
         val owner = almacen.usuarioActivoId() ?: return@withContext sesionVencida()
         try {
-            val respuesta = api.confirmarPago(pagoId.trim(), ConfirmarPagoRequest(uuidOperacion), owner)
+            val respuesta = api.confirmarPago(
+                pagoId.trim(),
+                ConfirmarPagoRequest(
+                    uuidOperacion = uuidOperacion,
+                    formaCobro = formaCobro,
+                    autorizacionClienteUuid = autorizacionClienteUuid
+                ),
+                owner
+            )
             if (!respuesta.isSuccessful) return@withContext fallo(respuesta)
             val cuerpo = respuesta.body()
             val estado = cuerpo?.pago?.estado?.trim().orEmpty()
@@ -174,11 +185,22 @@ class PedidosRepartoRepository(
                     "PAGO_NO_CONFIRMADO"
                 )
             }
+            val estadoPedido = cuerpo?.pedido?.estado?.trim()?.uppercase()
+            // Confirmar cobro no debe retroceder el estado logístico.
+            if (estadoPedido != null &&
+                estadoPedido !in setOf("LISTO", "EN_CAMINO", "ENTREGADO")
+            ) {
+                return@withContext ResultadoOperacion.Error(
+                    TipoErrorPedido.SERVIDOR,
+                    MensajesEntrega.ESTADO_LOGISTICO_ALTERADO,
+                    "ESTADO_LOGISTICO_ALTERADO"
+                )
+            }
             ResultadoOperacion.Exito(
                 ConfirmacionPagoReparto(
                     estadoPago = estado.uppercase(),
                     numeroOperacion = cuerpo?.pago?.numeroOperacionBanco,
-                    estadoPedido = cuerpo?.pedido?.estado?.trim()?.uppercase(),
+                    estadoPedido = estadoPedido,
                     idempotente = cuerpo?.idempotente == true
                 )
             )

@@ -66,7 +66,16 @@ data class PedidoRemotoDto(
     val repartidorId: String? = null,
     val version: Long? = null,
     val preferenciaSustitucion: String? = null,
-    val updatedAt: String? = null
+    val updatedAt: String? = null,
+    /** Resumen embebido en listados (modalidad/estado de pago). */
+    val pago: PagoResumenRemotoDto? = null
+)
+
+data class PagoResumenRemotoDto(
+    val id: String? = null,
+    val modalidad: String? = null,
+    val estado: String? = null,
+    val montoCentimos: Long? = null
 )
 
 data class DetallePedidoRemotoDto(

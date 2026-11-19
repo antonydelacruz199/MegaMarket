@@ -26,7 +26,8 @@ async function conEsquema(fn) {
     for (const file of [
       '001_esquema_inicial.sql',
       '002_reservas.sql',
-      '003_operaciones_extendidas.sql'
+      '003_operaciones_extendidas.sql',
+      '005_pedido_recibido.sql'
     ]) {
       await pool.query(fs.readFileSync(path.join(__dirname, '../sql', file), 'utf8'));
     }

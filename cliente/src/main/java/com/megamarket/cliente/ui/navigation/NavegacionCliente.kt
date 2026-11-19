@@ -149,7 +149,13 @@ fun NavegacionCliente(
 
         composable(
             route = Ruta.PagoQr.ruta,
-            arguments = listOf(navArgument(Ruta.ARG_PEDIDO_REMOTO) { type = NavType.StringType })
+            arguments = listOf(
+                navArgument(Ruta.ARG_PEDIDO_REMOTO) { type = NavType.StringType },
+                navArgument(Ruta.ARG_ABRIR_QR) {
+                    type = NavType.BoolType
+                    defaultValue = false
+                }
+            )
         ) {
             PantallaPagoQr(
                 viewModel = viewModel<PagoQrViewModel>(factory = fabrica),
@@ -235,7 +241,12 @@ fun NavegacionCliente(
             PantallaConfirmacion(
                 viewModel = viewModel<ConfirmacionViewModel>(factory = fabrica),
                 alIrAlInicio = { controlador.irARaiz(Ruta.Inicio.ruta) },
-                alPagar = { pedidoId -> controlador.navigate(Ruta.PagoQr.crear(pedidoId)) }
+                alPagar = { pedidoId ->
+                    controlador.navigate(Ruta.PagoQr.crear(pedidoId, abrirQr = false))
+                },
+                alPagarConQr = { pedidoId ->
+                    controlador.navigate(Ruta.PagoQr.crear(pedidoId, abrirQr = true))
+                }
             )
         }
     }

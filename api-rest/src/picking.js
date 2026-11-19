@@ -10,26 +10,23 @@ function esUuid(valor) {
 }
 
 /**
- * ONLINE con pago no CONFIRMADO no se prepara.
- * CONTRAENTREGA y legado sin fila en pagos sí.
+ * El picking ocurre antes del cobro ONLINE.
+ * CONTRAENTREGA y ONLINE (pago pendiente) se pueden preparar.
  */
 function puedePrepararSegunPago(pago) {
   if (!pago) {
     return { ok: true };
   }
-  if (pago.modalidad === 'CONTRAENTREGA') {
-    return { ok: true };
-  }
-  if (pago.modalidad === 'ONLINE') {
-    if (pago.estado === 'CONFIRMADO') {
-      return { ok: true };
+  if (pago.modalidad === 'CONTRAENTREGA' || pago.modalidad === 'ONLINE') {
+    if (['CANCELADO', 'RECHAZADO'].includes(pago.estado)) {
+      return {
+        ok: false,
+        http: 409,
+        codigo: 'PAGO_NO_PERMITE_PICKING',
+        error: 'El pago del pedido no permite continuar la preparación'
+      };
     }
-    return {
-      ok: false,
-      http: 409,
-      codigo: 'PICKING_REQUIERE_PAGO',
-      error: 'El pago online debe confirmarse antes de preparar el pedido'
-    };
+    return { ok: true };
   }
   return {
     ok: false,
@@ -371,21 +368,53 @@ async function validarPreparacionCompleta(cliente, pedidoId) {
 }
 
 /**
- * Si la preparación está completa, pasa EN_PICKING → LISTO (sin tocar inventario).
- * @returns {Promise<boolean>} true si el pedido quedó LISTO
+ * Si la preparación está completa: EN_PICKING → CONFIRMADO.
+ * CONTRAENTREGA avanza también a LISTO (pago en entrega).
+ * ONLINE permanece en CONFIRMADO hasta el cobro del cliente.
+ * @returns {Promise<string|null>} estado resultante o null si no cerró
  */
 async function intentarMarcarListo(cliente, pedidoId) {
   const validacion = await validarPreparacionCompleta(cliente, pedidoId);
   if (!validacion.ok) {
-    return false;
+    return null;
   }
-  const { rowCount } = await cliente.query(
+  const { rows: pedRows } = await cliente.query(
     `UPDATE pedidos
-     SET estado = 'LISTO'
-     WHERE id = $1 AND estado = 'EN_PICKING' AND deleted_at IS NULL`,
+     SET estado = 'CONFIRMADO', updated_at = now()
+     WHERE id = $1 AND estado = 'EN_PICKING' AND deleted_at IS NULL
+     RETURNING id, estado`,
     [pedidoId]
   );
-  return rowCount > 0;
+  if (!pedRows[0]) return null;
+
+  const { rows: pagoRows } = await cliente.query(
+    `SELECT modalidad, estado FROM pagos WHERE pedido_id = $1 ORDER BY created_at DESC LIMIT 1`,
+    [pedidoId]
+  );
+  const modalidad = pagoRows[0]?.modalidad || null;
+  const pagoEstado = pagoRows[0]?.estado || null;
+
+  // ONLINE sin cobro: queda CONFIRMADO hasta que el cliente pague.
+  if (modalidad === 'ONLINE' && pagoEstado !== 'CONFIRMADO') {
+    return 'CONFIRMADO';
+  }
+
+  // CONTRAENTREGA, ONLINE ya cobrado, o legado: despachar a LISTO.
+  if (modalidad === 'ONLINE' && pagoEstado === 'CONFIRMADO') {
+    await cliente.query(
+      `UPDATE pedidos SET estado = 'PAGADO', updated_at = now()
+       WHERE id = $1 AND estado = 'CONFIRMADO' AND deleted_at IS NULL`,
+      [pedidoId]
+    );
+  }
+  const { rows: listo } = await cliente.query(
+    `UPDATE pedidos
+     SET estado = 'LISTO', updated_at = now()
+     WHERE id = $1 AND estado IN ('CONFIRMADO', 'PAGADO') AND deleted_at IS NULL
+     RETURNING estado`,
+    [pedidoId]
+  );
+  return listo[0]?.estado || 'CONFIRMADO';
 }
 
 module.exports = {

@@ -4,6 +4,7 @@ import com.megamarket.cliente.data.remote.ApiService
 import com.megamarket.cliente.data.remote.BilleteraMovimientosResponse
 import com.megamarket.cliente.data.remote.BilleteraSaldoResponse
 import com.megamarket.cliente.data.remote.CategoriasResponse
+import com.megamarket.cliente.data.remote.AutorizarBilleteraResponse
 import com.megamarket.cliente.data.remote.ConfirmarAjusteResponse
 import com.megamarket.cliente.data.remote.ConfirmarPagoRequest
 import com.megamarket.cliente.data.remote.ConfirmarPagoResponse
@@ -111,6 +112,13 @@ internal class ApiPagosFake : ApiService {
         puertaConfirmar?.let { return it.await() }
         return confirmacion
     }
+
+    override suspend fun autorizarBilleteraPago(
+        id: String,
+        body: ConfirmarPagoRequest,
+        owner: String
+    ): Response<AutorizarBilleteraResponse> =
+        Response.success(AutorizarBilleteraResponse(autorizacionUuid = body.uuidOperacion))
 
     override suspend fun confirmarAjustePago(
         id: String,

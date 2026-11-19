@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.megamarket.picker.data.repository.CODIGO_REQUIERE_PAGO
 import com.megamarket.picker.data.repository.DetalleReparto
 import com.megamarket.picker.data.repository.ESTADO_PAGO_CONFIRMADO
+import com.megamarket.picker.data.repository.FORMA_COBRO_EFECTIVO
 import com.megamarket.picker.data.repository.MensajesEntrega
 import com.megamarket.picker.data.repository.MensajesSesion
 import com.megamarket.picker.data.repository.PedidosRepartoRepository
@@ -129,10 +130,10 @@ class DetalleEntregaViewModel(
     }
 
     /**
-     * Cobro directo vía API (sin exigir QR). Solo la confirmación del servidor, seguida de una
-     * recarga del detalle, levanta el bloqueo `pagoPendiente`.
+     * Cobro en efectivo (default): confirma sin debitar billetera.
+     * Para billetera, el cliente debe haber autorizado antes; el servidor valida esa autorización.
      */
-    fun confirmarPago() {
+    fun confirmarPago(formaCobro: String = FORMA_COBRO_EFECTIVO) {
         val actual = _estado.value
         val pagoId = actual.qrPago?.pagoId?.takeIf { it.isNotBlank() }
             ?: actual.detalle?.pago?.id?.takeIf { it.isNotBlank() }
@@ -143,7 +144,7 @@ class DetalleEntregaViewModel(
         viewModelScope.launch {
             _estado.update { it.copy(confirmandoPago = true, errorPago = null) }
             val resultado = try {
-                repositorio.confirmarPago(pagoId, uuid)
+                repositorio.confirmarPago(pagoId, uuid, formaCobro = formaCobro)
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {

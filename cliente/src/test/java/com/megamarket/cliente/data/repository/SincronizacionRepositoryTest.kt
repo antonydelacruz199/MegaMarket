@@ -156,6 +156,8 @@ class SincronizacionRepositoryTest {
         override suspend fun obtenerPago(id: String, owner: String) = throw IOException("sin red")
         override suspend fun confirmarPago(id: String, body: ConfirmarPagoRequest, owner: String) =
             throw IOException("sin red")
+        override suspend fun autorizarBilleteraPago(id: String, body: ConfirmarPagoRequest, owner: String) =
+            throw IOException("sin red")
         override suspend fun confirmarAjustePago(id: String, body: ConfirmarPagoRequest, owner: String) =
             throw IOException("sin red")
     }

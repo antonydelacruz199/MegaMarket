@@ -21,8 +21,9 @@ sealed class Ruta(val ruta: String) {
         fun crear(pedidoId: String) = "mis-pedidos/$pedidoId"
     }
     data object Billetera : Ruta("billetera")
-    data object PagoQr : Ruta("pago-qr/{${ARG_PEDIDO_REMOTO}}") {
-        fun crear(pedidoRemotoId: String) = "pago-qr/$pedidoRemotoId"
+    data object PagoQr : Ruta("pago-qr/{${ARG_PEDIDO_REMOTO}}?$ARG_ABRIR_QR={$ARG_ABRIR_QR}") {
+        fun crear(pedidoRemotoId: String, abrirQr: Boolean = false) =
+            "pago-qr/$pedidoRemotoId?$ARG_ABRIR_QR=$abrirQr"
     }
     data object Sustituciones : Ruta("sustituciones")
     data object DetalleSustitucion : Ruta("sustituciones/{${ARG_SUSTITUCION}}") {
@@ -35,5 +36,6 @@ sealed class Ruta(val ruta: String) {
     companion object {
         const val ARG_SUSTITUCION = "sustitucionId"
         const val ARG_PEDIDO_REMOTO = "pedidoRemotoId"
+        const val ARG_ABRIR_QR = "abrirQr"
     }
 }

@@ -39,6 +39,8 @@ class PagoModelosTest {
         assertTrue(detalle("CONFIRMADO", "ONLINE", "QR_GENERADO").puedePagarConQr)
         assertFalse(detalle("PAGADO", "ONLINE", "CONFIRMADO").puedePagarConQr)
         assertFalse(detalle("CONFIRMADO", "CONTRAENTREGA", "PENDIENTE").puedePagarConQr)
+        assertTrue(detalle("LISTO", "CONTRAENTREGA", "PENDIENTE").puedePagarConQr)
+        assertTrue(detalle("EN_CAMINO", "CONTRAENTREGA", "PENDIENTE").puedePagarConQr)
         assertFalse(detalle("CANCELADO", "ONLINE", "PENDIENTE").puedePagarConQr)
         assertFalse(detalle("CONFIRMADO", null, null).puedePagarConQr)
     }

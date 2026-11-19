@@ -169,15 +169,63 @@ fun PantallaDetallePedido(
                         pago.numeroOperacionBanco?.let { Text("Operación: $it") }
                         if (d.puedePagarConQr) {
                             Text(
-                                "El pago aún no está confirmado.",
+                                if (pago.modalidad.equals("CONTRAENTREGA", ignoreCase = true)) {
+                                    "Puedes pagar con billetera ahora, o el repartidor cobrará al entregar."
+                                } else {
+                                    "El pago aún no está confirmado. Completa el cobro para despachar."
+                                },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Button(
                                 onClick = { alPagarQr(d.id) },
                                 modifier = Modifier.fillMaxWidth()
-                            ) { Text("Pagar ahora") }
+                            ) { Text("Realizar pago") }
                         }
+                        if (d.puedeAutorizarBilletera) {
+                            Text(
+                                "Si pagarás con billetera al recibir, autoriza el débito para el repartidor.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            if (estado.autorizacionBilleteraOk) {
+                                Text(
+                                    "Autorización registrada. El repartidor puede cobrar con billetera.",
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            } else {
+                                OutlinedButton(
+                                    onClick = viewModel::autorizarBilleteraContraentrega,
+                                    enabled = !estado.autorizandoBilletera,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(
+                                        if (estado.autorizandoBilletera) {
+                                            "Autorizando…"
+                                        } else {
+                                            "Autorizar cobro con billetera"
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (d.puedeCancelar && !estado.cancelado) {
+                        OutlinedButton(
+                            onClick = viewModel::cancelarPedido,
+                            enabled = !estado.cancelando,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(if (estado.cancelando) "Cancelando…" else "Cancelar pedido")
+                        }
+                    }
+                    if (estado.cancelado || d.estado.equals("CANCELADO", true)) {
+                        Text(
+                            "Pedido cancelado.",
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.error
+                        )
                     }
 
                     Text("Entrega", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)

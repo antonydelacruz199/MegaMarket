@@ -8,6 +8,13 @@ import org.junit.Test
 class ElegibilidadPickingTest {
 
     @Test
+    fun recibidoSiemprePuedeTomarse() {
+        assertTrue(puedePasarAEnPicking("RECIBIDO", null))
+        assertTrue(puedePasarAEnPicking("RECIBIDO", PagoDtoConsulta("ONLINE")))
+        assertTrue(puedePasarAEnPicking("RECIBIDO", PagoDtoConsulta("CONTRAENTREGA")))
+    }
+
+    @Test
     fun confirmadoSinPagoOContraentregaPuedeTomarse() {
         assertTrue(puedePasarAEnPicking("CONFIRMADO", null))
         assertTrue(puedePasarAEnPicking("CONFIRMADO", PagoDtoConsulta("CONTRAENTREGA")))
@@ -15,8 +22,7 @@ class ElegibilidadPickingTest {
     }
 
     @Test
-    fun onlineSinPagoConfirmadoNoPuedeTomarse() {
-        assertFalse(puedePasarAEnPicking("CONFIRMADO", PagoDtoConsulta("ONLINE")))
+    fun onlineConfirmadoPendienteNoPuedeTomarseComoLegado() {
         assertFalse(puedePasarAEnPicking("CONFIRMADO", PagoDtoConsulta("ONLINE")))
         assertFalse(puedePasarAEnPicking("CONFIRMADO", PagoDtoConsulta(null)))
     }

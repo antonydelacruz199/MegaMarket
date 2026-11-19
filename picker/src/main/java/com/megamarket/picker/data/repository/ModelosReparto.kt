@@ -97,6 +97,8 @@ data class Coordenadas(
 const val LIMITE_FOTO_BYTES = 5 * 1024 * 1024
 
 const val CODIGO_REQUIERE_PAGO = "ENTREGA_REQUIERE_PAGO"
+const val FORMA_COBRO_EFECTIVO = "EFECTIVO"
+const val FORMA_COBRO_BILLETERA = "BILLETERA"
 
 object MensajesEntrega {
     const val SOLO_REPARTIDOR = "Solo un repartidor puede consultar y registrar entregas."
@@ -114,6 +116,9 @@ object MensajesEntrega {
         "El servidor no confirmó el pago. La entrega sigue bloqueada."
     const val PAGO_SOLO_CONTRAENTREGA = "Solo se cobra con QR cuando el pago es contraentrega."
     const val PAGO_RESPUESTA_INVALIDA = "El servidor devolvió un pago incompleto."
+    const val ESTADO_LOGISTICO_ALTERADO =
+        "El cobro alteró el estado logístico del pedido. No se puede continuar la entrega."
+    const val PICKING_NO_CONFIRMADO = "El servidor no confirmó el paso a EN_PICKING."
 }
 
 private val UUID_ENTREGA = Regex(

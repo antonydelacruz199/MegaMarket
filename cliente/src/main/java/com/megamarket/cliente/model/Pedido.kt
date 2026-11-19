@@ -27,6 +27,7 @@ data class Pedido(
         get() = ModalidadPagoCheckout.desdeApi(modalidadPago)?.titulo
 
     companion object {
+        const val ESTADO_RECIBIDO = "RECIBIDO"
         const val ESTADO_CONFIRMADO = "CONFIRMADO"
         const val CONTRATO_V3 = 3
     }

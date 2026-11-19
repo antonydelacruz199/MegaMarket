@@ -22,7 +22,8 @@ async function conEsquema(fn) {
     for (const file of [
       '001_esquema_inicial.sql',
       '002_reservas.sql',
-      '003_operaciones_extendidas.sql'
+      '003_operaciones_extendidas.sql',
+      '005_pedido_recibido.sql'
     ]) {
       await pool.query(fs.readFileSync(path.join(__dirname, '../sql', file), 'utf8'));
     }
@@ -97,7 +98,7 @@ function direccion() {
   };
 }
 
-test('PostgreSQL checkout v3 exitoso crea CONFIRMADO, pago PENDIENTE y descuenta stock', { skip }, async () => {
+test('PostgreSQL checkout v3 exitoso crea RECIBIDO, pago PENDIENTE y descuenta stock', { skip }, async () => {
   await conEsquema(async (pool, pedidos) => {
     const { cliente, producto, franja } = await semillaBasica(pool);
     const cart = crypto.randomUUID();
@@ -116,7 +117,7 @@ test('PostgreSQL checkout v3 exitoso crea CONFIRMADO, pago PENDIENTE y descuenta
       items: [{ productoId: producto.id, cantidad: 2, precioEsperadoCentimos: 100 }]
     });
     assert.equal(res.code, 201);
-    assert.equal(res.body.pedido.estado, 'CONFIRMADO');
+    assert.equal(res.body.pedido.estado, 'RECIBIDO');
     assert.equal(res.body.pedido.franja_entrega_id, franja.id);
     assert.equal(res.body.pedido.preferencia_sustitucion, 'ACEPTAR');
     assert.equal(res.body.pago.estado, 'PENDIENTE');
@@ -148,7 +149,7 @@ test('PostgreSQL checkout v2 sin regresión (sin franja ni pagos)', { skip }, as
       items: [{ productoId: producto.id, cantidad: 1, precioEsperadoCentimos: 100 }]
     });
     assert.equal(res.code, 201);
-    assert.equal(res.body.pedido.estado, 'CONFIRMADO');
+    assert.equal(res.body.pedido.estado, 'RECIBIDO');
     assert.equal(res.body.pago, null);
     const { rows: pagos } = await pool.query(`SELECT id FROM pagos WHERE pedido_id=$1`, [
       res.body.pedido.id

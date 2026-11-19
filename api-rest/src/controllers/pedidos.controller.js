@@ -4,6 +4,7 @@ const { agruparItems, huella } = require('../reglas');
 const { asegurarCupoFranja } = require('../franjas');
 const { evaluarTransicion, puedeVerPedido } = require('../pedidosEstados');
 const { validarPreparacionCompleta } = require('../picking');
+const { liquidarDevolucionAjuste } = require('../billetera');
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -38,7 +39,7 @@ function validarDireccion(direccion) {
 
 function mapearPedido(fila) {
   if (!fila) return null;
-  return {
+  const base = {
     id: fila.id,
     clienteId: fila.cliente_id,
     clientUuid: fila.client_uuid,
@@ -54,6 +55,17 @@ function mapearPedido(fila) {
     createdAt: fila.created_at,
     updatedAt: fila.updated_at
   };
+  // Resumen de pago en listados (modalidad/estado) sin N+1 en el cliente.
+  if (fila.pago_modalidad || fila.pago_estado || fila.pago_id) {
+    base.pago = {
+      id: fila.pago_id || null,
+      modalidad: fila.pago_modalidad || null,
+      estado: fila.pago_estado || null,
+      montoCentimos:
+        fila.pago_monto_centimos == null ? null : Number(fila.pago_monto_centimos)
+    };
+  }
+  return base;
 }
 
 function mapearDetalle(fila) {
@@ -419,7 +431,7 @@ async function crear(req, res) {
            cliente_id, client_uuid, total_centimos, estado, solicitud_hash,
            franja_entrega_id, preferencia_sustitucion
          ) VALUES (
-           $1, $2, $3, 'CONFIRMADO', $4, $5, $6
+           $1, $2, $3, 'RECIBIDO', $4, $5, $6
          )
          RETURNING *`,
         [
@@ -437,7 +449,7 @@ async function crear(req, res) {
         `INSERT INTO pedidos (
            cliente_id, client_uuid, total_centimos, estado, solicitud_hash
          ) VALUES (
-           $1, $2, $3, 'CONFIRMADO', $4
+           $1, $2, $3, 'RECIBIDO', $4
          )
          RETURNING *`,
         [req.usuario.id, clientUuid, totalCentimos, solicitudHash]
@@ -560,8 +572,19 @@ async function listar(req, res) {
     const filtro = filtroVisibilidadSql(req.usuario, 'p');
     const params = [...filtro.params];
     let sql = `
-      SELECT p.*
+      SELECT p.*,
+             pg.id AS pago_id,
+             pg.modalidad AS pago_modalidad,
+             pg.estado AS pago_estado,
+             pg.monto_centimos AS pago_monto_centimos
       FROM pedidos p
+      LEFT JOIN LATERAL (
+        SELECT id, modalidad, estado, monto_centimos
+        FROM pagos
+        WHERE pedido_id = p.id
+        ORDER BY created_at DESC
+        LIMIT 1
+      ) pg ON true
       WHERE p.deleted_at IS NULL AND (${filtro.sql})
     `;
     if (req.query.estado) {
@@ -643,6 +666,95 @@ async function restituirStockCancelacion(cliente, pedidoId, usuarioId) {
   }
 }
 
+/**
+ * Devolución idempotente del cobro CONFIRMADO al cancelar antes de picking.
+ * Usa ajustes_pago (motivo OTRO) + liquidarDevolucionAjuste.
+ * @returns {{ ok, http?, codigo?, error?, liquidada?, ajuste?, movimientos? }}
+ */
+async function liquidarDevolucionCancelacion(cliente, { pedido, pago, usuarioId }) {
+  if (!pago || pago.estado !== 'CONFIRMADO') {
+    return { ok: true, liquidada: false };
+  }
+
+  const prevAjuste = await cliente.query(
+    `SELECT * FROM ajustes_pago
+     WHERE pago_id = $1 AND tipo = 'DEVOLUCION' AND motivo = 'OTRO'
+     ORDER BY created_at ASC
+     LIMIT 1
+     FOR UPDATE`,
+    [pago.id]
+  );
+
+  let ajuste = prevAjuste.rows[0] || null;
+  if (!ajuste) {
+    const insertado = await cliente.query(
+      `INSERT INTO ajustes_pago (
+         uuid_operacion, pago_id, tipo, motivo, monto_centimos, estado
+       ) VALUES ($1, $2, 'DEVOLUCION', 'OTRO', $3, 'PENDIENTE')
+       RETURNING *`,
+      [crypto.randomUUID(), pago.id, Number(pago.monto_centimos)]
+    );
+    ajuste = insertado.rows[0];
+  }
+
+  if (ajuste.estado === 'CONFIRMADO') {
+    return { ok: true, liquidada: true, ajuste, idempotente: true };
+  }
+
+  if (ajuste.estado !== 'PENDIENTE') {
+    return {
+      ok: false,
+      http: 409,
+      codigo: 'AJUSTE_NO_CONFIRMABLE',
+      error: `El ajuste de devolución está ${ajuste.estado}`
+    };
+  }
+
+  const liquidacion = await liquidarDevolucionAjuste(cliente, {
+    clienteUsuarioId: pedido.cliente_id,
+    montoCentimos: Number(ajuste.monto_centimos),
+    pagoId: pago.id,
+    ajustePagoId: ajuste.id,
+    pedidoId: pedido.id,
+    uuidOperacionCredito: crypto.randomUUID(),
+    uuidOperacionDebito: crypto.randomUUID()
+  });
+
+  if (!liquidacion.ok) {
+    return {
+      ok: false,
+      http: liquidacion.http || 409,
+      codigo: liquidacion.codigo,
+      error: liquidacion.error
+    };
+  }
+
+  const numeroOp = `MM-OP-CAN-${String(ajuste.id).replace(/-/g, '').slice(0, 10)}`;
+  const { rows: ajRows } = await cliente.query(
+    `UPDATE ajustes_pago
+     SET estado = 'CONFIRMADO',
+         numero_operacion_banco = COALESCE(numero_operacion_banco, $2),
+         referencia_banco = COALESCE(referencia_banco, $3),
+         fecha_confirmacion = COALESCE(fecha_confirmacion, now()),
+         updated_at = now()
+     WHERE id = $1
+     RETURNING *`,
+    [
+      ajuste.id,
+      numeroOp,
+      `MM-AJ-CAN-${String(usuarioId).replace(/-/g, '').slice(0, 8)}`
+    ]
+  );
+
+  return {
+    ok: true,
+    liquidada: true,
+    ajuste: ajRows[0],
+    movimientos: liquidacion.movimientos || [],
+    idempotente: Boolean(liquidacion.idempotente)
+  };
+}
+
 async function transicionar(req, res) {
   const cliente = await pool.connect();
   try {
@@ -687,8 +799,12 @@ async function transicionar(req, res) {
       });
     }
 
-    // Idempotencia del cierre: ya LISTO → 200 sin mutar ni tocar inventario.
-    if (hacia === 'LISTO' && pedido.estado === 'LISTO') {
+    // Idempotencia del cierre de preparación (CONFIRMADO o ya despachado a LISTO).
+    const cierreYaHecho =
+      (hacia === 'CONFIRMADO' &&
+        (pedido.estado === 'CONFIRMADO' || pedido.estado === 'LISTO' || pedido.estado === 'PAGADO')) ||
+      (hacia === 'LISTO' && pedido.estado === 'LISTO');
+    if (cierreYaHecho) {
       if (
         req.usuario.rol === 'PICKER' &&
         (!pedido.picker_id || pedido.picker_id !== req.usuario.id)
@@ -711,6 +827,32 @@ async function transicionar(req, res) {
     }
 
     const pago = await cargarPago(cliente, pedido.id);
+
+    // Cancelación con cobro confirmado: devolver saldo en la misma TX.
+    let devolucionLiquidada = false;
+    let devolucionInfo = null;
+    if (
+      hacia === 'CANCELADO' &&
+      ['RECIBIDO', 'EN_PICKING', 'CONFIRMADO', 'PAGADO', 'LISTO'].includes(pedido.estado) &&
+      pago &&
+      pago.estado === 'CONFIRMADO'
+    ) {
+      const dev = await liquidarDevolucionCancelacion(cliente, {
+        pedido,
+        pago,
+        usuarioId: req.usuario.id
+      });
+      if (!dev.ok) {
+        await cliente.query('ROLLBACK');
+        return res.status(dev.http || 409).json({
+          error: dev.error,
+          codigo: dev.codigo
+        });
+      }
+      devolucionLiquidada = Boolean(dev.liquidada);
+      devolucionInfo = dev;
+    }
+
     const evaluacion = evaluarTransicion({
       desde: pedido.estado,
       hacia,
@@ -718,7 +860,8 @@ async function transicionar(req, res) {
       usuarioId: req.usuario.id,
       pedido,
       pago,
-      origenInternoBancario: false
+      origenInternoBancario: false,
+      devolucionLiquidada
     });
 
     if (!evaluacion.ok) {
@@ -729,9 +872,8 @@ async function transicionar(req, res) {
       });
     }
 
-    if (hacia === 'LISTO') {
-      // Bloqueo de líneas + validación estricta (cantidades, sustituciones, ELIMINADO).
-      // Esta transición NO inserta movimientos de inventario.
+    if (hacia === 'CONFIRMADO' && pedido.estado === 'EN_PICKING') {
+      // Cierre de preparación: requiere líneas completas (sin tocar inventario).
       const validacion = await validarPreparacionCompleta(cliente, pedido.id);
       if (!validacion.ok) {
         await cliente.query('ROLLBACK');
@@ -740,6 +882,22 @@ async function transicionar(req, res) {
           codigo: validacion.codigo,
           impedimentos: validacion.impedimentos
         });
+      }
+    }
+    if (hacia === 'LISTO' && pedido.estado === 'EN_PICKING') {
+      await cliente.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'La preparación debe pasar primero a CONFIRMADO',
+        codigo: 'TRANSICION_INVALIDA'
+      });
+    }
+
+    // CONTRAENTREGA: tras CONFIRMADO, despachar a LISTO en la misma operación.
+    let autoListoTrasConfirmado = false;
+    if (hacia === 'CONFIRMADO' && pedido.estado === 'EN_PICKING') {
+      const modalidad = pago?.modalidad || null;
+      if (modalidad !== 'ONLINE') {
+        autoListoTrasConfirmado = true;
       }
     }
 
@@ -773,6 +931,7 @@ async function transicionar(req, res) {
     }
 
     // IMPORTANTE: esta transición NO inserta SALIDA_VENTA ni descuenta stock de venta.
+    let estadoFinal = hacia;
     await cliente.query(
       `UPDATE pedidos
        SET estado = $2,
@@ -782,8 +941,18 @@ async function transicionar(req, res) {
       [pedido.id, hacia, nextPicker, nextRepartidor]
     );
 
+    if (autoListoTrasConfirmado) {
+      await cliente.query(
+        `UPDATE pedidos SET estado = 'LISTO', updated_at = now()
+         WHERE id = $1 AND estado = 'CONFIRMADO'`,
+        [pedido.id]
+      );
+      estadoFinal = 'LISTO';
+    }
+
     if (hacia === 'CANCELADO') {
       await restituirStockCancelacion(cliente, pedido.id, req.usuario.id);
+      // Cupo de franja se libera al pasar a CANCELADO (ocupación = no CANCELADO).
       if (pago && !['CONFIRMADO', 'CANCELADO', 'EXPIRADO'].includes(pago.estado)) {
         await cliente.query(
           `UPDATE pagos SET estado = 'CANCELADO', updated_at = now() WHERE id = $1`,
@@ -794,17 +963,31 @@ async function transicionar(req, res) {
 
     const completo = await cargarPedidoCompleto(cliente, pedido.id);
     await cliente.query('COMMIT');
-    return res.status(200).json({
+    const respuesta = {
       pedido: completo.pedido,
       detalles: completo.detalles,
       direccion: completo.direccion,
       pago: completo.pago
-    });
+    };
+    if (devolucionInfo && devolucionInfo.liquidada) {
+      respuesta.devolucion = {
+        aplicada: true,
+        ajusteId: devolucionInfo.ajuste?.id || null,
+        idempotente: Boolean(devolucionInfo.idempotente)
+      };
+    }
+    return res.status(200).json(respuesta);
   } catch (error) {
     try {
       await cliente.query('ROLLBACK');
     } catch (_e) {
       // ignore
+    }
+    if (error && error.code === '23505') {
+      return res.status(409).json({
+        error: 'Operación de cancelación/devolución duplicada',
+        codigo: 'CANCELACION_DUPLICADA'
+      });
     }
     console.error('Error al transicionar pedido:', error.message);
     return res.status(500).json({ error: 'No se pudo actualizar el estado del pedido' });
@@ -821,5 +1004,6 @@ module.exports = {
   // exportados para pruebas / fases posteriores
   cargarPedidoCompleto,
   restituirStockCancelacion,
+  liquidarDevolucionCancelacion,
   evaluarTransicionBancaria: evaluarTransicion
 };

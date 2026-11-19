@@ -40,8 +40,11 @@ import java.io.IOException
 class PedidosPickerRepositoryTest {
 
     @Test
-    fun disponiblesExcluyenOnlineSinPagoYConservanContraentregaYPagado() = runBlocking {
+    fun disponiblesIncluyenRecibidoYLegadoSinOnlinePendienteConfirmado() = runBlocking {
         val api = ApiFalsa()
+        api.listas["RECIBIDO"] = Response.success(
+            PedidosResponse(listOf(pedido("nuevo", "RECIBIDO", "2026-11-15T07:00:00.000Z")))
+        )
         api.listas["CONFIRMADO"] = Response.success(
             PedidosResponse(
                 listOf(
@@ -54,19 +57,23 @@ class PedidosPickerRepositoryTest {
         api.listas["PAGADO"] = Response.success(
             PedidosResponse(listOf(pedido("pagado", "PAGADO", "2026-11-15T11:00:00.000Z")))
         )
+        api.detalles["nuevo"] = Response.success(
+            PedidoCompletoResponse(pedido("nuevo", "RECIBIDO"), PagoDto("ONLINE", "PENDIENTE"))
+        )
         api.detalles["online"] = detalle("online", PagoDto("ONLINE", "PENDIENTE"))
         api.detalles["contra"] = detalle("contra", PagoDto("CONTRAENTREGA", "PENDIENTE"))
         api.detalles["legado"] = detalle("legado", null)
         api.picking = Response.success(PickingListaResponse(emptyList()))
 
         val tablero = (repositorio(api).cargarTablero() as ResultadoOperacion.Exito).valor
-        assertEquals(listOf("legado", "contra", "pagado"), tablero.disponibles.map { it.id })
-        assertEquals("CONTRAENTREGA", tablero.disponibles[1].modalidad)
+        assertEquals(listOf("nuevo", "legado", "contra", "pagado"), tablero.disponibles.map { it.id })
+        assertEquals("CONTRAENTREGA", tablero.disponibles[2].modalidad)
     }
 
     @Test
     fun asignadosVienenDePickingYElDetalleRespetaElPasillo() = runBlocking {
         val api = ApiFalsa()
+        api.listas["RECIBIDO"] = Response.success(PedidosResponse(emptyList()))
         api.listas["CONFIRMADO"] = Response.success(PedidosResponse(emptyList()))
         api.listas["PAGADO"] = Response.success(PedidosResponse(emptyList()))
         api.picking = Response.success(
@@ -142,7 +149,7 @@ class PedidosPickerRepositoryTest {
     @Test
     fun tokenInvalidoEsSesionVencida() = runBlocking {
         val api = ApiFalsa()
-        api.listas["CONFIRMADO"] = httpError(401, """{"error":"Token inválido o expirado"}""")
+        api.listas["RECIBIDO"] = httpError(401, """{"error":"Token inválido o expirado"}""")
         val resultado = repositorio(api).cargarTablero() as ResultadoOperacion.Error
         assertEquals(TipoErrorPedido.SESION, resultado.tipo)
     }
@@ -169,6 +176,7 @@ class PedidosPickerRepositoryTest {
     @Test
     fun pedidoAjenoNoSeOfrece() = runBlocking {
         val api = ApiFalsa()
+        api.listas["RECIBIDO"] = Response.success(PedidosResponse(emptyList()))
         api.listas["CONFIRMADO"] = Response.success(
             PedidosResponse(listOf(pedido("ajeno", "CONFIRMADO", pickerId = "otro")))
         )

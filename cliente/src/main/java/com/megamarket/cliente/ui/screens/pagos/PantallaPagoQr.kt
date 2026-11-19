@@ -170,7 +170,7 @@ private fun ContenidoPago(
                     Text(it, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
                 }
                 Text(
-                    "Usa «Pagar ahora» para confirmar el cobro. El código QR es solo informativo.",
+                    "Usa «Realizar pago» para confirmar el cobro con tu billetera. El código QR es opcional e informativo.",
                     style = MaterialTheme.typography.bodySmall,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -180,7 +180,7 @@ private fun ContenidoPago(
                     enabled = !estado.confirmando && !estado.cargando,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(if (estado.confirmando) "Confirmando…" else "Pagar ahora")
+                    Text(if (estado.confirmando) "Confirmando…" else "Realizar pago")
                 }
                 OutlinedButton(
                     onClick = alActualizar,
@@ -200,7 +200,7 @@ private fun ContenidoPago(
                     }
                     ImagenQr(contenido = qr.contenido)
                     Text(
-                        "Ver el código no confirma el pago. Pulsa «Pagar ahora» arriba para cobrar.",
+                        "Ver el código no confirma el pago. Pulsa «Realizar pago» para cobrar.",
                         style = MaterialTheme.typography.bodySmall,
                         textAlign = TextAlign.Center
                     )
@@ -218,7 +218,7 @@ private fun ContenidoPago(
                         enabled = !estado.confirmando && !estado.cargando,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(if (estado.confirmando) "Confirmando…" else "Pagar ahora")
+                        Text(if (estado.confirmando) "Confirmando…" else "Realizar pago")
                     }
                 } else {
                     OutlinedButton(

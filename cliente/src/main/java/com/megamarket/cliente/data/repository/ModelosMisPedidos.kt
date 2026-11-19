@@ -19,10 +19,12 @@ enum class FiltroMisPedidos(val etiqueta: String) {
         val e = estado.trim().uppercase()
         return when (this) {
             TODOS -> true
-            // Solo ONLINE explícito pendiente de cobro. Sin modalidad no se asume.
-            PENDIENTES_PAGO -> e == "CONFIRMADO" &&
-                modalidadPago.equals("ONLINE", ignoreCase = true)
-            EN_PREPARACION -> e == "PAGADO" || e == "EN_PICKING"
+            // ONLINE tras CONFIRMADO; CONTRAENTREGA en entrega.
+            PENDIENTES_PAGO ->
+                (e == "CONFIRMADO" && modalidadPago.equals("ONLINE", ignoreCase = true)) ||
+                    ((e == "LISTO" || e == "EN_CAMINO") &&
+                        modalidadPago.equals("CONTRAENTREGA", ignoreCase = true))
+            EN_PREPARACION -> e == "RECIBIDO" || e == "EN_PICKING" || e == "PAGADO"
             LISTOS -> e == "LISTO"
             EN_CAMINO -> e == "EN_CAMINO"
             ENTREGADOS -> e == "ENTREGADO"
@@ -96,11 +98,40 @@ data class PedidoDetalleCliente(
             ?: pago?.modalidad
             ?: "Sin modalidad"
 
-    /** ONLINE con pago aún no CONFIRMADO en el servidor: el cliente puede pagar con el QR simulado. */
+    /**
+     * ONLINE tras CONFIRMADO, o CONTRAENTREGA en entrega (LISTO/EN_CAMINO) con billetera.
+     */
     val puedePagarConQr: Boolean
-        get() = pago?.modalidad.equals(MODALIDAD_ONLINE, ignoreCase = true) &&
+        get() {
+            if (pago?.estado.equals(ESTADO_PAGO_CONFIRMADO, ignoreCase = true) == true) {
+                return false
+            }
+            val e = estado.trim().uppercase()
+            val modalidad = pago?.modalidad
+            if (modalidad.equals(MODALIDAD_ONLINE, ignoreCase = true)) {
+                return e == "CONFIRMADO"
+            }
+            if (modalidad.equals(MODALIDAD_CONTRAENTREGA, ignoreCase = true)) {
+                return e == "LISTO" || e == "EN_CAMINO"
+            }
+            return false
+        }
+
+    /**
+     * Cancelación del cliente: RECIBIDO, EN_PICKING, CONFIRMADO o PAGADO
+     * (antes de despacho). Con cobro confirmado el servidor aplica devolución.
+     */
+    val puedeCancelar: Boolean
+        get() {
+            val e = estado.trim().uppercase()
+            return e == "RECIBIDO" || e == "EN_PICKING" || e == "CONFIRMADO" || e == "PAGADO"
+        }
+
+    /** Autorizar débito de billetera en contraentrega durante la entrega. */
+    val puedeAutorizarBilletera: Boolean
+        get() = pago?.modalidad.equals(MODALIDAD_CONTRAENTREGA, ignoreCase = true) &&
             !pago?.estado.equals(ESTADO_PAGO_CONFIRMADO, ignoreCase = true) &&
-            !estado.trim().uppercase().let { it == "CANCELADO" || it == "ENTREGADO" }
+            estado.trim().uppercase().let { it == "LISTO" || it == "EN_CAMINO" }
 
     val franjaVisible: String
         get() = franjaEtiqueta
@@ -109,9 +140,9 @@ data class PedidoDetalleCliente(
     fun etapasProgreso(): List<EtapaProgresoPedido> {
         val contraentrega = pago?.modalidad.equals("CONTRAENTREGA", ignoreCase = true)
         val secuencia = if (contraentrega) {
-            listOf("CONFIRMADO", "EN_PICKING", "LISTO", "EN_CAMINO", "ENTREGADO")
+            listOf("RECIBIDO", "EN_PICKING", "CONFIRMADO", "LISTO", "EN_CAMINO", "ENTREGADO")
         } else {
-            listOf("CONFIRMADO", "PAGADO", "EN_PICKING", "LISTO", "EN_CAMINO", "ENTREGADO")
+            listOf("RECIBIDO", "EN_PICKING", "CONFIRMADO", "PAGADO", "LISTO", "EN_CAMINO", "ENTREGADO")
         }
         val actual = estado.trim().uppercase()
         if (actual == "CANCELADO") {

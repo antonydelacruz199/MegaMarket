@@ -25,7 +25,8 @@ async function conEsquema(fn) {
     for (const file of [
       '001_esquema_inicial.sql',
       '002_reservas.sql',
-      '003_operaciones_extendidas.sql'
+      '003_operaciones_extendidas.sql',
+      '005_pedido_recibido.sql'
     ]) {
       await pool.query(fs.readFileSync(path.join(__dirname, '../sql', file), 'utf8'));
     }
@@ -136,8 +137,9 @@ test(
         [crypto.randomUUID(), pedido.id]
       );
 
+      await pool.query(`UPDATE pedidos SET estado='RECIBIDO' WHERE id=$1`, [pedido.id]);
       const evalPick = evaluarTransicion({
-        desde: 'CONFIRMADO',
+        desde: 'RECIBIDO',
         hacia: 'EN_PICKING',
         rol: 'ADMINISTRADOR',
         usuarioId: admin.id,
@@ -145,7 +147,8 @@ test(
           id: pedido.id,
           cliente_id: cliente.id,
           picker_id: null,
-          repartidor_id: null
+          repartidor_id: null,
+          estado: 'RECIBIDO'
         },
         pago: { modalidad: 'CONTRAENTREGA', estado: 'PENDIENTE' },
         origenInternoBancario: false
@@ -194,7 +197,24 @@ test(
         [pedido.id]
       );
       assert.equal(pagos.length, 0);
+      // Histórico CONFIRMADO (prep validada / legado) puede ir a LISTO, no volver a picking.
       const legado = evaluarTransicion({
+        desde: 'CONFIRMADO',
+        hacia: 'LISTO',
+        rol: 'ADMINISTRADOR',
+        usuarioId: cliente.id,
+        pedido: {
+          id: pedido.id,
+          cliente_id: cliente.id,
+          picker_id: null,
+          repartidor_id: null,
+          estado: 'CONFIRMADO'
+        },
+        pago: null,
+        origenInternoBancario: false
+      });
+      assert.equal(legado.ok, true);
+      const noVolver = evaluarTransicion({
         desde: 'CONFIRMADO',
         hacia: 'EN_PICKING',
         rol: 'ADMINISTRADOR',
@@ -203,12 +223,14 @@ test(
           id: pedido.id,
           cliente_id: cliente.id,
           picker_id: null,
-          repartidor_id: null
+          repartidor_id: null,
+          estado: 'CONFIRMADO'
         },
         pago: null,
         origenInternoBancario: false
       });
-      assert.equal(legado.ok, true);
+      assert.equal(noVolver.ok, false);
+      assert.equal(noVolver.codigo, 'TRANSICION_INVALIDA');
     });
   }
 );

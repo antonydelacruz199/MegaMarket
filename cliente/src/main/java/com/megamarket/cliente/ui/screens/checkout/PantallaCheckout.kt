@@ -396,7 +396,7 @@ private fun AccionesPaso(estado: CheckoutUiState, viewModel: CheckoutViewModel) 
         PasoCheckout.RESUMEN -> {
             Text(
                 text = if (estado.modalidadPago == ModalidadPagoCheckout.ONLINE) {
-                    "Al confirmar verás el resumen final para pagar ahora o cancelar el pedido."
+                    "Al confirmar verás el resumen final con las opciones Realizar pago y Pagar con QR."
                 } else {
                     "Al confirmar verás el resumen final. Podrás cancelar mientras el pedido siga confirmado."
                 },

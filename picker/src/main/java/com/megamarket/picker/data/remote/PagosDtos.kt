@@ -44,7 +44,11 @@ data class PagoPedidoResponse(
     val pedidoId: String? = null
 )
 
-data class ConfirmarPagoRequest(val uuidOperacion: String)
+data class ConfirmarPagoRequest(
+    val uuidOperacion: String,
+    val formaCobro: String? = null,
+    val autorizacionClienteUuid: String? = null
+)
 
 data class PedidoEstadoPagoDto(
     val id: String? = null,

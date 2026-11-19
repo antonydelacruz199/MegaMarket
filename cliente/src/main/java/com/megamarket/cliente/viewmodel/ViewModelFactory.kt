@@ -46,7 +46,8 @@ class ViewModelFactory(
                     extras.createSavedStateHandle(),
                     container.pedidoRepository,
                     container.pagosRepository,
-                    container.sincronizacionRepository
+                    container.sincronizacionRepository,
+                    container.misPedidosRepository
                 )
             modelClass.isAssignableFrom(PerfilViewModel::class.java) ->
                 PerfilViewModel(container.sesionRepository,container.pedidoRepository)
@@ -65,7 +66,8 @@ class ViewModelFactory(
                 DetallePedidoViewModel(
                     extras.createSavedStateHandle(),
                     container.misPedidosRepository,
-                    container.sustitucionesRepository
+                    container.sustitucionesRepository,
+                    container.pagosRepository
                 )
             modelClass.isAssignableFrom(PagoQrViewModel::class.java) ->
                 PagoQrViewModel(

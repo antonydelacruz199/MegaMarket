@@ -33,7 +33,24 @@ data class PagoResponse(
     val codigo: String? = null
 )
 
-data class ConfirmarPagoRequest(val uuidOperacion: String)
+data class ConfirmarPagoRequest(
+    val uuidOperacion: String,
+    val formaCobro: String? = null,
+    val autorizacionClienteUuid: String? = null
+)
+
+data class AutorizarBilleteraResponse(
+    val autorizacionUuid: String? = null,
+    val pagoId: String? = null,
+    val pedidoId: String? = null,
+    val montoCentimos: Long? = null,
+    val vigencia: String? = null,
+    val simulacion: Boolean? = null,
+    val aviso: String? = null,
+    val idempotente: Boolean? = null,
+    val error: String? = null,
+    val codigo: String? = null
+)
 
 data class PedidoEstadoPagoDto(
     val id: String? = null,

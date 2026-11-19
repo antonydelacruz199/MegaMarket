@@ -116,6 +116,13 @@ interface ApiService {
         @Header("X-Expected-User") owner: String
     ): Response<ConfirmarPagoResponse>
 
+    @POST("api/pagos/{id}/autorizar-billetera")
+    suspend fun autorizarBilleteraPago(
+        @Path("id") id: String,
+        @Body body: ConfirmarPagoRequest,
+        @Header("X-Expected-User") owner: String
+    ): Response<AutorizarBilleteraResponse>
+
     @POST("api/pagos/ajustes/{id}/confirmar")
     suspend fun confirmarAjustePago(
         @Path("id") id: String,

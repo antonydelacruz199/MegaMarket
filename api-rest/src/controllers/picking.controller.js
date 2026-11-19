@@ -419,15 +419,16 @@ async function escanear(req, res) {
 
     // Invariante: el escaneo normal no emite SALIDA_VENTA; el de sustituto solo AJUSTE_* al cerrar.
     const lineas = await cargarLineasPedido(cliente, prep.pedido.id);
-    const pasoAListo = await intentarMarcarListo(cliente, prep.pedido.id);
+    const estadoTrasCierre = await intentarMarcarListo(cliente, prep.pedido.id);
     await cliente.query('COMMIT');
     return res.status(201).json({
       idempotente: false,
       escaneo: mapearEscaneo(escaneo),
       detalle: lineas.find((l) => l.id === detalle.id),
       detalles: lineas,
-      pedidoListo: pasoAListo,
-      estadoPedido: pasoAListo ? 'LISTO' : prep.pedido.estado
+      pedidoListo: estadoTrasCierre === 'LISTO',
+      pedidoConfirmado: Boolean(estadoTrasCierre),
+      estadoPedido: estadoTrasCierre || prep.pedido.estado
     });
   } catch (error) {
     try {
@@ -686,7 +687,7 @@ async function eliminarLinea(req, res) {
       );
     }
 
-    const pasoAListo = await intentarMarcarListo(cliente, pedido.id);
+    const estadoTrasCierre = await intentarMarcarListo(cliente, pedido.id);
     const lineas = await cargarLineasPedido(cliente, pedido.id);
     await cliente.query('COMMIT');
     return res.status(200).json({
@@ -695,8 +696,9 @@ async function eliminarLinea(req, res) {
       detalles: lineas,
       ajuste: mapearAjuste(ajuste),
       inventarioRestituido: inventario.cantidad || 0,
-      pedidoListo: pasoAListo,
-      estadoPedido: pasoAListo ? 'LISTO' : pedido.estado
+      pedidoListo: estadoTrasCierre === 'LISTO',
+      pedidoConfirmado: Boolean(estadoTrasCierre),
+      estadoPedido: estadoTrasCierre || pedido.estado
     });
   } catch (error) {
     try {

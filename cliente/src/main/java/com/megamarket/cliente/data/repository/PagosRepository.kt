@@ -80,13 +80,18 @@ class PagosRepository(
      */
     suspend fun confirmar(
         pagoId: String,
-        uuidOperacion: String
+        uuidOperacion: String,
+        formaCobro: String? = null
     ): ResultadoPagos<ConfirmacionPagoCliente> = withContext(io) {
         val owner = usuarioRemotoId() ?: return@withContext sesionVencidaPago()
         val id = pagoId.trim()
         if (id.isEmpty()) return@withContext noEncontradoPago()
         try {
-            val respuesta = api.confirmarPago(id, ConfirmarPagoRequest(uuidOperacion), owner)
+            val respuesta = api.confirmarPago(
+                id,
+                ConfirmarPagoRequest(uuidOperacion, formaCobro = formaCobro),
+                owner
+            )
             if (!respuesta.isSuccessful) return@withContext falloPago(respuesta)
             val cuerpo = respuesta.body()
             val pago = cuerpo?.pago?.aPagoCliente()
@@ -114,8 +119,8 @@ class PagosRepository(
     }
 
     /**
-     * Cancela un pedido CONFIRMADO sin cobro confirmado (p. ej. ONLINE pendiente).
-     * El servidor rechaza si el pago ya está CONFIRMADO.
+     * Cancela un pedido antes de picking (CONFIRMADO o PAGADO).
+     * Si ya hay cobro confirmado, el servidor aplica devolución transaccional.
      */
     suspend fun cancelarPedido(pedidoId: String): ResultadoPagos<Unit> = withContext(io) {
         val owner = usuarioRemotoId() ?: return@withContext sesionVencidaPago()
@@ -129,6 +134,34 @@ class PagosRepository(
             )
             if (!respuesta.isSuccessful) return@withContext falloPago(respuesta)
             ResultadoPagos.Exito(Unit)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: IOException) {
+            falloRedPago(error)
+        }
+    }
+
+    /**
+     * Autoriza el débito de billetera para un cobro CONTRAENTREGA.
+     * El uuid se reutiliza en reintentos y se entrega al repartidor vía API.
+     */
+    suspend fun autorizarBilletera(
+        pagoId: String,
+        uuidOperacion: String
+    ): ResultadoPagos<String> = withContext(io) {
+        val owner = usuarioRemotoId() ?: return@withContext sesionVencidaPago()
+        val id = pagoId.trim()
+        if (id.isEmpty()) return@withContext noEncontradoPago()
+        try {
+            val respuesta = api.autorizarBilleteraPago(
+                id,
+                ConfirmarPagoRequest(uuidOperacion),
+                owner
+            )
+            if (!respuesta.isSuccessful) return@withContext falloPago(respuesta)
+            val uuid = respuesta.body()?.autorizacionUuid?.trim().orEmpty()
+            if (uuid.isEmpty()) return@withContext respuestaInvalidaPago()
+            ResultadoPagos.Exito(uuid)
         } catch (error: CancellationException) {
             throw error
         } catch (error: IOException) {

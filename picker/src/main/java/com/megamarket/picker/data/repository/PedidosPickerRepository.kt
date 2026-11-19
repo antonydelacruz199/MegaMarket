@@ -50,6 +50,9 @@ class PedidosPickerRepository(
         val owner = almacen.usuarioActivoId()
             ?: return@withContext sesionVencida()
         try {
+            val recibidos = listarEstado("RECIBIDO", owner)
+            if (recibidos is ResultadoOperacion.Error) return@withContext recibidos
+            // Legado: pedidos creados como CONFIRMADO/PAGADO antes del flujo RECIBIDO.
             val confirmados = listarEstado("CONFIRMADO", owner)
             if (confirmados is ResultadoOperacion.Error) return@withContext confirmados
             val pagados = listarEstado("PAGADO", owner)
@@ -57,7 +60,8 @@ class PedidosPickerRepository(
             val picking = listarAsignados(owner)
             if (picking is ResultadoOperacion.Error) return@withContext picking
 
-            val candidatos = ((confirmados as ResultadoOperacion.Exito).valor +
+            val candidatos = ((recibidos as ResultadoOperacion.Exito).valor +
+                (confirmados as ResultadoOperacion.Exito).valor +
                 (pagados as ResultadoOperacion.Exito).valor)
                 .filter { perteneceAlPicker(it.pickerId, owner) }
                 .distinctBy { it.id }
@@ -89,6 +93,14 @@ class PedidosPickerRepository(
                 owner = owner
             )
             if (!respuesta.isSuccessful) return@withContext fallo(respuesta)
+            val estado = respuesta.body()?.pedido?.estado?.trim().orEmpty()
+            if (!estado.equals("EN_PICKING", ignoreCase = true)) {
+                return@withContext ResultadoOperacion.Error(
+                    TipoErrorPedido.SERVIDOR,
+                    MensajesEntrega.PICKING_NO_CONFIRMADO,
+                    "ESTADO_NO_CONFIRMADO"
+                )
+            }
             ResultadoOperacion.Exito(pedidoId)
         } catch (error: CancellationException) {
             throw error
@@ -118,14 +130,14 @@ class PedidosPickerRepository(
         }
     }
 
-    /** Pasa EN_PICKING → LISTO para que el pedido entre al pool de delivery. */
+    /** Pasa EN_PICKING → CONFIRMADO (preparación validada; ONLINE paga después). */
     suspend fun marcarListo(pedidoId: String): ResultadoOperacion<String> = withContext(io) {
         val owner = almacen.usuarioActivoId()
             ?: return@withContext sesionVencida()
         try {
             val respuesta = api.transicionarPedido(
                 id = pedidoId,
-                body = TransicionPedidoRequest(estado = "LISTO"),
+                body = TransicionPedidoRequest(estado = "CONFIRMADO"),
                 owner = owner
             )
             if (!respuesta.isSuccessful) return@withContext fallo(respuesta)
@@ -553,6 +565,7 @@ class PedidosPickerRepository(
         val resultados = candidatos.map { pedido ->
             async {
                 when (pedido.estado) {
+                    "RECIBIDO" -> ResultadoOperacion.Exito(pedido.aDisponible(modalidad = null))
                     "PAGADO" -> ResultadoOperacion.Exito(pedido.aDisponible(modalidad = null))
                     "CONFIRMADO" -> consultarConfirmado(pedido, owner)
                     else -> ResultadoOperacion.Exito(null)

@@ -1,9 +1,12 @@
 /**
- * Reglas de transición de pedidos.estado (Fase 2.1 / 2.2).
- * PAGADO nunca se acepta desde clientes Android: solo tras pago bancario verificado.
+ * Reglas de transición de pedidos.estado.
+ * Flujo: RECIBIDO → EN_PICKING → CONFIRMADO → (PAGADO si ONLINE) → LISTO → EN_CAMINO → ENTREGADO
+ * CONFIRMADO = preparación validada (no creación).
+ * PAGADO solo tras cobro ONLINE verificado en servidor.
  */
 
 const ESTADOS = Object.freeze([
+  'RECIBIDO',
   'CONFIRMADO',
   'PAGADO',
   'EN_PICKING',
@@ -13,29 +16,35 @@ const ESTADOS = Object.freeze([
   'CANCELADO'
 ]);
 
-/** Transiciones estructurales (sin reglas de pago/rol). */
 const TRANSICIONES = Object.freeze({
-  CONFIRMADO: new Set(['PAGADO', 'EN_PICKING', 'CANCELADO']),
-  PAGADO: new Set(['EN_PICKING', 'CANCELADO']),
-  EN_PICKING: new Set(['PAGADO', 'LISTO', 'CANCELADO']),
-  LISTO: new Set(['PAGADO', 'EN_CAMINO', 'CANCELADO']),
-  EN_CAMINO: new Set(['PAGADO', 'ENTREGADO', 'CANCELADO']),
-  ENTREGADO: new Set(['PAGADO']),
+  RECIBIDO: new Set(['EN_PICKING', 'CANCELADO']),
+  EN_PICKING: new Set(['CONFIRMADO', 'CANCELADO']),
+  CONFIRMADO: new Set(['PAGADO', 'LISTO', 'CANCELADO']),
+  PAGADO: new Set(['LISTO', 'CANCELADO']),
+  LISTO: new Set(['EN_CAMINO', 'CANCELADO']),
+  EN_CAMINO: new Set(['ENTREGADO', 'CANCELADO']),
+  ENTREGADO: new Set(),
   CANCELADO: new Set()
 });
 
 /**
  * @param {object} ctx
- * @param {string} ctx.desde
- * @param {string} ctx.hacia
- * @param {string} ctx.rol
- * @param {string} ctx.usuarioId
- * @param {object} ctx.pedido
- * @param {object|null} ctx.pago — fila pagos o null (legado)
- * @param {boolean} [ctx.origenInternoBancario] — solo true en verificación servidor
+ * @param {boolean} [ctx.origenInternoBancario]
+ * @param {boolean} [ctx.devolucionLiquidada]
+ * @param {boolean} [ctx.origenInternoPreparacion] — cierre de picking / sistema
  */
 function evaluarTransicion(ctx) {
-  const { desde, hacia, rol, usuarioId, pedido, pago, origenInternoBancario } = ctx;
+  const {
+    desde,
+    hacia,
+    rol,
+    usuarioId,
+    pedido,
+    pago,
+    origenInternoBancario,
+    devolucionLiquidada,
+    origenInternoPreparacion
+  } = ctx;
 
   if (!ESTADOS.includes(desde) || !ESTADOS.includes(hacia)) {
     return { ok: false, http: 400, codigo: 'ESTADO_INVALIDO', error: 'Estado no reconocido' };
@@ -74,28 +83,39 @@ function evaluarTransicion(ctx) {
         error: 'No hay cobro bancario confirmado para este pedido'
       };
     }
-  }
-
-  if (hacia === 'EN_PICKING' && desde === 'CONFIRMADO') {
-    const modalidad = pago ? pago.modalidad : null;
-    const legadoSinPago = !pago;
-    const contraentrega = modalidad === 'CONTRAENTREGA';
-    const onlinePagado = false; // desde CONFIRMADO online no está PAGADO
-    if (!legadoSinPago && !contraentrega && !onlinePagado) {
-      // ONLINE con pago pendiente
-      if (modalidad === 'ONLINE') {
-        return {
-          ok: false,
-          http: 409,
-          codigo: 'PICKING_REQUIERE_PAGO',
-          error: 'El pago online debe confirmarse antes de iniciar el picking'
-        };
-      }
+    if (pago.modalidad !== 'ONLINE') {
       return {
         ok: false,
         http: 409,
-        codigo: 'PICKING_NO_PERMITIDO',
-        error: 'No se puede iniciar picking en el estado de pago actual'
+        codigo: 'PAGADO_SOLO_ONLINE',
+        error: 'PAGADO aplica solo a pedidos ONLINE'
+      };
+    }
+  }
+
+  // CONFIRMADO = preparación completa (picker o job interno).
+  if (hacia === 'CONFIRMADO' && desde === 'EN_PICKING') {
+    if (rol === 'PICKER' || rol === 'ADMINISTRADOR' || origenInternoPreparacion) {
+      // ok más abajo por rol
+    } else {
+      return {
+        ok: false,
+        http: 403,
+        codigo: 'PERMISO_DENEGADO',
+        error: 'Solo el picker puede confirmar la preparación'
+      };
+    }
+  }
+
+  // LISTO desde CONFIRMADO: CONTRAENTREGA (sin cobro previo) o sistema tras PAGADO.
+  if (hacia === 'LISTO' && desde === 'CONFIRMADO') {
+    const modalidad = pago ? pago.modalidad : null;
+    if (modalidad === 'ONLINE' && !origenInternoPreparacion) {
+      return {
+        ok: false,
+        http: 409,
+        codigo: 'LISTO_REQUIERE_PAGO',
+        error: 'El pago online debe confirmarse antes de despachar'
       };
     }
   }
@@ -109,10 +129,9 @@ function evaluarTransicion(ctx) {
     };
   }
 
-  // Cobro bancario confirmado: no cancelar sin gestionar devolución primero.
   if (hacia === 'CANCELADO') {
     const pagoConfirmado = pago && pago.estado === 'CONFIRMADO';
-    if (pagoConfirmado || desde === 'PAGADO') {
+    if ((pagoConfirmado || desde === 'PAGADO') && !devolucionLiquidada) {
       return {
         ok: false,
         http: 409,
@@ -123,7 +142,6 @@ function evaluarTransicion(ctx) {
     }
   }
 
-  // Autorización por rol
   if (rol === 'ADMINISTRADOR') {
     if (hacia === 'PAGADO' && !origenInternoBancario) {
       return {
@@ -145,19 +163,21 @@ function evaluarTransicion(ctx) {
         error: 'El cliente solo puede cancelar sus propios pedidos permitidos'
       };
     }
-    if (desde !== 'CONFIRMADO') {
+    // Cancelación cliente: antes de despacho (LISTO) y sin cobro, o con devolución.
+    if (!['RECIBIDO', 'EN_PICKING', 'CONFIRMADO', 'PAGADO'].includes(desde)) {
       return {
         ok: false,
         http: 409,
         codigo: 'CANCELACION_NO_PERMITIDA',
-        error: 'Solo se puede cancelar un pedido CONFIRMADO sin cobro bancario confirmado'
+        error:
+          'Solo se puede cancelar antes del despacho; en ruta requiere gestión administrativa'
       };
     }
     return { ok: true };
   }
 
   if (rol === 'PICKER') {
-    if (!['EN_PICKING', 'LISTO'].includes(hacia)) {
+    if (!['EN_PICKING', 'CONFIRMADO', 'LISTO'].includes(hacia)) {
       return {
         ok: false,
         http: 403,
@@ -165,25 +185,27 @@ function evaluarTransicion(ctx) {
         error: 'El picker no puede aplicar esa transición'
       };
     }
-    // Cerrar a LISTO exige asignación explícita del picker.
-    if (hacia === 'LISTO') {
+    if (hacia === 'EN_PICKING') {
+      if (pedido.picker_id && pedido.picker_id !== usuarioId) {
+        return {
+          ok: false,
+          http: 403,
+          codigo: 'PEDIDO_NO_ASIGNADO',
+          error: 'El pedido está asignado a otro picker'
+        };
+      }
+      return { ok: true };
+    }
+    if (hacia === 'CONFIRMADO' || hacia === 'LISTO') {
       if (!pedido.picker_id || pedido.picker_id !== usuarioId) {
         return {
           ok: false,
           http: 403,
           codigo: 'PEDIDO_NO_ASIGNADO',
-          error: 'Solo el picker asignado puede marcar el pedido como LISTO'
+          error: 'Solo el picker asignado puede cerrar la preparación'
         };
       }
       return { ok: true };
-    }
-    if (pedido.picker_id && pedido.picker_id !== usuarioId) {
-      return {
-        ok: false,
-        http: 403,
-        codigo: 'PEDIDO_NO_ASIGNADO',
-        error: 'El pedido está asignado a otro picker'
-      };
     }
     return { ok: true };
   }

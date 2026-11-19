@@ -25,7 +25,8 @@ async function conEsquema(fn) {
       '001_esquema_inicial.sql',
       '002_reservas.sql',
       '003_operaciones_extendidas.sql',
-      '004_billetera_simulada.sql'
+      '004_billetera_simulada.sql',
+      '005_pedido_recibido.sql'
     ]) {
       await pool.query(fs.readFileSync(path.join(__dirname, '../sql', file), 'utf8'));
     }
@@ -44,6 +45,7 @@ async function conEsquema(fn) {
     };
     bust('../src/billetera');
     bust('../src/pagos');
+    bust('../src/pedidosEstados');
     bust('../src/controllers/pagos.controller');
     bust('../src/controllers/billetera.controller');
     bust('../src/controllers/pedidos.controller');
@@ -61,6 +63,7 @@ async function conEsquema(fn) {
     bust('../src/controllers/pedidos.controller');
     bust('../src/billetera');
     bust('../src/pagos');
+    bust('../src/pedidosEstados');
   } finally {
     if (pool) await pool.end();
     if (creado) await admin.query(`DROP SCHEMA "${schema}" CASCADE`);
@@ -146,6 +149,14 @@ async function crearPedidoV3(pool, pedidos, cliente, producto, franja, modalidad
   return res.body;
 }
 
+/** Simula cierre de preparación: RECIBIDO/EN_PICKING → CONFIRMADO (habilita pago ONLINE). */
+async function marcarPreparacionConfirmada(pool, pedidoId) {
+  await pool.query(
+    `UPDATE pedidos SET estado = 'CONFIRMADO', updated_at = now() WHERE id = $1`,
+    [pedidoId]
+  );
+}
+
 test('004 declara billetera sin DROP y saldos iniciales', () => {
   const sql = fs.readFileSync(
     path.join(__dirname, '../sql/004_billetera_simulada.sql'),
@@ -192,9 +203,20 @@ test('PostgreSQL: confirmación ONLINE directa sin QR y QR opcional', { skip }, 
       'ONLINE'
     );
     assert.equal(creado.pago.estado, 'PENDIENTE');
-    assert.equal(creado.pedido.estado, 'CONFIRMADO');
+    assert.equal(creado.pedido.estado, 'RECIBIDO');
 
-    // Pagar ahora sin generar QR
+    const prematuro = await ejecutar(
+      api.pagos.confirmar,
+      { id: cliente.id, rol: 'CLIENTE' },
+      { uuidOperacion: crypto.randomUUID() },
+      { id: creado.pago.id }
+    );
+    assert.equal(prematuro.code, 409);
+    assert.equal(prematuro.body.codigo, 'PAGO_REQUIERE_CONFIRMACION');
+
+    await marcarPreparacionConfirmada(pool, creado.pedido.id);
+
+    // Pagar ahora sin generar QR (solo tras CONFIRMADO)
     const conf = await ejecutar(
       api.pagos.confirmar,
       { id: cliente.id, rol: 'CLIENTE' },
@@ -204,7 +226,7 @@ test('PostgreSQL: confirmación ONLINE directa sin QR y QR opcional', { skip }, 
     assert.equal(conf.code, 200, JSON.stringify(conf.body));
     assert.equal(conf.body.pago.estado, 'CONFIRMADO');
     assert.match(conf.body.pago.numeroOperacionBanco, /^MM-OP-/);
-    assert.equal(conf.body.pedido.estado, 'PAGADO');
+    assert.equal(conf.body.pedido.estado, 'LISTO');
     assert.equal(conf.body.billetera.saldoClienteCentimos, SALDO_CLIENTE - 200);
     assert.equal(conf.body.billetera.saldoComercioCentimos, SALDO_COMERCIO + 200);
 
@@ -235,6 +257,7 @@ test('PostgreSQL: QR opcional no confirma; generar QR deja estado QR_GENERADO', 
       franja,
       'ONLINE'
     );
+    await marcarPreparacionConfirmada(pool, creado.pedido.id);
 
     const qr = await ejecutar(
       api.pagos.generarQr,
@@ -271,6 +294,7 @@ test('PostgreSQL: saldo insuficiente bloquea confirmación', { skip }, async () 
       franja,
       'ONLINE'
     );
+    await marcarPreparacionConfirmada(pool, creado.pedido.id);
     const conf = await ejecutar(
       api.pagos.confirmar,
       { id: cliente.id, rol: 'CLIENTE' },
@@ -299,6 +323,7 @@ test('PostgreSQL: confirmación duplicada e idempotencia', { skip }, async () =>
       franja,
       'ONLINE'
     );
+    await marcarPreparacionConfirmada(pool, creado.pedido.id);
     const uuidOp = crypto.randomUUID();
     const a = await ejecutar(
       api.pagos.confirmar,
@@ -352,6 +377,7 @@ test('PostgreSQL: dos confirmaciones concurrentes no duplican cobro', { skip }, 
       franja,
       'ONLINE'
     );
+    await marcarPreparacionConfirmada(pool, creado.pedido.id);
 
     const [r1, r2] = await Promise.all([
       ejecutar(
@@ -396,7 +422,7 @@ test('PostgreSQL: CONTRAENTREGA confirmada por repartidor asignado', { skip }, a
       'CONTRAENTREGA'
     );
 
-    // Cliente no puede confirmar contraentrega
+    // Cliente no puede confirmar contraentrega antes de entrega
     const negado = await ejecutar(
       api.pagos.confirmar,
       { id: cliente.id, rol: 'CLIENTE' },
@@ -404,23 +430,238 @@ test('PostgreSQL: CONTRAENTREGA confirmada por repartidor asignado', { skip }, a
       { id: creado.pago.id }
     );
     assert.equal(negado.code, 409);
-    assert.equal(negado.body.codigo, 'CONFIRMACION_NO_PERMITIDA');
+    assert.equal(negado.body.codigo, 'PEDIDO_NO_EN_ENTREGA');
 
     await pool.query(
       `UPDATE pedidos SET estado='EN_CAMINO', repartidor_id=$2 WHERE id=$1`,
       [creado.pedido.id, repartidor.id]
     );
 
-    // Cobrar ahora sin generar QR
+    // Efectivo: confirma sin debitar billetera ni retroceder estado logístico
     const conf = await ejecutar(
       api.pagos.confirmar,
       { id: repartidor.id, rol: 'REPARTIDOR' },
-      { uuidOperacion: crypto.randomUUID() },
+      { uuidOperacion: crypto.randomUUID(), formaCobro: 'EFECTIVO' },
       { id: creado.pago.id }
     );
     assert.equal(conf.code, 200, JSON.stringify(conf.body));
     assert.equal(conf.body.pago.estado, 'CONFIRMADO');
     assert.equal(conf.body.pago.modalidad, 'CONTRAENTREGA');
+    assert.equal(conf.body.pedido.estado, 'EN_CAMINO');
+    assert.equal(conf.body.formaCobro, 'EFECTIVO');
+
+    const { rows: [cuenta] } = await pool.query(
+      `SELECT saldo_centimos FROM cuentas_billetera WHERE usuario_id=$1`,
+      [cliente.id]
+    );
+    assert.equal(Number(cuenta.saldo_centimos), SALDO_CLIENTE);
+
+    const { rows: [n] } = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM movimientos_billetera
+       WHERE pago_id=$1 AND tipo='COBRO_PEDIDO'`,
+      [creado.pago.id]
+    );
+    assert.equal(n.c, 0);
+  });
+});
+
+test('PostgreSQL: cliente puede pagar CONTRAENTREGA con billetera en entrega', { skip }, async () => {
+  await conEsquema(async (pool, api) => {
+    const { cliente, repartidor, producto, franja } = await semilla(pool);
+    await ejecutar(api.billetera.saldoPropio, { id: cliente.id, rol: 'CLIENTE' });
+    const creado = await crearPedidoV3(
+      pool,
+      api.pedidos,
+      cliente,
+      producto,
+      franja,
+      'CONTRAENTREGA'
+    );
+    await pool.query(
+      `UPDATE pedidos SET estado='EN_CAMINO', repartidor_id=$2 WHERE id=$1`,
+      [creado.pedido.id, repartidor.id]
+    );
+    const conf = await ejecutar(
+      api.pagos.confirmar,
+      { id: cliente.id, rol: 'CLIENTE' },
+      { uuidOperacion: crypto.randomUUID(), formaCobro: 'BILLETERA' },
+      { id: creado.pago.id }
+    );
+    assert.equal(conf.code, 200, JSON.stringify(conf.body));
+    assert.equal(conf.body.pago.estado, 'CONFIRMADO');
+    assert.equal(conf.body.pedido.estado, 'EN_CAMINO');
+    assert.equal(conf.body.billetera.saldoClienteCentimos, SALDO_CLIENTE - 200);
+  });
+});
+
+test('PostgreSQL: CONTRAENTREGA billetera exige autorización del cliente', { skip }, async () => {
+  await conEsquema(async (pool, api) => {
+    const { cliente, repartidor, producto, franja } = await semilla(pool);
+    await ejecutar(api.billetera.saldoPropio, { id: cliente.id, rol: 'CLIENTE' });
+    const creado = await crearPedidoV3(
+      pool,
+      api.pedidos,
+      cliente,
+      producto,
+      franja,
+      'CONTRAENTREGA'
+    );
+    await pool.query(
+      `UPDATE pedidos SET estado='EN_CAMINO', repartidor_id=$2 WHERE id=$1`,
+      [creado.pedido.id, repartidor.id]
+    );
+
+    const sinAuth = await ejecutar(
+      api.pagos.confirmar,
+      { id: repartidor.id, rol: 'REPARTIDOR' },
+      { uuidOperacion: crypto.randomUUID(), formaCobro: 'BILLETERA' },
+      { id: creado.pago.id }
+    );
+    assert.equal(sinAuth.code, 409);
+    assert.equal(sinAuth.body.codigo, 'AUTORIZACION_CLIENTE_REQUERIDA');
+
+    const authUuid = crypto.randomUUID();
+    const auth = await ejecutar(
+      api.pagos.autorizarBilletera,
+      { id: cliente.id, rol: 'CLIENTE' },
+      { uuidOperacion: authUuid },
+      { id: creado.pago.id }
+    );
+    assert.equal(auth.code, 200, JSON.stringify(auth.body));
+
+    const conf = await ejecutar(
+      api.pagos.confirmar,
+      { id: repartidor.id, rol: 'REPARTIDOR' },
+      {
+        uuidOperacion: crypto.randomUUID(),
+        formaCobro: 'BILLETERA',
+        autorizacionClienteUuid: authUuid
+      },
+      { id: creado.pago.id }
+    );
+    assert.equal(conf.code, 200, JSON.stringify(conf.body));
+    assert.equal(conf.body.pedido.estado, 'EN_CAMINO');
+    assert.equal(conf.body.billetera.saldoClienteCentimos, SALDO_CLIENTE - 200);
+  });
+});
+
+test('PostgreSQL: QR EXPIRADO se recupera sin duplicar cobro', { skip }, async () => {
+  await conEsquema(async (pool, api) => {
+    const { cliente, producto, franja } = await semilla(pool);
+    await ejecutar(api.billetera.saldoPropio, { id: cliente.id, rol: 'CLIENTE' });
+    const creado = await crearPedidoV3(
+      pool,
+      api.pedidos,
+      cliente,
+      producto,
+      franja,
+      'ONLINE'
+    );
+    await marcarPreparacionConfirmada(pool, creado.pedido.id);
+
+    const qr = await ejecutar(
+      api.pagos.generarQr,
+      { id: cliente.id, rol: 'CLIENTE' },
+      { pedidoId: creado.pedido.id }
+    );
+    assert.equal(qr.code, 200);
+
+    await pool.query(
+      `UPDATE pagos
+       SET estado='EXPIRADO', fecha_expiracion_qr = now() - interval '1 minute'
+       WHERE id=$1`,
+      [creado.pago.id]
+    );
+
+    const qrNuevo = await ejecutar(
+      api.pagos.generarQr,
+      { id: cliente.id, rol: 'CLIENTE' },
+      { pedidoId: creado.pedido.id }
+    );
+    assert.equal(qrNuevo.code, 200, JSON.stringify(qrNuevo.body));
+    assert.equal(qrNuevo.body.pago.estado, 'QR_GENERADO');
+
+    // También se puede pagar directo desde EXPIRADO (otro pedido)
+    const creado2 = await crearPedidoV3(
+      pool,
+      api.pedidos,
+      cliente,
+      producto,
+      franja,
+      'ONLINE'
+    );
+    await marcarPreparacionConfirmada(pool, creado2.pedido.id);
+    await pool.query(`UPDATE pagos SET estado='EXPIRADO' WHERE id=$1`, [creado2.pago.id]);
+    const conf = await ejecutar(
+      api.pagos.confirmar,
+      { id: cliente.id, rol: 'CLIENTE' },
+      { uuidOperacion: crypto.randomUUID() },
+      { id: creado2.pago.id }
+    );
+    assert.equal(conf.code, 200, JSON.stringify(conf.body));
+    assert.equal(conf.body.pedido.estado, 'LISTO');
+    assert.equal(conf.body.pago.estado, 'CONFIRMADO');
+
+    const { rows: [n] } = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM movimientos_billetera
+       WHERE pago_id=$1 AND tipo='COBRO_PEDIDO'`,
+      [creado2.pago.id]
+    );
+    assert.equal(n.c, 1);
+  });
+});
+
+test('PostgreSQL: cancelación ONLINE pagado con devolución idempotente', { skip }, async () => {
+  await conEsquema(async (pool, api) => {
+    const { cliente, admin, producto, franja } = await semilla(pool);
+    await ejecutar(api.billetera.saldoPropio, { id: cliente.id, rol: 'CLIENTE' });
+    const creado = await crearPedidoV3(
+      pool,
+      api.pedidos,
+      cliente,
+      producto,
+      franja,
+      'ONLINE'
+    );
+    await marcarPreparacionConfirmada(pool, creado.pedido.id);
+    const conf = await ejecutar(
+      api.pagos.confirmar,
+      { id: cliente.id, rol: 'CLIENTE' },
+      { uuidOperacion: crypto.randomUUID() },
+      { id: creado.pago.id }
+    );
+    assert.equal(conf.code, 200);
+    assert.equal(conf.body.pedido.estado, 'LISTO');
+
+    // Tras despacho (LISTO) la cancelación con devolución la hace el administrador.
+    const cancel = await ejecutar(
+      api.pedidos.transicionar,
+      { id: admin.id, rol: 'ADMINISTRADOR' },
+      { estado: 'CANCELADO' },
+      { id: creado.pedido.id }
+    );
+    assert.equal(cancel.code, 200, JSON.stringify(cancel.body));
+    assert.equal(cancel.body.pedido.estado, 'CANCELADO');
+    assert.equal(cancel.body.devolucion.aplicada, true);
+
+    const { rows: [cuenta] } = await pool.query(
+      `SELECT saldo_centimos FROM cuentas_billetera WHERE usuario_id=$1`,
+      [cliente.id]
+    );
+    assert.equal(Number(cuenta.saldo_centimos), SALDO_CLIENTE);
+
+    const { rows: [n] } = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM movimientos_billetera
+       WHERE pedido_id=$1 AND tipo='DEVOLUCION_CLIENTE'`,
+      [creado.pedido.id]
+    );
+    assert.equal(n.c, 1);
+
+    // Stock restituido exactamente una vez
+    const { rows: [prod] } = await pool.query(`SELECT stock FROM productos WHERE id=$1`, [
+      producto.id
+    ]);
+    assert.equal(Number(prod.stock), 100);
   });
 });
 
@@ -458,6 +699,109 @@ test('PostgreSQL: cancelación de pago pendiente sin tocar billetera', { skip },
   });
 });
 
+test('PostgreSQL: cancelación CONTRAENTREGA sin cobro restituye stock y cupo', { skip }, async () => {
+  await conEsquema(async (pool, api) => {
+    const { cliente, producto, franja } = await semilla(pool);
+    const creado = await crearPedidoV3(
+      pool,
+      api.pedidos,
+      cliente,
+      producto,
+      franja,
+      'CONTRAENTREGA'
+    );
+    const ocupadosAntes = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM pedidos
+       WHERE franja_entrega_id=$1 AND estado <> 'CANCELADO'`,
+      [franja.id]
+    );
+    assert.equal(ocupadosAntes.rows[0].c, 1);
+
+    const cancel = await ejecutar(
+      api.pedidos.transicionar,
+      { id: cliente.id, rol: 'CLIENTE' },
+      { estado: 'CANCELADO' },
+      { id: creado.pedido.id }
+    );
+    assert.equal(cancel.code, 200, JSON.stringify(cancel.body));
+
+    const { rows: [pago] } = await pool.query(`SELECT estado FROM pagos WHERE pedido_id=$1`, [
+      creado.pedido.id
+    ]);
+    assert.equal(pago.estado, 'CANCELADO');
+
+    const { rows: [prod] } = await pool.query(`SELECT stock FROM productos WHERE id=$1`, [
+      producto.id
+    ]);
+    assert.equal(Number(prod.stock), 100);
+
+    const ocupados = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM pedidos
+       WHERE franja_entrega_id=$1 AND estado <> 'CANCELADO'`,
+      [franja.id]
+    );
+    assert.equal(ocupados.rows[0].c, 0);
+
+    const { rows: [n] } = await pool.query(
+      `SELECT COUNT(*)::int AS c FROM movimientos_billetera WHERE pedido_id=$1`,
+      [creado.pedido.id]
+    );
+    assert.equal(n.c, 0);
+  });
+});
+
+test('PostgreSQL: dos pickers no toman el mismo pedido', { skip }, async () => {
+  await conEsquema(async (pool, api) => {
+    const { cliente, producto, franja } = await semilla(pool);
+    const { rows: [picker1] } = await pool.query(
+      `INSERT INTO usuarios(nombre,usuario,correo,clave_hash,rol)
+       VALUES('P1','p1','p1','x','PICKER') RETURNING id`
+    );
+    const { rows: [picker2] } = await pool.query(
+      `INSERT INTO usuarios(nombre,usuario,correo,clave_hash,rol)
+       VALUES('P2','p2','p2','x','PICKER') RETURNING id`
+    );
+    const creado = await crearPedidoV3(
+      pool,
+      api.pedidos,
+      cliente,
+      producto,
+      franja,
+      'ONLINE'
+    );
+    assert.equal(creado.pedido.estado, 'RECIBIDO');
+
+    const [a, b] = await Promise.all([
+      ejecutar(
+        api.pedidos.transicionar,
+        { id: picker1.id, rol: 'PICKER' },
+        { estado: 'EN_PICKING' },
+        { id: creado.pedido.id }
+      ),
+      ejecutar(
+        api.pedidos.transicionar,
+        { id: picker2.id, rol: 'PICKER' },
+        { estado: 'EN_PICKING' },
+        { id: creado.pedido.id }
+      )
+    ]);
+
+    const codigos = [a.code, b.code].sort();
+    assert.deepEqual(codigos, [200, 403]);
+    const ok = a.code === 200 ? a : b;
+    const fail = a.code === 200 ? b : a;
+    assert.equal(ok.body.pedido.estado, 'EN_PICKING');
+    assert.equal(fail.body.codigo, 'PEDIDO_NO_ASIGNADO');
+
+    const { rows: [ped] } = await pool.query(
+      `SELECT picker_id, estado FROM pedidos WHERE id=$1`,
+      [creado.pedido.id]
+    );
+    assert.equal(ped.estado, 'EN_PICKING');
+    assert.ok([picker1.id, picker2.id].includes(ped.picker_id));
+  });
+});
+
 test('PostgreSQL: devolución controlada restituye saldo una sola vez', { skip }, async () => {
   await conEsquema(async (pool, api) => {
     const { cliente, admin, producto, franja } = await semilla(pool);
@@ -470,6 +814,7 @@ test('PostgreSQL: devolución controlada restituye saldo una sola vez', { skip }
       franja,
       'ONLINE'
     );
+    await marcarPreparacionConfirmada(pool, creado.pedido.id);
     const conf = await ejecutar(
       api.pagos.confirmar,
       { id: cliente.id, rol: 'CLIENTE' },

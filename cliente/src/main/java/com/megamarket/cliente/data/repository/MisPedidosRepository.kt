@@ -180,7 +180,8 @@ class MisPedidosRepository(
         val id = this.id?.trim().orEmpty()
         if (id.isEmpty()) return null
         val local = pedidoDao.obtenerPorRemoteId(id)?.takeIf { it.clienteId == ownerLocalId() }
-        val modalidad = local?.modalidadPago
+        val modalidad = pago?.modalidad?.trim()?.takeIf { it.isNotEmpty() }
+            ?: local?.modalidadPago
         val franjaEtiqueta = local?.let {
             FranjaEntrega.etiquetaDesdeCampos(it.franjaFecha, it.franjaHoraInicio, it.franjaHoraFin)
         } ?: franjaEntregaId?.let { etiquetasFranja[it] }

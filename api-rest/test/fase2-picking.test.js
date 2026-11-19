@@ -22,7 +22,8 @@ async function conEsquema(fn) {
     for (const file of [
       '001_esquema_inicial.sql',
       '002_reservas.sql',
-      '003_operaciones_extendidas.sql'
+      '003_operaciones_extendidas.sql',
+      '005_pedido_recibido.sql'
     ]) {
       await pool.query(fs.readFileSync(path.join(__dirname, '../sql', file), 'utf8'));
     }
@@ -294,7 +295,7 @@ test('PostgreSQL picking: reintento UUID idempotente y concurrencia última unid
   });
 });
 
-test('PostgreSQL picking: faltante, ONLINE pendiente bloqueado, aislamiento entre pedidos', { skip }, async () => {
+test('PostgreSQL picking: faltante, ONLINE pendiente preparable, aislamiento entre pedidos', { skip }, async () => {
   await conEsquema(async (pool, picking) => {
     const s = await semilla(pool);
     const faltante = await ejecutar(
@@ -329,16 +330,15 @@ test('PostgreSQL picking: faltante, ONLINE pendiente bloqueado, aislamiento entr
        VALUES($1,$2,100,'PEN','QR','ONLINE','PENDIENTE')`,
       [crypto.randomUUID(), pedidoOnline.id]
     );
-    const bloqueado = await ejecutar(
+    // ONLINE pendiente ya se puede preparar (cobro post-CONFIRMADO).
+    const onlineOk = await ejecutar(
       picking.escanear,
       { id: s.picker.id, rol: 'PICKER' },
       { id: pedidoOnline.id, detalleId: detalleOnline.id },
       { uuidOperacion: crypto.randomUUID(), codigoBarras: '770001', cantidad: 1 }
     );
-    assert.equal(bloqueado.code, 409);
-    assert.equal(bloqueado.body.codigo, 'PICKING_REQUIERE_PAGO');
+    assert.equal(onlineOk.code, 201, JSON.stringify(onlineOk.body));
 
-    // Escaneo en pedido A no altera cantidad_armada del pedido ONLINE
     const armadaBAntes = Number(
       (
         await pool.query(`SELECT cantidad_armada FROM pedido_detalle WHERE id=$1`, [
@@ -346,6 +346,7 @@ test('PostgreSQL picking: faltante, ONLINE pendiente bloqueado, aislamiento entr
         ])
       ).rows[0].cantidad_armada
     );
+    assert.equal(armadaBAntes, 1);
     await ejecutar(
       picking.escanear,
       { id: s.picker.id, rol: 'PICKER' },
@@ -372,10 +373,11 @@ test('PostgreSQL picking: faltante, ONLINE pendiente bloqueado, aislamiento entr
   });
 });
 
-test('reglas picking: ONLINE pendiente vs CONTRAENTREGA', () => {
+test('reglas picking: ONLINE y CONTRAENTREGA se preparan antes del cobro', () => {
   const { puedePrepararSegunPago } = require('../src/picking');
   assert.equal(puedePrepararSegunPago(null).ok, true);
   assert.equal(puedePrepararSegunPago({ modalidad: 'CONTRAENTREGA', estado: 'PENDIENTE' }).ok, true);
-  assert.equal(puedePrepararSegunPago({ modalidad: 'ONLINE', estado: 'PENDIENTE' }).ok, false);
+  assert.equal(puedePrepararSegunPago({ modalidad: 'ONLINE', estado: 'PENDIENTE' }).ok, true);
   assert.equal(puedePrepararSegunPago({ modalidad: 'ONLINE', estado: 'CONFIRMADO' }).ok, true);
+  assert.equal(puedePrepararSegunPago({ modalidad: 'ONLINE', estado: 'CANCELADO' }).ok, false);
 });

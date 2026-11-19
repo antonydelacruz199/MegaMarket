@@ -14,7 +14,7 @@ test('PostgreSQL: migraciones e inventario concurrente', {skip:!process.env.TEST
   try {
     await admin.query(`CREATE SCHEMA "${schema}"`);creado=true;
     pool=new Pool({connectionString:process.env.TEST_DATABASE_URL,options:`-c search_path=${schema}`});
-    for(const file of ['001_esquema_inicial.sql','002_reservas.sql','003_operaciones_extendidas.sql']) await pool.query(fs.readFileSync(path.join(__dirname,'../sql',file),'utf8'));
+    for(const file of ['001_esquema_inicial.sql','002_reservas.sql','003_operaciones_extendidas.sql','005_pedido_recibido.sql']) await pool.query(fs.readFileSync(path.join(__dirname,'../sql',file),'utf8'));
     // Reaplicar 003 debe ser idempotente.
     await pool.query(fs.readFileSync(path.join(__dirname,'../sql/003_operaciones_extendidas.sql'),'utf8'));
     const {rows:[categoria]}=await pool.query("INSERT INTO categorias(nombre) VALUES('Prueba') RETURNING id");

@@ -4,6 +4,8 @@ import com.megamarket.cliente.model.Pedido
 
 data class ConfirmacionUiState(
     val cargando: Boolean = true,
+    val sincronizando: Boolean = false,
+    val cancelando: Boolean = false,
     val pedido: Pedido? = null,
     val error: String? = null,
     val totalPropuesto: Long? = null,

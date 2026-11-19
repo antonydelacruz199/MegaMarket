@@ -39,7 +39,7 @@ data class PagoReparto(
 
 const val MODALIDAD_CONTRAENTREGA = "CONTRAENTREGA"
 const val ESTADO_PAGO_CONFIRMADO = "CONFIRMADO"
-const val ETIQUETA_SIMULACION = "SIMULACIÓN"
+const val ETIQUETA_QR = "Código QR"
 
 /** QR informativo de contraentrega. Mostrarlo no confirma el pago. */
 data class PagoQrReparto(
@@ -111,7 +111,7 @@ object MensajesEntrega {
     const val CAMINO_NO_CONFIRMADO = "El servidor no confirmó el paso a EN_CAMINO."
     const val CLAVE = "El servidor no devolvió una referencia de fotografía válida."
     const val PAGO_NO_CONFIRMADO =
-        "El servidor no confirmó el pago simulado. La entrega sigue bloqueada."
+        "El servidor no confirmó el pago. La entrega sigue bloqueada."
     const val PAGO_SOLO_CONTRAENTREGA = "Solo se cobra con QR cuando el pago es contraentrega."
     const val PAGO_RESPUESTA_INVALIDA = "El servidor devolvió un pago incompleto."
 }

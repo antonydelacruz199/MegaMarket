@@ -71,6 +71,7 @@ fun PantallaDetalleEntrega(
     alFijarUbicacion: (Double, Double) -> Unit,
     alRegistrar: () -> Unit,
     alGenerarQr: () -> Unit = {},
+    alOcultarQr: () -> Unit = {},
     alConfirmarPago: () -> Unit = {}
 ) {
     val contexto = LocalContext.current
@@ -128,13 +129,6 @@ fun PantallaDetalleEntrega(
         val punto = ubicacion.leer()
         buscandoGps = false
         if (punto != null) alFijarUbicacion(punto.latitud, punto.longitud)
-    }
-
-    // El QR es informativo: se pide una vez por pantalla; un error no se reintenta solo.
-    LaunchedEffect(estado.requierePagoQr, estado.qrPago, estado.errorPago) {
-        if (estado.requierePagoQr && estado.qrPago == null && estado.errorPago == null && !estado.generandoQr) {
-            alGenerarQr()
-        }
     }
 
     LaunchedEffect(estado.revisionFoto) {
@@ -212,6 +206,7 @@ fun PantallaDetalleEntrega(
                         BloquePagoQr(
                             estado = estado,
                             alGenerarQr = alGenerarQr,
+                            alOcultarQr = alOcultarQr,
                             alConfirmarPago = alConfirmarPago
                         )
                     } else if (estado.pagoConfirmadoReciente) {
@@ -343,12 +338,17 @@ fun PantallaDetalleEntrega(
 private fun BloquePagoQr(
     estado: DetalleEntregaUiState,
     alGenerarQr: () -> Unit,
+    alOcultarQr: () -> Unit,
     alConfirmarPago: () -> Unit
 ) {
     val qr = estado.qrPago
     val imagen = remember(qr?.qrContenido) {
         qr?.qrContenido?.let { QrBitmap.generar(it)?.asImageBitmap() }
     }
+    val importe = qr?.montoCentimos
+        ?: estado.detalle?.pago?.montoCentimos
+        ?: estado.detalle?.pedido?.totalCentimos
+        ?: 0L
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
@@ -359,20 +359,34 @@ private fun BloquePagoQr(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = stringResource(R.string.pago_qr_simulacion),
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.error
+                text = stringResource(R.string.pago_qr_titulo),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = stringResource(R.string.pago_qr_titulo),
-                style = MaterialTheme.typography.titleMedium
+                text = stringResource(R.string.pago_qr_monto, importe.formatearSoles()),
+                fontWeight = FontWeight.SemiBold
             )
+            Button(
+                onClick = alConfirmarPago,
+                enabled = !estado.confirmandoPago &&
+                    (estado.detalle?.pago?.id != null || qr?.pagoId != null),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    if (estado.confirmandoPago) {
+                        stringResource(R.string.pago_qr_confirmando)
+                    } else {
+                        stringResource(R.string.pago_qr_confirmar)
+                    }
+                )
+            }
             when {
+                estado.generandoQr -> {
+                    CircularProgressIndicator()
+                    Text(stringResource(R.string.pago_qr_generando))
+                }
                 qr != null -> {
-                    Text(
-                        text = stringResource(R.string.pago_qr_monto, qr.montoCentimos.formatearSoles()),
-                        fontWeight = FontWeight.SemiBold
-                    )
                     val generado = textoFecha(qr.generadoEn)
                     if (generado.isNotEmpty()) Text(stringResource(R.string.pago_qr_generado, generado))
                     val vence = textoFecha(qr.expiraEn)
@@ -391,40 +405,24 @@ private fun BloquePagoQr(
                         )
                     }
                     Text(
-                        text = qr.aviso?.takeIf { it.isNotBlank() }
-                            ?: stringResource(R.string.pago_qr_aviso_confirmar),
+                        text = stringResource(R.string.pago_qr_aviso_confirmar),
                         style = MaterialTheme.typography.bodySmall
                     )
-                    Button(
-                        onClick = alConfirmarPago,
-                        enabled = !estado.confirmandoPago,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(
-                            if (estado.confirmandoPago) {
-                                stringResource(R.string.pago_qr_confirmando)
-                            } else {
-                                stringResource(R.string.pago_qr_confirmar)
-                            }
-                        )
+                    TextButton(onClick = alOcultarQr) {
+                        Text(stringResource(R.string.pago_qr_ocultar))
                     }
                 }
-                estado.generandoQr -> {
-                    CircularProgressIndicator()
-                    Text(stringResource(R.string.pago_qr_generando))
-                }
                 else -> {
-                    TextButton(onClick = alGenerarQr) {
+                    TextButton(
+                        onClick = alGenerarQr,
+                        enabled = !estado.confirmandoPago
+                    ) {
                         Text(stringResource(R.string.pago_qr_generar))
                     }
                 }
             }
             estado.errorPago?.let {
                 Text(it, color = MaterialTheme.colorScheme.error)
-                if (qr == null && !estado.generandoQr) {
-                    // Sin QR no hay nada que confirmar: ofrecer reintentar la generación.
-                    TextButton(onClick = alGenerarQr) { Text(stringResource(R.string.reintentar)) }
-                }
             }
         }
     }

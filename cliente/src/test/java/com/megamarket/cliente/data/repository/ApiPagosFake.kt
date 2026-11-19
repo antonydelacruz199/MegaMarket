@@ -67,7 +67,7 @@ internal class ApiPagosFake : ApiService {
                     saldoPosteriorCentimos = 8_500,
                     pagoId = PAGO,
                     pedidoId = PEDIDO,
-                    descripcion = "Pago simulado",
+                    descripcion = "Cobro del pedido",
                     createdAt = "2030-01-01T00:00:00.000Z",
                     simulacion = true
                 )
@@ -136,6 +136,11 @@ internal class ApiPagosFake : ApiService {
         error("n/a")
     override suspend fun obtenerPedido(id: String, owner: String): Response<PedidoCompletoResponse> =
         error("n/a")
+    override suspend fun transicionarPedido(
+        id: String,
+        body: com.megamarket.cliente.data.remote.TransicionPedidoRequest,
+        owner: String
+    ): Response<PedidoCompletoResponse> = error("n/a")
     override suspend fun listarSustituciones(estado: String?, owner: String): Response<ListaSustitucionesResponse> =
         error("n/a")
     override suspend fun obtenerSustitucion(id: String, owner: String): Response<SustitucionDecisionResponse> =
@@ -174,8 +179,8 @@ internal class ApiPagosFake : ApiService {
             generadoEn = "2030-01-01T00:00:00.000Z",
             expiraEn = "2030-01-01T01:00:00.000Z",
             estado = "QR_GENERADO",
-            etiqueta = "SIMULACIÓN",
-            aviso = "QR informativo académico. No conecta con ningún banco."
+            etiqueta = "Código QR",
+            aviso = "Ver el código no confirma el pago."
         )
 
         fun <T> errorHttp(codigo: Int, cuerpo: String): Response<T> =

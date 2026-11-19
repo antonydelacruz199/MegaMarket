@@ -175,7 +175,7 @@ async function obtenerPorId(req, res) {
 }
 
 /**
- * Genera QR simulado informativo. No confirma el pago.
+ * Genera QR informativo. No confirma el pago.
  * POST /api/pagos/qr  body: { pedidoId }
  */
 async function generarQr(req, res) {
@@ -254,7 +254,9 @@ async function generarQr(req, res) {
 
     const generadoEn = new Date().toISOString();
     const referencia =
-      pago.referencia_banco && String(pago.referencia_banco).startsWith('SIM-REF-')
+      pago.referencia_banco &&
+      (String(pago.referencia_banco).startsWith('MM-REF-') ||
+        String(pago.referencia_banco).startsWith('SIM-REF-'))
         ? pago.referencia_banco
         : nuevaReferenciaSimulada(pago.id);
     const qrContenido = construirQrContenido({
@@ -289,8 +291,8 @@ async function generarQr(req, res) {
         generadoEn,
         expiraEn: expiracion,
         estado: 'QR_GENERADO',
-        etiqueta: 'SIMULACIÓN',
-        aviso: 'QR informativo académico. No conecta con ningún banco.'
+        etiqueta: 'Código QR',
+        aviso: 'Ver el código no confirma el pago.'
       },
       simulacion: true
     });
@@ -300,15 +302,15 @@ async function generarQr(req, res) {
     } catch (_e) {
       // ignore
     }
-    console.error('Error al generar QR simulado:', error.message);
-    return res.status(500).json({ error: 'No se pudo generar el QR simulado' });
+    console.error('Error al generar QR:', error.message);
+    return res.status(500).json({ error: 'No se pudo generar el código QR' });
   } finally {
     clienteDb.release();
   }
 }
 
 /**
- * Confirma el pago simulado: valida saldo, mueve billetera y marca CONFIRMADO.
+ * Confirma el pago: valida saldo, mueve billetera y marca CONFIRMADO.
  * No marca PAGADO solo por mostrar el QR.
  * POST /api/pagos/:id/confirmar  body: { uuidOperacion }
  */
@@ -378,9 +380,9 @@ async function confirmar(req, res) {
         `INSERT INTO operaciones_idempotentes (
            uuid_operacion, usuario_id, tipo_operacion, recurso, entidad_id,
            estado, codigo_http, respuesta
-         ) VALUES ($1,$2,'CONFIRMAR_PAGO_SIM','pagos',$3,'OK',200,$4)
+         ) VALUES ($1,$2,'CONFIRMAR_PAGO','pagos',$3,'PROCESADA',200,$4::jsonb)
          ON CONFLICT (uuid_operacion) DO NOTHING`,
-        [uuidOperacion, req.usuario.id, pago.id, respuesta]
+        [uuidOperacion, req.usuario.id, pago.id, JSON.stringify(respuesta)]
       );
       await clienteDb.query('COMMIT');
       return res.status(200).json(respuesta);
@@ -405,7 +407,7 @@ async function confirmar(req, res) {
       );
       await clienteDb.query('COMMIT');
       return res.status(409).json({
-        error: 'El QR simulado expiró; genera uno nuevo',
+        error: 'El código QR expiró; genera uno nuevo',
         codigo: 'QR_EXPIRADO'
       });
     }
@@ -477,16 +479,16 @@ async function confirmar(req, res) {
       },
       movimientos: liquidacion.movimientos || [],
       simulacion: true,
-      aviso: 'Pago simulado confirmado. No hubo transferencia bancaria real.'
+      aviso: 'Pago confirmado.'
     };
 
     await clienteDb.query(
       `INSERT INTO operaciones_idempotentes (
          uuid_operacion, usuario_id, tipo_operacion, recurso, entidad_id,
          estado, codigo_http, respuesta
-       ) VALUES ($1,$2,'CONFIRMAR_PAGO_SIM','pagos',$3,'OK',200,$4)
+       ) VALUES ($1,$2,'CONFIRMAR_PAGO','pagos',$3,'PROCESADA',200,$4::jsonb)
        ON CONFLICT (uuid_operacion) DO NOTHING`,
-      [uuidOperacion, req.usuario.id, pago.id, respuesta]
+      [uuidOperacion, req.usuario.id, pago.id, JSON.stringify(respuesta)]
     );
 
     await clienteDb.query('COMMIT');
@@ -503,8 +505,8 @@ async function confirmar(req, res) {
         codigo: 'PAGO_DUPLICADO'
       });
     }
-    console.error('Error al confirmar pago simulado:', error.message);
-    return res.status(500).json({ error: 'No se pudo confirmar el pago simulado' });
+    console.error('Error al confirmar pago:', error.message);
+    return res.status(500).json({ error: 'No se pudo confirmar el pago' });
   } finally {
     clienteDb.release();
   }
@@ -587,9 +589,9 @@ async function confirmarAjuste(req, res) {
         `INSERT INTO operaciones_idempotentes (
            uuid_operacion, usuario_id, tipo_operacion, recurso, entidad_id,
            estado, codigo_http, respuesta
-         ) VALUES ($1,$2,'CONFIRMAR_AJUSTE_SIM','ajustes_pago',$3,'OK',200,$4)
+         ) VALUES ($1,$2,'CONFIRMAR_AJUSTE','ajustes_pago',$3,'PROCESADA',200,$4::jsonb)
          ON CONFLICT (uuid_operacion) DO NOTHING`,
-        [uuidOperacion, req.usuario.id, ajuste.id, respuesta]
+        [uuidOperacion, req.usuario.id, ajuste.id, JSON.stringify(respuesta)]
       );
       await clienteDb.query('COMMIT');
       return res.status(200).json(respuesta);
@@ -656,7 +658,7 @@ async function confirmarAjuste(req, res) {
            updated_at = now()
        WHERE id = $1
        RETURNING *`,
-      [ajuste.id, numeroOp, `SIM-AJ-${ajuste.id.replace(/-/g, '').slice(0, 12)}`, confirmadoEn]
+      [ajuste.id, numeroOp, `MM-AJ-${ajuste.id.replace(/-/g, '').slice(0, 12)}`, confirmadoEn]
     );
 
     const respuesta = {
@@ -675,9 +677,9 @@ async function confirmarAjuste(req, res) {
       `INSERT INTO operaciones_idempotentes (
          uuid_operacion, usuario_id, tipo_operacion, recurso, entidad_id,
          estado, codigo_http, respuesta
-       ) VALUES ($1,$2,'CONFIRMAR_AJUSTE_SIM','ajustes_pago',$3,'OK',200,$4)
+       ) VALUES ($1,$2,'CONFIRMAR_AJUSTE','ajustes_pago',$3,'PROCESADA',200,$4::jsonb)
        ON CONFLICT (uuid_operacion) DO NOTHING`,
-      [uuidOperacion, req.usuario.id, ajuste.id, respuesta]
+      [uuidOperacion, req.usuario.id, ajuste.id, JSON.stringify(respuesta)]
     );
 
     await clienteDb.query('COMMIT');
@@ -694,7 +696,7 @@ async function confirmarAjuste(req, res) {
         codigo: 'AJUSTE_DUPLICADO'
       });
     }
-    console.error('Error al confirmar ajuste simulado:', error.message);
+    console.error('Error al confirmar ajuste:', error.message);
     return res.status(500).json({ error: 'No se pudo confirmar el ajuste' });
   } finally {
     clienteDb.release();

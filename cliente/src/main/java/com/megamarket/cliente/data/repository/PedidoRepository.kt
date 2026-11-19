@@ -205,6 +205,57 @@ class PedidoRepository(
         programarSincronizacion()
     }
 
+    /** Marca cancelado en Room tras una cancelación aceptada por la API (u operación local abortada). */
+    suspend fun marcarCanceladoLocal(pedidoId: Long) = database.withTransaction {
+        val p = pedidoDao.obtenerPedidoPorId(pedidoId)
+            ?.takeIf { it.clienteId == sesion.owner.value }
+            ?: throw CheckoutException("Pedido no disponible")
+        pedidoDao.actualizarPedido(p.copy(estado = "CANCELADO", estadoSync = EstadoSincronizacion.SINCRONIZADO))
+        operacionDao.obtenerPendienteDe(TipoOperacionPendiente.PEDIDO, p.id, TipoOperacionPendiente.CREAR_PEDIDO)
+            ?.let { operacionDao.marcarOperacionSincronizada(it.id, System.currentTimeMillis()) }
+    }
+
+    /**
+     * Refleja en Room un cobro ONLINE ya confirmado por la API (estado remoto PAGADO).
+     * No crea operaciones pendientes: el servidor ya liquidó el pago.
+     */
+    suspend fun marcarPagadoPorRemoteId(remoteId: String, estadoRemoto: String? = "PAGADO") =
+        database.withTransaction {
+            val idRemoto = remoteId.trim()
+            if (idRemoto.isEmpty()) return@withTransaction
+            val p = pedidoDao.obtenerPorRemoteId(idRemoto)
+                ?.takeIf { it.clienteId == sesion.owner.value }
+                ?: return@withTransaction
+            val estado = estadoRemoto?.trim()?.uppercase().orEmpty().ifEmpty { "PAGADO" }
+            if (p.estado == estado) return@withTransaction
+            pedidoDao.actualizarPedido(
+                p.copy(estado = estado, estadoSync = EstadoSincronizacion.SINCRONIZADO)
+            )
+        }
+
+    /**
+     * Aborta un pedido aún no enviado al servidor (PENDIENTE_CONFIRMACION sin remoteId).
+     */
+    suspend fun abortarLocalSinEnviar(pedidoId: Long) = database.withTransaction {
+        val p = pedidoDao.obtenerPedidoPorId(pedidoId)
+            ?.takeIf {
+                it.clienteId == sesion.owner.value &&
+                    it.remoteId.isNullOrBlank() &&
+                    it.estado in setOf("PENDIENTE_CONFIRMACION", "REQUIERE_REVISION")
+            }
+            ?: throw CheckoutException("Este pedido ya no se puede cancelar localmente")
+        val op = operacionDao.obtenerPendienteDe(
+            TipoOperacionPendiente.PEDIDO,
+            p.id,
+            TipoOperacionPendiente.CREAR_PEDIDO
+        )
+        if (op != null) {
+            operacionDao.marcarOperacionSincronizada(op.id, System.currentTimeMillis())
+        }
+        pedidoDao.actualizarPedido(p.copy(estado = "CANCELADO", estadoSync = EstadoSincronizacion.SINCRONIZADO))
+        programarSincronizacion()
+    }
+
     companion object {
         fun crearProgramador(contexto: android.content.Context): () -> Unit = {
             SincronizacionWorker.programar(contexto)

@@ -169,14 +169,14 @@ fun PantallaDetallePedido(
                         pago.numeroOperacionBanco?.let { Text("Operación: $it") }
                         if (d.puedePagarConQr) {
                             Text(
-                                "SIMULACIÓN · pago académico con QR, sin banco real",
+                                "El pago aún no está confirmado.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Button(
                                 onClick = { alPagarQr(d.id) },
                                 modifier = Modifier.fillMaxWidth()
-                            ) { Text("Pagar con QR simulado") }
+                            ) { Text("Pagar ahora") }
                         }
                     }
 

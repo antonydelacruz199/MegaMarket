@@ -68,7 +68,7 @@ class PagoModelosTest {
         ).aPagoCliente()!!
         val qr = QrSimuladoDto(contenido = null, etiqueta = null).aQrCliente(pago)!!
         assertEquals("SIM|desde-pago", qr.contenido)
-        assertEquals(ETIQUETA_SIMULACION, qr.etiqueta)
+        assertEquals("Código QR", qr.etiqueta)
         assertEquals(900L, qr.importeCentimos)
         assertNull(QrSimuladoDto(contenido = " ").aQrCliente(null))
     }

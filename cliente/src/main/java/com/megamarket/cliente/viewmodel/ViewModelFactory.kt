@@ -45,7 +45,8 @@ class ViewModelFactory(
                 ConfirmacionViewModel(
                     extras.createSavedStateHandle(),
                     container.pedidoRepository,
-                    container.pagosRepository
+                    container.pagosRepository,
+                    container.sincronizacionRepository
                 )
             modelClass.isAssignableFrom(PerfilViewModel::class.java) ->
                 PerfilViewModel(container.sesionRepository,container.pedidoRepository)
@@ -67,7 +68,12 @@ class ViewModelFactory(
                     container.sustitucionesRepository
                 )
             modelClass.isAssignableFrom(PagoQrViewModel::class.java) ->
-                PagoQrViewModel(extras.createSavedStateHandle(), container.pagosRepository)
+                PagoQrViewModel(
+                    extras.createSavedStateHandle(),
+                    container.pagosRepository,
+                    container.billeteraRepository,
+                    container.pedidoRepository
+                )
             modelClass.isAssignableFrom(BilleteraViewModel::class.java) ->
                 BilleteraViewModel(container.billeteraRepository)
             else -> throw IllegalArgumentException("ViewModel no registrado: ${modelClass.name}")

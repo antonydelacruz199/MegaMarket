@@ -122,7 +122,7 @@ class DetalleEntregaViewModelTest {
         val estado = modelo.estado.value
         assertEquals(1, api.qrGenerados)
         assertEquals(PAGO_ID, estado.qrPago?.pagoId)
-        assertEquals("SIMULACIÓN", estado.qrPago?.etiqueta)
+        assertEquals("Código QR", estado.qrPago?.etiqueta)
         assertEquals(1500L, estado.qrPago?.montoCentimos)
         assertTrue(estado.pagoPendiente)
         assertEquals(0, api.confirmaciones)
@@ -165,12 +165,13 @@ class DetalleEntregaViewModelTest {
     }
 
     @Test
-    fun confirmarSinQrNoLlamaALaApi() {
+    fun confirmarSinQrUsaPagoIdDelDetalleYDesbloquea() {
         val api = ApiEntrega(pago = "PENDIENTE", modalidad = "CONTRAENTREGA")
         val modelo = modelo(api)
         modelo.confirmarPago()
-        assertEquals(0, api.confirmaciones)
-        assertTrue(modelo.estado.value.pagoPendiente)
+        assertEquals(1, api.confirmaciones)
+        assertFalse(modelo.estado.value.pagoPendiente)
+        assertTrue(modelo.estado.value.pagoConfirmadoReciente)
     }
 
     @Test
@@ -290,15 +291,15 @@ class DetalleEntregaViewModelTest {
                         estado = "QR_GENERADO"
                     ),
                     qr = QrSimuladoDto(
-                        contenido = "MEGAMARKET-SIMULACION|PAGO=$PAGO_ID",
+                        contenido = "MEGAMARKET-PAGO|PAGO=$PAGO_ID",
                         referencia = "REF-1",
                         importeCentimos = 1500,
                         pedidoId = body.pedidoId,
                         generadoEn = "2030-01-01T10:00:00.000Z",
                         expiraEn = "2030-01-01T10:15:00.000Z",
                         estado = "QR_GENERADO",
-                        etiqueta = "SIMULACIÓN",
-                        aviso = "Simulación académica"
+                        etiqueta = "Código QR",
+                        aviso = "Ver el código no confirma el pago."
                     )
                 )
             )
@@ -359,7 +360,7 @@ class DetalleEntregaViewModelTest {
                     ),
                     direccion = null,
                     entrega = null,
-                    pago = PagoDto(modalidad, pago)
+                    pago = PagoDto(modalidad, pago, id = PAGO_ID, montoCentimos = 1500)
                 )
             )
 

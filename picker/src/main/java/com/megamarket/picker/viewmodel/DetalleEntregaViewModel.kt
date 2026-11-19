@@ -89,7 +89,7 @@ class DetalleEntregaViewModel(
         }
     }
 
-    /** Pide al servidor el QR simulado de cobro. No confirma nada ni desbloquea la entrega. */
+    /** Genera el QR informativo (opcional). No confirma el cobro ni desbloquea la entrega. */
     fun generarQrPago() {
         if (pagoEnCurso || !_estado.value.requierePagoQr) return
         pagoEnCurso = true
@@ -105,7 +105,6 @@ class DetalleEntregaViewModel(
             when (resultado) {
                 is ResultadoOperacion.Exito -> {
                     if (resultado.valor.confirmado) {
-                        // El servidor ya lo tenía confirmado: recargar para que el bloqueo se levante desde la API.
                         _estado.update { it.copy(generandoQr = false, qrPago = null) }
                         aplicar(cargarDetalle())
                     } else {
@@ -125,20 +124,26 @@ class DetalleEntregaViewModel(
         }
     }
 
+    fun ocultarQrPago() {
+        _estado.update { it.copy(qrPago = null) }
+    }
+
     /**
-     * Acción explícita del repartidor tras cobrar. Solo la confirmación del servidor, seguida de una
-     * recarga del detalle (GET entrega), levanta el bloqueo `pagoPendiente`; nunca se fija en local.
+     * Cobro directo vía API (sin exigir QR). Solo la confirmación del servidor, seguida de una
+     * recarga del detalle, levanta el bloqueo `pagoPendiente`.
      */
     fun confirmarPago() {
         val actual = _estado.value
-        val qr = actual.qrPago ?: return
+        val pagoId = actual.qrPago?.pagoId?.takeIf { it.isNotBlank() }
+            ?: actual.detalle?.pago?.id?.takeIf { it.isNotBlank() }
+            ?: return
         if (pagoEnCurso || actual.confirmandoPago || !actual.requierePagoQr) return
         pagoEnCurso = true
         val uuid = uuidPago ?: nuevoUuid().also { uuidPago = it }
         viewModelScope.launch {
             _estado.update { it.copy(confirmandoPago = true, errorPago = null) }
             val resultado = try {
-                repositorio.confirmarPago(qr.pagoId, uuid)
+                repositorio.confirmarPago(pagoId, uuid)
             } catch (error: CancellationException) {
                 throw error
             } catch (_: Exception) {

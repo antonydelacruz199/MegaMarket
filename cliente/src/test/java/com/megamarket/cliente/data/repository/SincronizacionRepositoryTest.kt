@@ -140,6 +140,11 @@ class SincronizacionRepositoryTest {
 
         override suspend fun listarPedidos(estado: String?, owner: String) = throw IOException("sin red")
         override suspend fun obtenerPedido(id: String, owner: String) = throw IOException("sin red")
+        override suspend fun transicionarPedido(
+            id: String,
+            body: com.megamarket.cliente.data.remote.TransicionPedidoRequest,
+            owner: String
+        ) = throw IOException("sin red")
         override suspend fun listarSustituciones(estado: String?, owner: String) = throw IOException("sin red")
         override suspend fun obtenerSustitucion(id: String, owner: String) = throw IOException("sin red")
         override suspend fun aceptarSustitucion(id: String, owner: String) = throw IOException("sin red")

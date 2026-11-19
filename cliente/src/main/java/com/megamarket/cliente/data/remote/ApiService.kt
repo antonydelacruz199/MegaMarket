@@ -4,6 +4,7 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.Header
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
@@ -46,6 +47,13 @@ interface ApiService {
     @GET("api/pedidos/{id}")
     suspend fun obtenerPedido(
         @Path("id") id: String,
+        @Header("X-Expected-User") owner: String
+    ): Response<PedidoCompletoResponse>
+
+    @PATCH("api/pedidos/{id}/estado")
+    suspend fun transicionarPedido(
+        @Path("id") id: String,
+        @Body body: TransicionPedidoRequest,
         @Header("X-Expected-User") owner: String
     ): Response<PedidoCompletoResponse>
 

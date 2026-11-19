@@ -97,7 +97,8 @@ class AppContainer(context: Context) {
         database.productoDao(),
         database.movimientoInventarioDao(),
         database.operacionPendienteDao(),
-        { SincronizacionWorker.programar(appContext) },
+        // REPLACE: el pedido recién creado no debe quedar detrás de un Work KEEP pendiente.
+        { SincronizacionWorker.programarSincronizacionInmediata(appContext) },
         sesionLocal
     )
 

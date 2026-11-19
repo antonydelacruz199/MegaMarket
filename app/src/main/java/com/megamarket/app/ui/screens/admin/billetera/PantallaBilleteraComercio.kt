@@ -24,7 +24,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.megamarket.app.data.repository.ETIQUETA_SIMULACION
 import com.megamarket.app.data.repository.MovimientoComercio
 import com.megamarket.app.ui.components.EstructuraAdmin
 import com.megamarket.app.ui.navigation.Ruta
@@ -57,18 +56,12 @@ fun PantallaBilleteraComercio(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = "$ETIQUETA_SIMULACION · billetera académica, sin banco real",
-                style = MaterialTheme.typography.labelLarge,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.error
-            )
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text("Saldo de MegaMarket", style = MaterialTheme.typography.titleSmall)
+                    Text("Saldo disponible", style = MaterialTheme.typography.titleSmall)
                     val billetera = estado.billetera
                     if (billetera != null) {
                         Text(
@@ -94,7 +87,7 @@ fun PantallaBilleteraComercio(
                 TextButton(onClick = viewModel::cargar) { Text("Reintentar") }
             }
             Text(
-                text = "Movimientos recibidos",
+                text = "Historial de movimientos",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )

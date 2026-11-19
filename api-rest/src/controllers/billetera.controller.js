@@ -29,7 +29,7 @@ async function saldoPropio(req, res) {
       return res.status(200).json({
         cuenta: mapearCuenta(cuenta),
         saldoInicialCentimos: SALDO_INICIAL_COMERCIO_CENTIMOS,
-        etiqueta: 'MegaMarket comercio (simulado)',
+        etiqueta: 'MegaMarket comercio',
         simulacion: true
       });
     }
@@ -45,7 +45,7 @@ async function saldoPropio(req, res) {
       // ignore
     }
     console.error('Error al consultar saldo:', error.message);
-    return res.status(500).json({ error: 'No se pudo consultar el saldo simulado' });
+    return res.status(500).json({ error: 'No se pudo consultar el saldo' });
   } finally {
     clienteDb.release();
   }

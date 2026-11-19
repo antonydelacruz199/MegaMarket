@@ -1,6 +1,5 @@
 /**
- * Utilidades de pago QR simulado (sin banco real).
- * Las referencias SIM-* son ficticias y académicas.
+ * Utilidades de pago QR y referencias de cobro.
  */
 
 const crypto = require('node:crypto');
@@ -57,7 +56,7 @@ function mapearAjuste(fila) {
 
 function construirQrContenido({ pago, pedidoId, referencia, generadoEn }) {
   return [
-    'MEGAMARKET-SIMULACION',
+    'MEGAMARKET-PAGO',
     'v=1',
     `pedido=${pedidoId}`,
     `pago=${pago.id}`,
@@ -66,20 +65,19 @@ function construirQrContenido({ pago, pedidoId, referencia, generadoEn }) {
     `moneda=${pago.moneda || 'PEN'}`,
     `modalidad=${pago.modalidad}`,
     `generado=${generadoEn}`,
-    'estado=PENDIENTE',
-    'aviso=NO ES UN PAGO BANCARIO REAL'
+    'estado=PENDIENTE'
   ].join('\n');
 }
 
 function nuevaReferenciaSimulada(pagoId) {
   const corto = String(pagoId).replace(/-/g, '').slice(0, 12).toUpperCase();
   const aleatorio = crypto.randomBytes(4).toString('hex').toUpperCase();
-  return `SIM-REF-${corto}-${aleatorio}`;
+  return `MM-REF-${corto}-${aleatorio}`;
 }
 
 function nuevoNumeroOperacionSimulado(uuidOperacion) {
   const corto = String(uuidOperacion).replace(/-/g, '').slice(0, 16).toUpperCase();
-  return `SIM-OP-${corto}`;
+  return `MM-OP-${corto}`;
 }
 
 module.exports = {

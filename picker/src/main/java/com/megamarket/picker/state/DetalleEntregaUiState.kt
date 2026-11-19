@@ -20,7 +20,7 @@ data class DetalleEntregaUiState(
     val confirmacionReciente: Boolean = false,
     val idempotente: Boolean = false,
     val pagoPendiente: Boolean = false,
-    /** QR simulado de contraentrega vigente; mostrarlo no desbloquea la entrega. */
+    /** QR informativo opcional; mostrarlo no desbloquea la entrega. */
     val qrPago: PagoQrReparto? = null,
     val generandoQr: Boolean = false,
     val confirmandoPago: Boolean = false,
@@ -28,7 +28,7 @@ data class DetalleEntregaUiState(
     /** Solo `true` cuando el servidor confirmó el pago y el detalle recargado ya no lo marca pendiente. */
     val pagoConfirmadoReciente: Boolean = false
 ) {
-    /** Contraentrega EN_CAMINO con pago sin confirmar: el repartidor debe cobrar con el QR simulado. */
+    /** Contraentrega EN_CAMINO con pago sin confirmar: el repartidor debe cobrar antes de entregar. */
     val requierePagoQr: Boolean
         get() {
             val actual = detalle ?: return false

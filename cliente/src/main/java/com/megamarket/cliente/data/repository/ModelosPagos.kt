@@ -11,7 +11,7 @@ import java.util.Locale
 const val MODALIDAD_ONLINE = "ONLINE"
 const val MODALIDAD_CONTRAENTREGA = "CONTRAENTREGA"
 const val ESTADO_PAGO_CONFIRMADO = "CONFIRMADO"
-const val ETIQUETA_SIMULACION = "SIMULACIÓN"
+const val ETIQUETA_QR = "Código QR"
 
 data class PagoCliente(
     val id: String,
@@ -113,7 +113,7 @@ object MensajesPagoCliente {
     const val PROHIBIDO = "No tienes permiso para operar este pago."
     const val NO_ENCONTRADO = "No se encontró el pago del pedido."
     const val CONFLICTO = "El pago no admite esta operación en su estado actual."
-    const val NO_CONFIRMADO = "El servidor no confirmó el pago. El pedido sigue pendiente de pago."
+    const val NO_CONFIRMADO = "El servidor no confirmó el pago. El pedido sigue pendiente."
     const val RESPUESTA_INVALIDA = "El servidor devolvió una respuesta incompleta."
     const val PEDIDO_NO_DISPONIBLE = "El pedido todavía no se sincronizó con el servidor."
 }
@@ -149,7 +149,7 @@ fun QrSimuladoDto.aQrCliente(pagoFallback: PagoCliente? = null): QrPagoCliente? 
         generadoEn = generadoEn,
         expiraEn = expiraEn ?: pagoFallback?.fechaExpiracionQr,
         estado = estado,
-        etiqueta = etiqueta?.takeIf { it.isNotBlank() } ?: ETIQUETA_SIMULACION,
+        etiqueta = etiqueta?.takeIf { it.isNotBlank() } ?: "Código QR",
         aviso = aviso
     )
 }

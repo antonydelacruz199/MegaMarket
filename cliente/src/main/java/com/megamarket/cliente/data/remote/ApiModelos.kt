@@ -119,6 +119,10 @@ data class CrearPedidoResponse(
     val detalles: List<DetallePedidoApiDto>? = null
 )
 
+data class TransicionPedidoRequest(
+    val estado: String
+)
+
 data class PedidoApiDto(
     val id: String?,
     @SerializedName("client_uuid") val clientUuid: String?,

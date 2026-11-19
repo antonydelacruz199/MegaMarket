@@ -14,12 +14,12 @@ enum class ModalidadPagoCheckout(
     ONLINE(
         "ONLINE",
         "Pago en línea",
-        "Después de confirmar el pedido pagarás con un QR simulado. El pago no se confirma solo al mostrar el código."
+        "Después de confirmar el pedido pagarás en línea. El pago no se confirma solo al mostrar un código QR."
     ),
     CONTRAENTREGA(
         "CONTRAENTREGA",
         "Contraentrega",
-        "El pedido se prepara con pago pendiente. Pagarás con QR simulado con el repartidor antes de cerrar la entrega."
+        "El pedido se prepara con pago pendiente. Pagarás con el repartidor antes de cerrar la entrega."
     );
 
     companion object {

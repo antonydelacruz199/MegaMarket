@@ -286,6 +286,7 @@ fun NavegacionPicker(
                 alFijarUbicacion = entregaViewModel::fijarUbicacion,
                 alRegistrar = entregaViewModel::registrar,
                 alGenerarQr = entregaViewModel::generarQrPago,
+                alOcultarQr = entregaViewModel::ocultarQrPago,
                 alConfirmarPago = entregaViewModel::confirmarPago
             )
         }

@@ -48,10 +48,10 @@ class BilleteraViewModelTest {
     @Test
     fun errorDeServidorMuestraMensajeYPermiteReintentar() {
         val api = ApiPagosFake()
-        api.saldo = ApiPagosFake.errorHttp(500, """{"error":"No se pudo consultar el saldo simulado"}""")
+        api.saldo = ApiPagosFake.errorHttp(500, """{"error":"No se pudo consultar el saldo"}""")
         val vm = modelo(api)
         assertNull(vm.estado.value.cuenta)
-        assertEquals("No se pudo consultar el saldo simulado", vm.estado.value.error)
+        assertEquals("No se pudo consultar el saldo", vm.estado.value.error)
 
         api.saldo = ApiPagosFake().saldo
         vm.cargar()

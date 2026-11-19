@@ -110,13 +110,13 @@ Todas requieren JWT, salvo login y health.
 | POST /api/medios/entregas/:pedidoId | Repartidor asignado | Sube foto privada; devuelve `fotoReferencia` |
 | GET /api/medios/entregas/:pedidoId | Admin / cliente / repartidor | Lectura privada de evidencia |
 | POST /api/inventario/movimientos | Administrador | Ajustes que respetan las reservas existentes |
-| GET /api/billetera/saldo | Cliente / Admin | Saldo simulado propio (cliente) o comercial (admin) |
-| GET /api/billetera/movimientos | Cliente / Admin | Historial ficticio de movimientos |
+| GET /api/billetera/saldo | Cliente / Admin | Saldo propio (cliente) o comercial (admin) |
+| GET /api/billetera/movimientos | Cliente / Admin | Historial de movimientos |
 | GET /api/billetera/comercio | Administrador | Alias del saldo comercial MegaMarket |
-| POST /api/pagos/qr | Cliente / Repartidor / Admin | Genera QR informativo (`SIMULACIÓN`); no confirma cobro |
+| POST /api/pagos/qr | Cliente / Repartidor / Admin | Genera QR informativo; no confirma cobro |
 | GET /api/pagos/pedido/:pedidoId | Autenticado (por rol) | Estado del pago del pedido |
 | GET /api/pagos/:id | Autenticado (por rol) | Detalle de pago |
-| POST /api/pagos/:id/confirmar | Cliente / Repartidor / Admin | Confirma cobro simulado (saldo + idempotencia) |
+| POST /api/pagos/:id/confirmar | Cliente / Repartidor / Admin | Confirma cobro (saldo + idempotencia) |
 | POST /api/pagos/ajustes/:id/confirmar | Cliente / Admin | Confirma devolución/descuento pendiente de forma controlada |
 
 Ejemplo de reserva:
@@ -129,7 +129,7 @@ Una lista vacía libera la reserva. El UUID del carrito se reutiliza como `clien
 
 Checkout v3 además exige `franjaEntregaId` y `modalidadPago` (`ONLINE` | `CONTRAENTREGA`). Crea el pedido en `CONFIRMADO` con pago `PENDIENTE` (sin confirmación bancaria), copia `preferencia_sustitucion` del cliente y reserva cupo de franja en la misma transacción (`FOR UPDATE`).
 
-Fase 3: el QR es solo informativo. El cobro se confirma con `POST /api/pagos/:id/confirmar` (`uuidOperacion`), que debita la billetera del cliente, acredita MegaMarket y pasa el pago a `CONFIRMADO` (referencias `SIM-*`). Mostrar el QR no marca `PAGADO`.
+Fase 3 (operaciones académicas, sin dinero real): el QR es opcional e informativo. El cobro se confirma con `POST /api/pagos/:id/confirmar` (`uuidOperacion`) —también desde estado `PENDIENTE`, sin haber generado QR—, que debita la billetera del cliente, acredita MegaMarket y pasa el pago a `CONFIRMADO` (referencias `SIM-*`). Mostrar el QR no marca `PAGADO`.
 
 ## Pruebas
 

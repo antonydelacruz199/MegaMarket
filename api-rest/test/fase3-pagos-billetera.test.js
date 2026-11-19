@@ -178,7 +178,7 @@ test('PostgreSQL: inicialización de saldos e aislamiento entre clientes', { ski
   });
 });
 
-test('PostgreSQL: QR generado, pago pendiente y confirmación ONLINE', { skip }, async () => {
+test('PostgreSQL: confirmación ONLINE directa sin QR y QR opcional', { skip }, async () => {
   await conEsquema(async (pool, api) => {
     const { cliente, producto, franja } = await semilla(pool);
     await ejecutar(api.billetera.saldoPropio, { id: cliente.id, rol: 'CLIENTE' });
@@ -194,37 +194,16 @@ test('PostgreSQL: QR generado, pago pendiente y confirmación ONLINE', { skip },
     assert.equal(creado.pago.estado, 'PENDIENTE');
     assert.equal(creado.pedido.estado, 'CONFIRMADO');
 
-    const qr = await ejecutar(
-      api.pagos.generarQr,
-      { id: cliente.id, rol: 'CLIENTE' },
-      { pedidoId: creado.pedido.id }
-    );
-    assert.equal(qr.code, 200, JSON.stringify(qr.body));
-    assert.equal(qr.body.pago.estado, 'QR_GENERADO');
-    assert.match(qr.body.qr.contenido, /MEGAMARKET-SIMULACION/);
-    assert.match(qr.body.qr.contenido, /NO ES UN PAGO BANCARIO REAL/);
-    assert.equal(qr.body.qr.importeCentimos, 200);
-    assert.equal(qr.body.qr.pedidoId, creado.pedido.id);
-    assert.equal(qr.body.qr.etiqueta, 'SIMULACIÓN');
-
-    const consulta = await ejecutar(
-      api.pagos.obtenerPorPedido,
-      { id: cliente.id, rol: 'CLIENTE' },
-      {},
-      { pedidoId: creado.pedido.id }
-    );
-    assert.equal(consulta.body.pago.estado, 'QR_GENERADO');
-
-    const uuidOp = crypto.randomUUID();
+    // Pagar ahora sin generar QR
     const conf = await ejecutar(
       api.pagos.confirmar,
       { id: cliente.id, rol: 'CLIENTE' },
-      { uuidOperacion: uuidOp },
+      { uuidOperacion: crypto.randomUUID() },
       { id: creado.pago.id }
     );
     assert.equal(conf.code, 200, JSON.stringify(conf.body));
     assert.equal(conf.body.pago.estado, 'CONFIRMADO');
-    assert.match(conf.body.pago.numeroOperacionBanco, /^SIM-OP-/);
+    assert.match(conf.body.pago.numeroOperacionBanco, /^MM-OP-/);
     assert.equal(conf.body.pedido.estado, 'PAGADO');
     assert.equal(conf.body.billetera.saldoClienteCentimos, SALDO_CLIENTE - 200);
     assert.equal(conf.body.billetera.saldoComercioCentimos, SALDO_COMERCIO + 200);
@@ -241,6 +220,37 @@ test('PostgreSQL: QR generado, pago pendiente y confirmación ONLINE', { skip },
       { query: { limite: 10 } }
     );
     assert.ok(movs.body.movimientos.some((m) => m.tipo === 'COBRO_PEDIDO'));
+  });
+});
+
+test('PostgreSQL: QR opcional no confirma; generar QR deja estado QR_GENERADO', { skip }, async () => {
+  await conEsquema(async (pool, api) => {
+    const { cliente, producto, franja } = await semilla(pool);
+    await ejecutar(api.billetera.saldoPropio, { id: cliente.id, rol: 'CLIENTE' });
+    const creado = await crearPedidoV3(
+      pool,
+      api.pedidos,
+      cliente,
+      producto,
+      franja,
+      'ONLINE'
+    );
+
+    const qr = await ejecutar(
+      api.pagos.generarQr,
+      { id: cliente.id, rol: 'CLIENTE' },
+      { pedidoId: creado.pedido.id }
+    );
+    assert.equal(qr.code, 200, JSON.stringify(qr.body));
+    assert.equal(qr.body.pago.estado, 'QR_GENERADO');
+    assert.match(qr.body.qr.contenido, /MEGAMARKET-PAGO/);
+    assert.equal(qr.body.qr.importeCentimos, 200);
+
+    const { rows: [cuenta] } = await pool.query(
+      `SELECT saldo_centimos FROM cuentas_billetera WHERE usuario_id=$1`,
+      [cliente.id]
+    );
+    assert.equal(Number(cuenta.saldo_centimos), SALDO_CLIENTE);
   });
 });
 
@@ -401,13 +411,7 @@ test('PostgreSQL: CONTRAENTREGA confirmada por repartidor asignado', { skip }, a
       [creado.pedido.id, repartidor.id]
     );
 
-    const qr = await ejecutar(
-      api.pagos.generarQr,
-      { id: repartidor.id, rol: 'REPARTIDOR' },
-      { pedidoId: creado.pedido.id }
-    );
-    assert.equal(qr.code, 200, JSON.stringify(qr.body));
-
+    // Cobrar ahora sin generar QR
     const conf = await ejecutar(
       api.pagos.confirmar,
       { id: repartidor.id, rol: 'REPARTIDOR' },

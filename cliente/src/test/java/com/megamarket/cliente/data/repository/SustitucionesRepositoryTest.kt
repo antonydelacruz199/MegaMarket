@@ -254,6 +254,12 @@ private class ApiFake : ApiService {
         return pedido
     }
 
+    override suspend fun transicionarPedido(
+        id: String,
+        body: com.megamarket.cliente.data.remote.TransicionPedidoRequest,
+        owner: String
+    ): Response<PedidoCompletoResponse> = error("n/a")
+
     override suspend fun listarSustituciones(estado: String?, owner: String): Response<ListaSustitucionesResponse> {
         fallarSiRed()
         listados++

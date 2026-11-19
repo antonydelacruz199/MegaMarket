@@ -280,7 +280,7 @@ private fun PasoPago(estado: CheckoutUiState, viewModel: CheckoutViewModel) {
         fontWeight = FontWeight.SemiBold
     )
     Text(
-        text = "Esta elección no confirma el pago. El QR simulado se mostrará en una fase posterior.",
+        text = "Esta elección no confirma el pago. Si eliges pago en línea, lo harás justo después de confirmar el pedido.",
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
@@ -394,6 +394,16 @@ private fun AccionesPaso(estado: CheckoutUiState, viewModel: CheckoutViewModel) 
             viewModel.irAPaso(PasoCheckout.RESUMEN)
         }
         PasoCheckout.RESUMEN -> {
+            Text(
+                text = if (estado.modalidadPago == ModalidadPagoCheckout.ONLINE) {
+                    "Al confirmar verás el resumen final para pagar ahora o cancelar el pedido."
+                } else {
+                    "Al confirmar verás el resumen final. Podrás cancelar mientras el pedido siga confirmado."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
             Button(
                 onClick = viewModel::confirmarCompra,
                 enabled = !estado.cargando,

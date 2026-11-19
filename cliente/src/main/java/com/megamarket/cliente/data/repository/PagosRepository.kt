@@ -113,6 +113,29 @@ class PagosRepository(
         }
     }
 
+    /**
+     * Cancela un pedido CONFIRMADO sin cobro confirmado (p. ej. ONLINE pendiente).
+     * El servidor rechaza si el pago ya está CONFIRMADO.
+     */
+    suspend fun cancelarPedido(pedidoId: String): ResultadoPagos<Unit> = withContext(io) {
+        val owner = usuarioRemotoId() ?: return@withContext sesionVencidaPago()
+        val id = pedidoId.trim()
+        if (id.isEmpty()) return@withContext pedidoNoDisponible()
+        try {
+            val respuesta = api.transicionarPedido(
+                id,
+                com.megamarket.cliente.data.remote.TransicionPedidoRequest(estado = "CANCELADO"),
+                owner
+            )
+            if (!respuesta.isSuccessful) return@withContext falloPago(respuesta)
+            ResultadoPagos.Exito(Unit)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: IOException) {
+            falloRedPago(error)
+        }
+    }
+
     suspend fun confirmarAjuste(
         ajusteId: String,
         uuidOperacion: String

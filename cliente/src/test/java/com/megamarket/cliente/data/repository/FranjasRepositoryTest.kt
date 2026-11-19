@@ -112,6 +112,11 @@ class FranjasRepositoryTest {
             error("n/a")
         override suspend fun listarPedidos(estado: String?, owner: String) = error("n/a")
         override suspend fun obtenerPedido(id: String, owner: String) = error("n/a")
+        override suspend fun transicionarPedido(
+            id: String,
+            body: com.megamarket.cliente.data.remote.TransicionPedidoRequest,
+            owner: String
+        ) = error("n/a")
         override suspend fun listarSustituciones(estado: String?, owner: String) = error("n/a")
         override suspend fun obtenerSustitucion(id: String, owner: String) = error("n/a")
         override suspend fun aceptarSustitucion(id: String, owner: String) = error("n/a")

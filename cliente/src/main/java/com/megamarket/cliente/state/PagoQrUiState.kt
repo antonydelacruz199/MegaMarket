@@ -7,10 +7,13 @@ data class PagoQrUiState(
     val cargando: Boolean = true,
     val confirmando: Boolean = false,
     val consultandoEstado: Boolean = false,
+    val generandoQr: Boolean = false,
+    val mostrarQr: Boolean = false,
     val pedidoId: String = "",
     val pago: PagoCliente? = null,
     val qr: QrPagoCliente? = null,
     val pedidoEstado: String? = null,
+    val saldoDisponibleCentimos: Long? = null,
     val saldoClienteCentimos: Long? = null,
     /** Solo es `true` cuando el servidor declaró el pago CONFIRMADO. */
     val confirmado: Boolean = false,

@@ -1,6 +1,6 @@
 /**
- * Billetera simulada académica (céntimos enteros, sin Float/Double).
- * No conecta bancos ni pasarelas. Solo ledger interno PostgreSQL.
+ * Billetera interna (céntimos enteros, sin Float/Double).
+ * Ledger PostgreSQL; sin pasarelas externas.
  */
 
 const crypto = require('node:crypto');
@@ -114,7 +114,7 @@ async function asegurarCuentaCliente(clienteDb, usuarioId) {
         crypto.randomUUID(),
         creada.id,
         SALDO_INICIAL_CLIENTE_CENTIMOS,
-        'Saldo inicial académico del cliente'
+        'Saldo inicial del cliente'
       ]
     );
     return creada;
@@ -225,7 +225,7 @@ async function liquidarCobroPedido(clienteDb, ctx) {
       ok: false,
       http: 409,
       codigo: 'SALDO_INSUFICIENTE',
-      error: 'Saldo simulado insuficiente para confirmar el pago',
+      error: 'Saldo insuficiente para confirmar el pago',
       saldoCentimos: saldoCliente,
       montoCentimos: monto
     };
@@ -259,7 +259,7 @@ async function liquidarCobroPedido(clienteDb, ctx) {
     saldoPosteriorCentimos: nuevoCliente,
     pagoId: ctx.pagoId,
     pedidoId: ctx.pedidoId,
-    descripcion: 'Cobro simulado del pedido'
+    descripcion: 'Cobro del pedido'
   });
 
   const movCredito = await insertarMovimiento(clienteDb, {
@@ -271,7 +271,7 @@ async function liquidarCobroPedido(clienteDb, ctx) {
     saldoPosteriorCentimos: nuevoComercio,
     pagoId: ctx.pagoId,
     pedidoId: ctx.pedidoId,
-    descripcion: 'Acreditación simulada MegaMarket'
+    descripcion: 'Acreditación MegaMarket'
   });
 
   if (!movDebito) {
@@ -307,7 +307,7 @@ async function liquidarCobroPedido(clienteDb, ctx) {
       ok: false,
       http: 409,
       codigo: 'COBRO_CONCURRENTE',
-      error: 'No se pudo registrar el cobro simulado de forma exclusiva'
+      error: 'No se pudo registrar el cobro de forma exclusiva'
     };
   }
 
@@ -362,7 +362,7 @@ async function liquidarDevolucionAjuste(clienteDb, ctx) {
       ok: false,
       http: 409,
       codigo: 'SALDO_COMERCIO_INSUFICIENTE',
-      error: 'La cuenta comercial simulada no tiene saldo para la devolución'
+      error: 'La cuenta comercial no tiene saldo para la devolución'
     };
   }
 
@@ -455,7 +455,7 @@ async function liquidarDescuentoAjuste(clienteDb, ctx) {
       ok: false,
       http: 409,
       codigo: 'SALDO_INSUFICIENTE',
-      error: 'Saldo simulado insuficiente para confirmar el ajuste'
+      error: 'Saldo insuficiente para confirmar el ajuste'
     };
   }
 
@@ -481,7 +481,7 @@ async function liquidarDescuentoAjuste(clienteDb, ctx) {
     pagoId: ctx.pagoId,
     ajustePagoId: ctx.ajustePagoId,
     pedidoId: ctx.pedidoId,
-    descripcion: 'Ajuste simulado (descuento adicional)'
+    descripcion: 'Ajuste por descuento adicional'
   });
 
   await insertarMovimiento(clienteDb, {
@@ -494,7 +494,7 @@ async function liquidarDescuentoAjuste(clienteDb, ctx) {
     pagoId: ctx.pagoId,
     ajustePagoId: ctx.ajustePagoId,
     pedidoId: ctx.pedidoId,
-    descripcion: 'Acreditación comercial por ajuste simulado'
+    descripcion: 'Acreditación comercial por ajuste'
   });
 
   return {

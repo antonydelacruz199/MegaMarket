@@ -6,14 +6,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -32,6 +36,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.megamarket.cliente.R
 import com.megamarket.cliente.data.repository.MODALIDAD_ONLINE
 import com.megamarket.cliente.model.Pedido
+import com.megamarket.cliente.state.ConfirmacionUiState
 import com.megamarket.cliente.ui.components.BarraSuperior
 import com.megamarket.cliente.ui.components.EstadoVacio
 import com.megamarket.cliente.viewmodel.ConfirmacionViewModel
@@ -41,13 +46,17 @@ import com.megamarket.modelo.formatearSoles
 fun PantallaConfirmacion(
     viewModel: ConfirmacionViewModel,
     alIrAlInicio: () -> Unit,
-    alPagarQr: (String) -> Unit = {}
+    alPagar: (String) -> Unit = {}
 ) {
     val estado by viewModel.estado.collectAsStateWithLifecycle()
     var yaMostrado by remember { mutableStateOf(false) }
-    // Al volver de la pantalla del QR se relee el estado del pago desde el servidor.
+
     LifecycleResumeEffect(Unit) {
-        if (yaMostrado) viewModel.refrescarPago() else yaMostrado = true
+        if (yaMostrado) {
+            viewModel.sincronizarYRecargar()
+        } else {
+            yaMostrado = true
+        }
         onPauseOrDispose { }
     }
     val pedido = estado.pedido
@@ -57,49 +66,60 @@ fun PantallaConfirmacion(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(relleno)
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            when {
-                estado.cargando -> CircularProgressIndicator()
-                pedido == null -> EstadoVacio(
-                    icono = Icons.Default.Warning,
-                    titulo = estado.error ?: "No hay una compra para mostrar",
-                    descripcion = "Puedes revisar tu carrito desde el inicio.",
-                    etiquetaAccion = "Reintentar",
-                    alPulsarAccion = viewModel::cargarPedido
-                )
-                else -> ResumenPedido(pedido, estado.pagoConfirmado, alPagarQr)
+            if (estado.sincronizando || estado.cancelando) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
             }
-            if(pedido?.estado=="REQUIERE_REVISION") {
-                Text("El servidor no confirmó el pedido. Revisa stock y precios antes de reintentarlo.")
-                estado.totalPropuesto?.let { total ->
-                    Text("Total actualizado: "+total.formatearSoles())
-                    Button(onClick=viewModel::aceptarPrecios) { Text("Aceptar total y reintentar") }
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                when {
+                    estado.cargando && pedido == null -> CircularProgressIndicator()
+                    pedido == null -> EstadoVacio(
+                        icono = Icons.Default.Warning,
+                        titulo = estado.error ?: "No hay una compra para mostrar",
+                        descripcion = "Puedes revisar tu carrito desde el inicio.",
+                        etiquetaAccion = "Reintentar",
+                        alPulsarAccion = { viewModel.cargarPedido(forzarSincronizacion = true) }
+                    )
+                    else -> ResumenYAcciones(
+                        estado = estado,
+                        alPagar = alPagar,
+                        alCancelar = viewModel::cancelarPedido,
+                        alSincronizar = viewModel::sincronizarYRecargar,
+                        alAceptarPrecios = viewModel::aceptarPrecios,
+                        alCancelarRevision = viewModel::cancelarPedido
+                    )
                 }
-                Button(onClick=viewModel::cancelarPedido) { Text("Cancelar pedido y liberar reserva") }
+                estado.error?.let {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(it, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+                OutlinedButton(
+                    onClick = alIrAlInicio,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text(stringResource(R.string.volver_inicio)) }
             }
-            estado.error?.let { Text(it,color=MaterialTheme.colorScheme.error) }
-            if(pedido?.estado=="PENDIENTE_CONFIRMACION") {
-                Text("Pendiente de confirmación. Las reservas sin conexión son provisionales.")
-                Button(onClick=viewModel::cargarPedido) { Text("Actualizar estado") }
-            }
-            Spacer(modifier = Modifier.height(24.dp))
-            Button(
-                onClick = alIrAlInicio,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            ) { Text(stringResource(R.string.volver_inicio)) }
         }
     }
 }
 
 @Composable
-private fun ResumenPedido(
-    pedido: Pedido,
-    pagoConfirmado: Boolean?,
-    alPagarQr: (String) -> Unit
+private fun ResumenYAcciones(
+    estado: ConfirmacionUiState,
+    alPagar: (String) -> Unit,
+    alCancelar: () -> Unit,
+    alSincronizar: () -> Unit,
+    alAceptarPrecios: () -> Unit,
+    alCancelarRevision: () -> Unit
 ) {
+    val pedido = checkNotNull(estado.pedido)
     Icon(
         imageVector = Icons.Default.Check,
         contentDescription = null,
@@ -107,7 +127,13 @@ private fun ResumenPedido(
     )
     Spacer(modifier = Modifier.height(16.dp))
     Text(
-        text = when(pedido.estado) { "CONFIRMADO" -> "Compra confirmada"; "CANCELADO" -> "Pedido cancelado"; "REQUIERE_REVISION" -> "Pedido requiere revisión"; else -> "Pedido pendiente de confirmación" },
+        text = when (pedido.estado) {
+            "CONFIRMADO" -> "Compra confirmada"
+            "CANCELADO" -> "Pedido cancelado"
+            "PAGADO" -> "Pedido pagado"
+            "REQUIERE_REVISION" -> "Pedido requiere revisión"
+            else -> "Pedido pendiente de confirmación"
+        },
         style = MaterialTheme.typography.headlineSmall,
         fontWeight = FontWeight.Bold,
         textAlign = TextAlign.Center
@@ -139,30 +165,110 @@ private fun ResumenPedido(
     }
     pedido.modalidadEtiqueta?.let {
         Text("Pago: $it", textAlign = TextAlign.Center)
-        val online = pedido.modalidadPago.equals(MODALIDAD_ONLINE, ignoreCase = true)
-        val remoto = pedido.remoteId?.trim().orEmpty()
-        val pagable = online && pedido.estado == Pedido.ESTADO_CONFIRMADO && pagoConfirmado != true
-        Text(
-            text = when {
-                online && pagoConfirmado == true -> "Pago simulado confirmado."
-                online && pagable && remoto.isNotEmpty() ->
-                    "SIMULACIÓN: el pago aún no está confirmado. Paga con el QR simulado."
-                online && pagable ->
-                    "El pedido aún no se sincronizó. Cuando lo haga podrás pagar con el QR simulado."
-                online -> "El pago se confirmará cuando el pedido quede confirmado."
-                else -> "Pagarás con QR simulado al repartidor antes de cerrar la entrega."
-            },
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
-        if (pagable && remoto.isNotEmpty()) {
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    when {
+        pedido.estado == "REQUIERE_REVISION" -> {
+            Text(
+                "El servidor no confirmó el pedido. Revisa stock y precios antes de reintentarlo.",
+                textAlign = TextAlign.Center
+            )
+            estado.totalPropuesto?.let { total ->
+                Text("Total actualizado: ${total.formatearSoles()}")
+                Button(
+                    onClick = alAceptarPrecios,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text("Aceptar total y reintentar") }
+            }
+            OutlinedButton(
+                onClick = alCancelarRevision,
+                enabled = !estado.cancelando,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Cancelar pedido") }
+        }
+
+        pedido.estado == "CANCELADO" -> {
+            Text("Este pedido fue cancelado.", textAlign = TextAlign.Center)
+        }
+
+        pedido.estado == "PENDIENTE_CONFIRMACION" ||
+            (pedido.modalidadPago.equals(MODALIDAD_ONLINE, true) &&
+                pedido.estado == Pedido.ESTADO_CONFIRMADO &&
+                pedido.remoteId.isNullOrBlank()) -> {
+            Text(
+                if (estado.sincronizando) {
+                    "Sincronizando el pedido con el servidor…"
+                } else {
+                    "El pedido aún no está listo en el servidor. Sincroniza para pagar o cancelar."
+                },
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodyMedium
+            )
             Spacer(modifier = Modifier.height(8.dp))
             Button(
-                onClick = { alPagarQr(remoto) },
+                onClick = alSincronizar,
+                enabled = !estado.sincronizando && !estado.cancelando,
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
-            ) { Text("Pagar con QR simulado") }
+            ) { Text("Sincronizar y actualizar") }
+            OutlinedButton(
+                onClick = alCancelar,
+                enabled = !estado.cancelando && !estado.sincronizando,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (estado.cancelando) "Cancelando…" else "Cancelar pedido") }
+        }
+
+        pedido.estado == "PAGADO" ||
+            (pedido.modalidadPago.equals(MODALIDAD_ONLINE, true) && estado.pagoConfirmado == true) -> {
+            Text(
+                "Pago confirmado. El pedido pasará a preparación.",
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
+
+        pedido.modalidadPago.equals(MODALIDAD_ONLINE, true) &&
+            pedido.estado == Pedido.ESTADO_CONFIRMADO &&
+            estado.pagoConfirmado != true -> {
+            val remoto = pedido.remoteId?.trim().orEmpty()
+            Text(
+                "Elige si deseas pagar ahora o cancelar el pedido.",
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = { if (remoto.isNotEmpty()) alPagar(remoto) },
+                enabled = remoto.isNotEmpty() && !estado.cancelando,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) { Text("Pagar ahora") }
+            OutlinedButton(
+                onClick = alCancelar,
+                enabled = !estado.cancelando,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (estado.cancelando) "Cancelando…" else "Cancelar pedido") }
+        }
+
+        else -> {
+            // CONTRAENTREGA u otros: no exige cobro inmediato.
+            Text(
+                "No hace falta pagar ahora. Pagarás al recibir el pedido.",
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            if (pedido.estado == Pedido.ESTADO_CONFIRMADO && estado.pagoConfirmado != true) {
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = alCancelar,
+                    enabled = !estado.cancelando && !pedido.remoteId.isNullOrBlank(),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text(if (estado.cancelando) "Cancelando…" else "Cancelar pedido") }
+            }
         }
     }
 }

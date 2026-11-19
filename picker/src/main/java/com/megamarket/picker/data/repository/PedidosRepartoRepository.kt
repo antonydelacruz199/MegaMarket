@@ -141,7 +141,7 @@ class PedidosRepartoRepository(
                         ?: pago?.qrContenido?.takeIf { it.isNotBlank() },
                     generadoEn = qr?.generadoEn,
                     expiraEn = qr?.expiraEn ?: pago?.fechaExpiracionQr,
-                    etiqueta = qr?.etiqueta?.takeIf { it.isNotBlank() } ?: ETIQUETA_SIMULACION,
+                    etiqueta = qr?.etiqueta?.takeIf { it.isNotBlank() } ?: "Código QR",
                     aviso = qr?.aviso
                 )
             )

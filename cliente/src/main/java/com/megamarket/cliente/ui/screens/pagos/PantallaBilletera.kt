@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -25,7 +24,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -37,7 +35,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.megamarket.cliente.data.repository.ETIQUETA_SIMULACION
 import com.megamarket.cliente.data.repository.MovimientoBilleteraCliente
 import com.megamarket.cliente.data.repository.textoFechaHora
 import com.megamarket.cliente.viewmodel.BilleteraViewModel
@@ -108,22 +105,6 @@ fun PantallaBilletera(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         item {
-                            Surface(
-                                color = MaterialTheme.colorScheme.errorContainer,
-                                contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                                shape = RoundedCornerShape(8.dp),
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Text(
-                                    "$ETIQUETA_SIMULACION · saldo académico, no es dinero real",
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    textAlign = TextAlign.Center
-                                )
-                            }
-                        }
-                        item {
                             Card(
                                 modifier = Modifier.fillMaxWidth(),
                                 colors = CardDefaults.cardColors(
@@ -139,7 +120,7 @@ fun PantallaBilletera(
                                     )
                                     estado.saldoInicialCentimos?.let {
                                         Text(
-                                            "Saldo inicial simulado: ${it.formatearSoles()}",
+                                            "Saldo inicial: ${it.formatearSoles()}",
                                             style = MaterialTheme.typography.bodySmall
                                         )
                                     }
@@ -151,7 +132,7 @@ fun PantallaBilletera(
                         }
                         item {
                             Text(
-                                "Movimientos",
+                                "Historial de movimientos",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
                             )

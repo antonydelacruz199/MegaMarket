@@ -54,7 +54,7 @@ fun PantallaPerfil(
             Spacer(modifier = Modifier.height(16.dp))
             Text("Billetera", style = MaterialTheme.typography.titleLarge)
             androidx.compose.material3.TextButton(onClick = alAbrirBilletera) {
-                Text("Ver saldo y movimientos (simulación)")
+                Text("Ver saldo y movimientos")
             }
             Spacer(modifier = Modifier.height(8.dp))
             Text(estado.nombre, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)

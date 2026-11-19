@@ -13,7 +13,7 @@ import kotlinx.coroutines.withContext
 import retrofit2.Response
 import java.io.IOException
 
-const val ETIQUETA_SIMULACION = "SIMULACIÓN"
+const val ETIQUETA_COMERCIO = "MegaMarket comercio"
 
 data class MovimientoComercio(
     val id: String,

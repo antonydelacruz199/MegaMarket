@@ -29,7 +29,7 @@ class PagosRepositoryTest {
         assertFalse(exito.valor.pago.confirmado)
         val qr = exito.valor.qr
         assertNotNull(qr)
-        assertEquals("SIMULACIÓN", qr!!.etiqueta)
+        assertEquals("Código QR", qr!!.etiqueta)
         assertEquals("MEGAMARKET-SIM|${ApiPagosFake.PAGO}", qr.contenido)
         assertEquals(1_500L, qr.importeCentimos)
         assertEquals(1, api.generados)
@@ -78,7 +78,7 @@ class PagosRepositoryTest {
         val api = ApiPagosFake()
         api.confirmacion = ApiPagosFake.errorHttp(
             409,
-            """{"error":"El QR simulado expiró; genera uno nuevo","codigo":"QR_EXPIRADO"}"""
+            """{"error":"El código QR expiró; genera uno nuevo","codigo":"QR_EXPIRADO"}"""
         )
         val error = repositorio(api).confirmar(ApiPagosFake.PAGO, "uuid-op") as ResultadoPagos.Error
         assertEquals(TipoErrorSustitucion.CONFLICTO, error.tipo)

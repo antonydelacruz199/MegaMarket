@@ -235,7 +235,7 @@ fun NavegacionCliente(
             PantallaConfirmacion(
                 viewModel = viewModel<ConfirmacionViewModel>(factory = fabrica),
                 alIrAlInicio = { controlador.irARaiz(Ruta.Inicio.ruta) },
-                alPagarQr = { pedidoId -> controlador.navigate(Ruta.PagoQr.crear(pedidoId)) }
+                alPagar = { pedidoId -> controlador.navigate(Ruta.PagoQr.crear(pedidoId)) }
             )
         }
     }

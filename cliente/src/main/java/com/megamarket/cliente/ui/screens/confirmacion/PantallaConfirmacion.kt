@@ -18,14 +18,19 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.megamarket.cliente.R
+import com.megamarket.cliente.data.repository.MODALIDAD_ONLINE
 import com.megamarket.cliente.model.Pedido
 import com.megamarket.cliente.ui.components.BarraSuperior
 import com.megamarket.cliente.ui.components.EstadoVacio
@@ -35,9 +40,16 @@ import com.megamarket.modelo.formatearSoles
 @Composable
 fun PantallaConfirmacion(
     viewModel: ConfirmacionViewModel,
-    alIrAlInicio: () -> Unit
+    alIrAlInicio: () -> Unit,
+    alPagarQr: (String) -> Unit = {}
 ) {
     val estado by viewModel.estado.collectAsStateWithLifecycle()
+    var yaMostrado by remember { mutableStateOf(false) }
+    // Al volver de la pantalla del QR se relee el estado del pago desde el servidor.
+    LifecycleResumeEffect(Unit) {
+        if (yaMostrado) viewModel.refrescarPago() else yaMostrado = true
+        onPauseOrDispose { }
+    }
     val pedido = estado.pedido
 
     Scaffold(topBar = { BarraSuperior(titulo = stringResource(R.string.confirmacion)) }) { relleno ->
@@ -57,7 +69,7 @@ fun PantallaConfirmacion(
                     etiquetaAccion = "Reintentar",
                     alPulsarAccion = viewModel::cargarPedido
                 )
-                else -> ResumenPedido(pedido)
+                else -> ResumenPedido(pedido, estado.pagoConfirmado, alPagarQr)
             }
             if(pedido?.estado=="REQUIERE_REVISION") {
                 Text("El servidor no confirmó el pedido. Revisa stock y precios antes de reintentarlo.")
@@ -83,7 +95,11 @@ fun PantallaConfirmacion(
 }
 
 @Composable
-private fun ResumenPedido(pedido: Pedido) {
+private fun ResumenPedido(
+    pedido: Pedido,
+    pagoConfirmado: Boolean?,
+    alPagarQr: (String) -> Unit
+) {
     Icon(
         imageVector = Icons.Default.Check,
         contentDescription = null,
@@ -117,4 +133,36 @@ private fun ResumenPedido(pedido: Pedido) {
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
     Text("Tel. ${pedido.direccion.telefono}")
+    pedido.franjaEtiqueta?.let {
+        Spacer(modifier = Modifier.height(8.dp))
+        Text("Entrega: $it", textAlign = TextAlign.Center, fontWeight = FontWeight.Medium)
+    }
+    pedido.modalidadEtiqueta?.let {
+        Text("Pago: $it", textAlign = TextAlign.Center)
+        val online = pedido.modalidadPago.equals(MODALIDAD_ONLINE, ignoreCase = true)
+        val remoto = pedido.remoteId?.trim().orEmpty()
+        val pagable = online && pedido.estado == Pedido.ESTADO_CONFIRMADO && pagoConfirmado != true
+        Text(
+            text = when {
+                online && pagoConfirmado == true -> "Pago simulado confirmado."
+                online && pagable && remoto.isNotEmpty() ->
+                    "SIMULACIÓN: el pago aún no está confirmado. Paga con el QR simulado."
+                online && pagable ->
+                    "El pedido aún no se sincronizó. Cuando lo haga podrás pagar con el QR simulado."
+                online -> "El pago se confirmará cuando el pedido quede confirmado."
+                else -> "Pagarás con QR simulado al repartidor antes de cerrar la entrega."
+            },
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
+        if (pagable && remoto.isNotEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = { alPagarQr(remoto) },
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) { Text("Pagar con QR simulado") }
+        }
+    }
 }

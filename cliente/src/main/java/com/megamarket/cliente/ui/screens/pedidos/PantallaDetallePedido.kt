@@ -52,7 +52,8 @@ import com.megamarket.modelo.formatearSoles
 fun PantallaDetallePedido(
     viewModel: DetallePedidoViewModel,
     alVolver: () -> Unit,
-    alCerrarSesion: () -> Unit
+    alCerrarSesion: () -> Unit,
+    alPagarQr: (String) -> Unit = {}
 ) {
     val estado by viewModel.estado.collectAsStateWithLifecycle()
     val ciclo = LocalLifecycleOwner.current
@@ -162,16 +163,25 @@ fun PantallaDetallePedido(
                     if (pago == null) {
                         Text("Sin información de pago")
                     } else {
-                        Text("Modalidad: ${pago.modalidad ?: "-"}")
+                        Text("Modalidad: ${d.modalidadVisible}")
                         Text("Estado: ${pago.estado ?: "-"}")
                         pago.montoCentimos?.let { Text("Monto: ${it.formatearSoles()}") }
                         pago.numeroOperacionBanco?.let { Text("Operación: $it") }
+                        if (d.puedePagarConQr) {
+                            Text(
+                                "SIMULACIÓN · pago académico con QR, sin banco real",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Button(
+                                onClick = { alPagarQr(d.id) },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("Pagar con QR simulado") }
+                        }
                     }
 
                     Text("Entrega", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
-                    if (!d.franjaEntregaId.isNullOrBlank()) {
-                        Text("Franja: ${d.franjaEntregaId.take(8)}")
-                    }
+                    Text(d.franjaVisible)
                     val dir = d.direccion
                     if (dir != null) {
                         Text(listOfNotNull(dir.direccion, dir.distrito, dir.provincia, dir.departamento)

@@ -488,6 +488,20 @@ class PedidosPickerRepositoryTest {
         Response.error(codigo, json.toResponseBody("application/json".toMediaType()))
 
     private inner class ApiFalsa : ApiService {
+
+        override suspend fun generarQr(
+            body: com.megamarket.picker.data.remote.GenerarQrRequest,
+            owner: String
+        ): retrofit2.Response<com.megamarket.picker.data.remote.GenerarQrResponse> = throw UnsupportedOperationException()
+        override suspend fun confirmarPago(
+            id: String,
+            body: com.megamarket.picker.data.remote.ConfirmarPagoRequest,
+            owner: String
+        ): retrofit2.Response<com.megamarket.picker.data.remote.ConfirmarPagoResponse> = throw UnsupportedOperationException()
+        override suspend fun obtenerPagoPedido(
+            pedidoId: String,
+            owner: String
+        ): retrofit2.Response<com.megamarket.picker.data.remote.PagoPedidoResponse> = throw UnsupportedOperationException()
         val listas = mutableMapOf<String, Response<PedidosResponse>>()
         val detalles = mutableMapOf<String, Response<PedidoCompletoResponse>>()
         val preparaciones = mutableMapOf<String, Response<PickingDetalleResponse>>()

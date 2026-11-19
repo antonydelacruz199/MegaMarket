@@ -9,11 +9,14 @@ import com.megamarket.cliente.data.local.SesionLocalStore
 import com.megamarket.cliente.data.remote.ApiClient
 import com.megamarket.cliente.data.repository.CatalogoRemotoRepository
 import com.megamarket.cliente.data.repository.SesionRepository
+import com.megamarket.cliente.data.repository.BilleteraRepository
 import com.megamarket.cliente.data.repository.CarritoRepository
 import com.megamarket.cliente.data.repository.CatalogoRepository
 import com.megamarket.cliente.data.repository.FavoritosRepository
+import com.megamarket.cliente.data.repository.FranjasRepository
 import com.megamarket.cliente.data.repository.MediosImagenRepository
 import com.megamarket.cliente.data.repository.MisPedidosRepository
+import com.megamarket.cliente.data.repository.PagosRepository
 import com.megamarket.cliente.data.repository.PedidoRepository
 import com.megamarket.cliente.data.repository.SincronizacionRepository
 import com.megamarket.cliente.data.repository.SustitucionesRepository
@@ -98,6 +101,11 @@ class AppContainer(context: Context) {
         sesionLocal
     )
 
+    val franjasRepository = FranjasRepository(
+        api = apiService,
+        usuarioRemotoId = { sesionLocal.usuarioRemotoId }
+    )
+
     val sustitucionesRepository = SustitucionesRepository(
         api = apiService,
         productoDao = database.productoDao(),
@@ -111,7 +119,18 @@ class AppContainer(context: Context) {
         api = apiService,
         pedidoDao = database.pedidoDao(),
         sustituciones = sustitucionesRepository,
+        franjas = franjasRepository,
         usuarioRemotoId = { sesionLocal.usuarioRemotoId },
         ownerLocalId = { sesionLocal.owner.value }
+    )
+
+    val pagosRepository = PagosRepository(
+        api = apiService,
+        usuarioRemotoId = { sesionLocal.usuarioRemotoId }
+    )
+
+    val billeteraRepository = BilleteraRepository(
+        api = apiService,
+        usuarioRemotoId = { sesionLocal.usuarioRemotoId }
     )
 }

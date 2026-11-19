@@ -26,6 +26,8 @@ class ViewModelFactory(
                 )
             modelClass.isAssignableFrom(SincronizacionViewModel::class.java) ->
                 SincronizacionViewModel(container.sincronizacionRepository)
+            modelClass.isAssignableFrom(BilleteraComercioViewModel::class.java) ->
+                BilleteraComercioViewModel(container.billeteraComercioRepository)
             else -> throw IllegalArgumentException("ViewModel no soportado: ${modelClass.name}")
         }
         @Suppress("UNCHECKED_CAST")

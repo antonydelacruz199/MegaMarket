@@ -111,6 +111,25 @@ interface ApiService {
         @Header("X-Expected-User") owner: String
     ): Response<RegistrarEntregaResponse>
 
+    @POST("api/pagos/qr")
+    suspend fun generarQr(
+        @Body body: GenerarQrRequest,
+        @Header("X-Expected-User") owner: String
+    ): Response<GenerarQrResponse>
+
+    @POST("api/pagos/{id}/confirmar")
+    suspend fun confirmarPago(
+        @Path("id") id: String,
+        @Body body: ConfirmarPagoRequest,
+        @Header("X-Expected-User") owner: String
+    ): Response<ConfirmarPagoResponse>
+
+    @GET("api/pagos/pedido/{pedidoId}")
+    suspend fun obtenerPagoPedido(
+        @Path("pedidoId") pedidoId: String,
+        @Header("X-Expected-User") owner: String
+    ): Response<PagoPedidoResponse>
+
     @Multipart
     @POST("api/medios/entregas/{pedidoId}")
     suspend fun subirFotoEntrega(

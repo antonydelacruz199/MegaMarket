@@ -18,6 +18,8 @@ import com.megamarket.cliente.ui.screens.checkout.PantallaCheckout
 import com.megamarket.cliente.ui.screens.confirmacion.PantallaConfirmacion
 import com.megamarket.cliente.ui.screens.favoritos.PantallaFavoritos
 import com.megamarket.cliente.ui.screens.inicio.PantallaInicio
+import com.megamarket.cliente.ui.screens.pagos.PantallaBilletera
+import com.megamarket.cliente.ui.screens.pagos.PantallaPagoQr
 import com.megamarket.cliente.ui.screens.perfil.PantallaPerfil
 import com.megamarket.cliente.ui.screens.presentacion.PantallaPresentacion
 import com.megamarket.cliente.ui.screens.producto.PantallaDetalleProducto
@@ -27,6 +29,7 @@ import com.megamarket.cliente.ui.screens.pedidos.PantallaMisPedidos
 import com.megamarket.cliente.ui.screens.sustituciones.PantallaDetalleSustitucion
 import com.megamarket.cliente.ui.screens.sustituciones.PantallaSustituciones
 import com.megamarket.cliente.viewmodel.SesionViewModel
+import com.megamarket.cliente.viewmodel.BilleteraViewModel
 import com.megamarket.cliente.viewmodel.CarritoViewModel
 import com.megamarket.cliente.viewmodel.CatalogoViewModel
 import com.megamarket.cliente.viewmodel.CheckoutViewModel
@@ -37,6 +40,7 @@ import com.megamarket.cliente.viewmodel.DetalleSustitucionViewModel
 import com.megamarket.cliente.viewmodel.FavoritosViewModel
 import com.megamarket.cliente.viewmodel.InicioViewModel
 import com.megamarket.cliente.viewmodel.MisPedidosViewModel
+import com.megamarket.cliente.viewmodel.PagoQrViewModel
 import com.megamarket.cliente.viewmodel.PerfilViewModel
 import com.megamarket.cliente.viewmodel.SincronizacionViewModel
 import com.megamarket.cliente.viewmodel.SustitucionesViewModel
@@ -130,6 +134,26 @@ fun NavegacionCliente(
             PantallaPerfil(
                 viewModel = viewModel<PerfilViewModel>(factory = fabrica),
                 alNavegar = controlador::irARaiz,
+                alCerrarSesion = cerrarSesion,
+                alAbrirBilletera = { controlador.navigate(Ruta.Billetera.ruta) }
+            )
+        }
+
+        composable(Ruta.Billetera.ruta) {
+            PantallaBilletera(
+                viewModel = viewModel<BilleteraViewModel>(factory = fabrica),
+                alVolver = { controlador.popBackStack() },
+                alCerrarSesion = cerrarSesion
+            )
+        }
+
+        composable(
+            route = Ruta.PagoQr.ruta,
+            arguments = listOf(navArgument(Ruta.ARG_PEDIDO_REMOTO) { type = NavType.StringType })
+        ) {
+            PantallaPagoQr(
+                viewModel = viewModel<PagoQrViewModel>(factory = fabrica),
+                alVolver = { controlador.popBackStack() },
                 alCerrarSesion = cerrarSesion
             )
         }
@@ -150,7 +174,8 @@ fun NavegacionCliente(
             PantallaDetallePedido(
                 viewModel = viewModel<DetallePedidoViewModel>(factory = fabrica),
                 alVolver = { controlador.popBackStack() },
-                alCerrarSesion = cerrarSesion
+                alCerrarSesion = cerrarSesion,
+                alPagarQr = { pedidoId -> controlador.navigate(Ruta.PagoQr.crear(pedidoId)) }
             )
         }
 
@@ -209,7 +234,8 @@ fun NavegacionCliente(
         ) {
             PantallaConfirmacion(
                 viewModel = viewModel<ConfirmacionViewModel>(factory = fabrica),
-                alIrAlInicio = { controlador.irARaiz(Ruta.Inicio.ruta) }
+                alIrAlInicio = { controlador.irARaiz(Ruta.Inicio.ruta) },
+                alPagarQr = { pedidoId -> controlador.navigate(Ruta.PagoQr.crear(pedidoId)) }
             )
         }
     }

@@ -47,6 +47,8 @@ app.use('/api/sustituciones', require('./routes/sustituciones.routes'));
 app.use('/api/entregas', require('./routes/entregas.routes'));
 app.use('/api/medios', require('./routes/medios.routes'));
 app.use('/api/carritos', require('./routes/carritos.routes'));
+app.use('/api/pagos', require('./routes/pagos.routes'));
+app.use('/api/billetera', require('./routes/billetera.routes'));
 app.use('/api/inventario', inventarioRoutes);
 
 app.use((_req, res) => {

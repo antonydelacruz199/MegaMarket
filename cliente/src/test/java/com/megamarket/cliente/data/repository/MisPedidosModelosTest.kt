@@ -11,6 +11,7 @@ class MisPedidosModelosTest {
     fun filtrosMapeanEstadosReales() {
         assertTrue(FiltroMisPedidos.PENDIENTES_PAGO.coincide("CONFIRMADO", "ONLINE"))
         assertFalse(FiltroMisPedidos.PENDIENTES_PAGO.coincide("CONFIRMADO", "CONTRAENTREGA"))
+        assertFalse(FiltroMisPedidos.PENDIENTES_PAGO.coincide("CONFIRMADO", null))
         assertTrue(FiltroMisPedidos.EN_PREPARACION.coincide("EN_PICKING", null))
         assertTrue(FiltroMisPedidos.EN_PREPARACION.coincide("PAGADO", "ONLINE"))
         assertTrue(FiltroMisPedidos.LISTOS.coincide("LISTO", null))
@@ -27,6 +28,7 @@ class MisPedidosModelosTest {
             totalCentimos = 100,
             estado = "EN_PICKING",
             franjaEntregaId = null,
+            franjaEtiqueta = null,
             version = 1,
             lineas = emptyList(),
             direccion = null,
@@ -56,6 +58,7 @@ class MisPedidosModelosTest {
             totalCentimos = 100,
             estado = "PAGADO",
             franjaEntregaId = null,
+            franjaEtiqueta = "Lun 18 nov · 10:00 – 12:00",
             version = 1,
             lineas = emptyList(),
             direccion = null,
@@ -69,6 +72,8 @@ class MisPedidosModelosTest {
             ),
             sustituciones = emptyList()
         )
+        assertEquals("Lun 18 nov · 10:00 – 12:00", detalle.franjaVisible)
+        assertEquals("Pago en línea", detalle.modalidadVisible)
         val etapas = detalle.etapasProgreso().map { it.nombre }
         assertEquals(
             listOf("CONFIRMADO", "PAGADO", "EN_PICKING", "LISTO", "EN_CAMINO", "ENTREGADO"),

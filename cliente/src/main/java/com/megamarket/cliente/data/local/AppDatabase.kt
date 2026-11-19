@@ -34,7 +34,7 @@ import java.util.UUID
         MovimientoInventario::class,
         SyncMetadata::class
     ],
-    version = 9,
+    version = 10,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -59,6 +59,21 @@ abstract class AppDatabase : RoomDatabase() {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE `productos` ADD COLUMN `codigo_barras` TEXT")
                 db.execSQL("ALTER TABLE `productos` ADD COLUMN `pasillo` TEXT")
+            }
+        }
+
+        /**
+         * Checkout v3: franja y modalidad en pedidos locales.
+         * Pedidos previos quedan en contrato_version=2 sin inventar franja.
+         */
+        val MIGRACION_9_10 = object : Migration(9, 10) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE `pedidos` ADD COLUMN `contrato_version` INTEGER NOT NULL DEFAULT 2")
+                db.execSQL("ALTER TABLE `pedidos` ADD COLUMN `franja_entrega_id` TEXT")
+                db.execSQL("ALTER TABLE `pedidos` ADD COLUMN `modalidad_pago` TEXT")
+                db.execSQL("ALTER TABLE `pedidos` ADD COLUMN `franja_fecha` TEXT")
+                db.execSQL("ALTER TABLE `pedidos` ADD COLUMN `franja_hora_inicio` TEXT")
+                db.execSQL("ALTER TABLE `pedidos` ADD COLUMN `franja_hora_fin` TEXT")
             }
         }
 
@@ -493,7 +508,8 @@ abstract class AppDatabase : RoomDatabase() {
                         MIGRACION_5_6,
                         MIGRACION_6_7,
                         MIGRACION_7_8,
-                        MIGRACION_8_9
+                        MIGRACION_8_9,
+                        MIGRACION_9_10
                     )
                     .fallbackToDestructiveMigrationFrom(true, 1)
                     .build()

@@ -5,6 +5,12 @@ import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.ui.graphics.Color
+import com.megamarket.picker.ui.components.QrBitmap
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -63,7 +69,9 @@ fun PantallaDetalleEntrega(
     alReintentar: () -> Unit,
     alFoto: (ByteArray) -> Unit,
     alFijarUbicacion: (Double, Double) -> Unit,
-    alRegistrar: () -> Unit
+    alRegistrar: () -> Unit,
+    alGenerarQr: () -> Unit = {},
+    alConfirmarPago: () -> Unit = {}
 ) {
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
@@ -120,6 +128,13 @@ fun PantallaDetalleEntrega(
         val punto = ubicacion.leer()
         buscandoGps = false
         if (punto != null) alFijarUbicacion(punto.latitud, punto.longitud)
+    }
+
+    // El QR es informativo: se pide una vez por pantalla; un error no se reintenta solo.
+    LaunchedEffect(estado.requierePagoQr, estado.qrPago, estado.errorPago) {
+        if (estado.requierePagoQr && estado.qrPago == null && estado.errorPago == null && !estado.generandoQr) {
+            alGenerarQr()
+        }
     }
 
     LaunchedEffect(estado.revisionFoto) {
@@ -190,6 +205,18 @@ fun PantallaDetalleEntrega(
                         Text(
                             text = stringResource(R.string.entrega_requiere_pago),
                             color = MaterialTheme.colorScheme.error,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                    if (estado.requierePagoQr) {
+                        BloquePagoQr(
+                            estado = estado,
+                            alGenerarQr = alGenerarQr,
+                            alConfirmarPago = alConfirmarPago
+                        )
+                    } else if (estado.pagoConfirmadoReciente) {
+                        Text(
+                            text = stringResource(R.string.pago_qr_confirmado),
                             fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -306,6 +333,97 @@ fun PantallaDetalleEntrega(
                         Text(stringResource(R.string.solo_en_camino))
                     }
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BloquePagoQr(
+    estado: DetalleEntregaUiState,
+    alGenerarQr: () -> Unit,
+    alConfirmarPago: () -> Unit
+) {
+    val qr = estado.qrPago
+    val imagen = remember(qr?.qrContenido) {
+        qr?.qrContenido?.let { QrBitmap.generar(it)?.asImageBitmap() }
+    }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = stringResource(R.string.pago_qr_simulacion),
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.error
+            )
+            Text(
+                text = stringResource(R.string.pago_qr_titulo),
+                style = MaterialTheme.typography.titleMedium
+            )
+            when {
+                qr != null -> {
+                    Text(
+                        text = stringResource(R.string.pago_qr_monto, qr.montoCentimos.formatearSoles()),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    val generado = textoFecha(qr.generadoEn)
+                    if (generado.isNotEmpty()) Text(stringResource(R.string.pago_qr_generado, generado))
+                    val vence = textoFecha(qr.expiraEn)
+                    if (vence.isNotEmpty()) Text(stringResource(R.string.pago_qr_vence, vence))
+                    qr.referencia?.takeIf { it.isNotBlank() }?.let {
+                        Text(stringResource(R.string.pago_qr_referencia, it))
+                    }
+                    if (imagen != null) {
+                        Image(
+                            bitmap = imagen,
+                            contentDescription = stringResource(R.string.pago_qr_descripcion),
+                            modifier = Modifier
+                                .size(220.dp)
+                                .background(Color.White)
+                                .padding(8.dp)
+                        )
+                    }
+                    Text(
+                        text = qr.aviso?.takeIf { it.isNotBlank() }
+                            ?: stringResource(R.string.pago_qr_aviso_confirmar),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Button(
+                        onClick = alConfirmarPago,
+                        enabled = !estado.confirmandoPago,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            if (estado.confirmandoPago) {
+                                stringResource(R.string.pago_qr_confirmando)
+                            } else {
+                                stringResource(R.string.pago_qr_confirmar)
+                            }
+                        )
+                    }
+                }
+                estado.generandoQr -> {
+                    CircularProgressIndicator()
+                    Text(stringResource(R.string.pago_qr_generando))
+                }
+                else -> {
+                    TextButton(onClick = alGenerarQr) {
+                        Text(stringResource(R.string.pago_qr_generar))
+                    }
+                }
+            }
+            estado.errorPago?.let {
+                Text(it, color = MaterialTheme.colorScheme.error)
+                if (qr == null && !estado.generandoQr) {
+                    // Sin QR no hay nada que confirmar: ofrecer reintentar la generación.
+                    TextButton(onClick = alGenerarQr) { Text(stringResource(R.string.reintentar)) }
                 }
             }
         }

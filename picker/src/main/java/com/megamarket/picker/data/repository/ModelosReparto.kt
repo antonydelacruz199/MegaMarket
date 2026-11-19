@@ -28,8 +28,40 @@ data class DireccionReparto(
 }
 
 data class PagoReparto(
+    val id: String? = null,
     val modalidad: String,
-    val estado: String
+    val estado: String,
+    val montoCentimos: Long? = null
+) {
+    val esContraentrega: Boolean
+        get() = modalidad.equals(MODALIDAD_CONTRAENTREGA, ignoreCase = true)
+}
+
+const val MODALIDAD_CONTRAENTREGA = "CONTRAENTREGA"
+const val ESTADO_PAGO_CONFIRMADO = "CONFIRMADO"
+const val ETIQUETA_SIMULACION = "SIMULACIÓN"
+
+/** QR informativo de contraentrega. Mostrarlo no confirma el pago. */
+data class PagoQrReparto(
+    val pagoId: String,
+    val estadoPago: String,
+    val montoCentimos: Long,
+    val referencia: String?,
+    val qrContenido: String?,
+    val generadoEn: String?,
+    val expiraEn: String?,
+    val etiqueta: String,
+    val aviso: String?
+) {
+    val confirmado: Boolean
+        get() = estadoPago.equals(ESTADO_PAGO_CONFIRMADO, ignoreCase = true)
+}
+
+data class ConfirmacionPagoReparto(
+    val estadoPago: String,
+    val numeroOperacion: String?,
+    val estadoPedido: String?,
+    val idempotente: Boolean
 )
 
 data class EvidenciaReparto(
@@ -78,6 +110,10 @@ object MensajesEntrega {
         "El servidor no confirmó el estado ENTREGADO. El pedido no se marcó como entregado."
     const val CAMINO_NO_CONFIRMADO = "El servidor no confirmó el paso a EN_CAMINO."
     const val CLAVE = "El servidor no devolvió una referencia de fotografía válida."
+    const val PAGO_NO_CONFIRMADO =
+        "El servidor no confirmó el pago simulado. La entrega sigue bloqueada."
+    const val PAGO_SOLO_CONTRAENTREGA = "Solo se cobra con QR cuando el pago es contraentrega."
+    const val PAGO_RESPUESTA_INVALIDA = "El servidor devolvió un pago incompleto."
 }
 
 private val UUID_ENTREGA = Regex(

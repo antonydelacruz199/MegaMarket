@@ -45,6 +45,13 @@ interface ApiService {
         @Body body: MovimientoInventarioRequest
     ): Response<MovimientoInventarioResponse>
 
+    /** Saldo de la cuenta comercio MegaMarket (solo ADMIN). Simulación académica. */
+    @GET("api/billetera/comercio")
+    suspend fun obtenerBilleteraComercio(): Response<BilleteraSaldoResponse>
+
+    @GET("api/billetera/movimientos")
+    suspend fun listarMovimientosBilletera(): Response<BilleteraMovimientosResponse>
+
     @Multipart
     @POST("api/medios/productos/{productoId}")
     suspend fun subirImagenProducto(

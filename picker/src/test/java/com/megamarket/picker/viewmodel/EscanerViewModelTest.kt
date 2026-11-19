@@ -243,6 +243,20 @@ class EscanerViewModelTest {
         )
 
     private class ApiEscaner : ApiService {
+
+        override suspend fun generarQr(
+            body: com.megamarket.picker.data.remote.GenerarQrRequest,
+            owner: String
+        ): retrofit2.Response<com.megamarket.picker.data.remote.GenerarQrResponse> = throw UnsupportedOperationException()
+        override suspend fun confirmarPago(
+            id: String,
+            body: com.megamarket.picker.data.remote.ConfirmarPagoRequest,
+            owner: String
+        ): retrofit2.Response<com.megamarket.picker.data.remote.ConfirmarPagoResponse> = throw UnsupportedOperationException()
+        override suspend fun obtenerPagoPedido(
+            pedidoId: String,
+            owner: String
+        ): retrofit2.Response<com.megamarket.picker.data.remote.PagoPedidoResponse> = throw UnsupportedOperationException()
         val envios = mutableListOf<EscaneoRequest>()
         val ops = OperacionDaoMemoria()
         val lineas = LineaDaoMemoria()

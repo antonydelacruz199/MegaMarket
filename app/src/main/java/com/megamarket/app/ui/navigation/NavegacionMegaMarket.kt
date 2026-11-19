@@ -14,11 +14,13 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.megamarket.app.MegaMarketApplication
+import com.megamarket.app.ui.screens.admin.billetera.PantallaBilleteraComercio
 import com.megamarket.app.ui.screens.admin.formulario.PantallaFormularioProducto
 import com.megamarket.app.ui.screens.admin.panel.PantallaPanelAdmin
 import com.megamarket.app.ui.screens.admin.productos.PantallaProductosAdmin
 import com.megamarket.app.ui.screens.presentacion.PantallaPresentacion
 import com.megamarket.app.ui.screens.sesion.PantallaSesion
+import com.megamarket.app.viewmodel.BilleteraComercioViewModel
 import com.megamarket.app.viewmodel.SesionViewModel
 import com.megamarket.app.viewmodel.FormularioProductoViewModel
 import com.megamarket.app.viewmodel.ProductoViewModel
@@ -88,6 +90,17 @@ fun NavegacionMegaMarket(
             )
         }
 
+        composable(Ruta.BilleteraAdmin.ruta) {
+            PantallaBilleteraComercio(
+                viewModel = viewModel<BilleteraComercioViewModel>(factory = fabrica),
+                alNavegar = { ruta -> controlador.navegarAdmin(ruta) },
+                alCerrarSesion = {
+                    sesionViewModel.cerrarSesion()
+                    controlador.cerrarSesion()
+                }
+            )
+        }
+
         composable(Ruta.CrearProductoAdmin.ruta) {
             PantallaFormularioProducto(
                 viewModel = viewModel<FormularioProductoViewModel>(factory = fabrica),
@@ -117,7 +130,7 @@ private fun NavHostController.cerrarSesion() {
 }
 
 private fun NavHostController.navegarAdmin(ruta: String) {
-    val raicesAdmin = setOf(Ruta.PanelAdmin.ruta, Ruta.ProductosAdmin.ruta)
+    val raicesAdmin = setOf(Ruta.PanelAdmin.ruta, Ruta.ProductosAdmin.ruta, Ruta.BilleteraAdmin.ruta)
     if (ruta in raicesAdmin) {
         navigate(ruta) {
             popUpTo(Ruta.PanelAdmin.ruta) { saveState = true }

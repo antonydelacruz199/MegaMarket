@@ -284,7 +284,9 @@ fun NavegacionPicker(
                 alReintentar = entregaViewModel::cargar,
                 alFoto = entregaViewModel::establecerFoto,
                 alFijarUbicacion = entregaViewModel::fijarUbicacion,
-                alRegistrar = entregaViewModel::registrar
+                alRegistrar = entregaViewModel::registrar,
+                alGenerarQr = entregaViewModel::generarQrPago,
+                alConfirmarPago = entregaViewModel::confirmarPago
             )
         }
     }

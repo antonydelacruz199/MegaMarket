@@ -10,7 +10,7 @@ const {
 
 async function cargarPago(cliente, pedidoId) {
   const { rows } = await cliente.query(
-    `SELECT id, modalidad, estado, numero_operacion_banco, fecha_confirmacion
+    `SELECT id, modalidad, estado, monto_centimos, numero_operacion_banco, fecha_confirmacion
      FROM pagos
      WHERE pedido_id = $1
      ORDER BY created_at DESC
@@ -18,6 +18,16 @@ async function cargarPago(cliente, pedidoId) {
     [pedidoId]
   );
   return rows[0] || null;
+}
+
+function mapearPagoEntrega(pago) {
+  if (!pago) return null;
+  return {
+    id: pago.id,
+    modalidad: pago.modalidad,
+    estado: pago.estado,
+    montoCentimos: pago.monto_centimos != null ? Number(pago.monto_centimos) : null
+  };
 }
 
 async function cargarEntregaPorPedido(cliente, pedidoId) {
@@ -101,9 +111,7 @@ async function obtenerPorId(req, res) {
       pedido: mapearPedidoEntrega(pedido),
       direccion: direccion[0] || null,
       entrega: mapearEntrega(entrega),
-      pago: pago
-        ? { modalidad: pago.modalidad, estado: pago.estado }
-        : null
+      pago: mapearPagoEntrega(pago)
     });
   } catch (error) {
     console.error('Error al obtener entrega:', error.message);

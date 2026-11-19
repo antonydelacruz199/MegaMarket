@@ -93,6 +93,7 @@ data class DireccionPedidoRemotoDto(
 
 data class PagoPedidoRemotoDto(
     val id: String? = null,
+    val uuidOperacion: String? = null,
     val pedidoId: String? = null,
     val montoCentimos: Long? = null,
     val moneda: String? = null,
@@ -101,5 +102,8 @@ data class PagoPedidoRemotoDto(
     val estado: String? = null,
     val referenciaBanco: String? = null,
     val numeroOperacionBanco: String? = null,
-    val fechaConfirmacion: String? = null
+    val qrContenido: String? = null,
+    val fechaExpiracionQr: String? = null,
+    val fechaConfirmacion: String? = null,
+    val simulacion: Boolean? = null
 )

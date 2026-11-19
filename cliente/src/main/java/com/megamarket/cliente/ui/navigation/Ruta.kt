@@ -20,6 +20,10 @@ sealed class Ruta(val ruta: String) {
     data object DetallePedido : Ruta("mis-pedidos/{${ARG_PEDIDO_REMOTO}}") {
         fun crear(pedidoId: String) = "mis-pedidos/$pedidoId"
     }
+    data object Billetera : Ruta("billetera")
+    data object PagoQr : Ruta("pago-qr/{${ARG_PEDIDO_REMOTO}}") {
+        fun crear(pedidoRemotoId: String) = "pago-qr/$pedidoRemotoId"
+    }
     data object Sustituciones : Ruta("sustituciones")
     data object DetalleSustitucion : Ruta("sustituciones/{${ARG_SUSTITUCION}}") {
         fun crear(id: String) = "sustituciones/$id"

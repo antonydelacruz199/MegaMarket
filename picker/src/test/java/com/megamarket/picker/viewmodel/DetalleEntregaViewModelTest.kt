@@ -9,6 +9,14 @@ import com.megamarket.picker.data.remote.CandidatosSustitucionResponse
 import com.megamarket.picker.data.remote.EntregaDetalleResponse
 import com.megamarket.picker.data.remote.EntregaDto
 import com.megamarket.picker.data.remote.EntregasListaResponse
+import com.megamarket.picker.data.remote.ConfirmarPagoRequest
+import com.megamarket.picker.data.remote.ConfirmarPagoResponse
+import com.megamarket.picker.data.remote.GenerarQrRequest
+import com.megamarket.picker.data.remote.GenerarQrResponse
+import com.megamarket.picker.data.remote.PagoPedidoResponse
+import com.megamarket.picker.data.remote.PagoSimuladoDto
+import com.megamarket.picker.data.remote.PedidoEstadoPagoDto
+import com.megamarket.picker.data.remote.QrSimuladoDto
 import com.megamarket.picker.data.remote.EscaneoRequest
 import com.megamarket.picker.data.remote.EscaneoResponse
 import com.megamarket.picker.data.remote.FaltanteResponse
@@ -102,7 +110,133 @@ class DetalleEntregaViewModelTest {
         assertTrue(modelo.estado.value.error != null)
     }
 
+    @Test
+    fun contraentregaPendienteMuestraQrYMantieneBloqueo() {
+        val api = ApiEntrega(pago = "PENDIENTE", modalidad = "CONTRAENTREGA")
+        val modelo = modelo(api)
+        assertTrue(modelo.estado.value.requierePagoQr)
+        assertEquals(null, modelo.estado.value.qrPago)
+
+        modelo.generarQrPago()
+
+        val estado = modelo.estado.value
+        assertEquals(1, api.qrGenerados)
+        assertEquals(PAGO_ID, estado.qrPago?.pagoId)
+        assertEquals("SIMULACIÓN", estado.qrPago?.etiqueta)
+        assertEquals(1500L, estado.qrPago?.montoCentimos)
+        assertTrue(estado.pagoPendiente)
+        assertEquals(0, api.confirmaciones)
+        // Mostrar el QR no confirma nada: registrar sigue bloqueado.
+        modelo.establecerFoto(byteArrayOf(1))
+        modelo.fijarUbicacion(-12.0, -77.0)
+        modelo.registrar()
+        assertEquals(CODIGO_REQUIERE_PAGO, modelo.estado.value.codigoError)
+        assertEquals(0, api.registros)
+    }
+
+    @Test
+    fun pagoOnlineNoPideQrDeContraentrega() {
+        val modelo = modelo(ApiEntrega(pago = "PENDIENTE", modalidad = "ONLINE"))
+        assertFalse(modelo.estado.value.requierePagoQr)
+    }
+
+    @Test
+    fun confirmarPagoLlamaALaApiYDesbloqueaTrasRecargar() {
+        val api = ApiEntrega(pago = "PENDIENTE", modalidad = "CONTRAENTREGA")
+        val modelo = modelo(api)
+        modelo.generarQrPago()
+
+        modelo.confirmarPago()
+
+        val estado = modelo.estado.value
+        assertEquals(1, api.confirmaciones)
+        assertEquals(listOf("uuid-pago-1"), api.uuidsConfirmacion)
+        assertFalse(estado.pagoPendiente)
+        assertTrue(estado.pagoConfirmadoReciente)
+        assertEquals(null, estado.qrPago)
+        assertFalse(estado.requierePagoQr)
+        assertEquals("CONFIRMADO", estado.detalle?.pago?.estado)
+
+        modelo.establecerFoto(byteArrayOf(1, 2))
+        modelo.fijarUbicacion(-12.0, -77.0)
+        modelo.registrar()
+        assertTrue(modelo.estado.value.entregado)
+        assertEquals(1, api.registros)
+    }
+
+    @Test
+    fun confirmarSinQrNoLlamaALaApi() {
+        val api = ApiEntrega(pago = "PENDIENTE", modalidad = "CONTRAENTREGA")
+        val modelo = modelo(api)
+        modelo.confirmarPago()
+        assertEquals(0, api.confirmaciones)
+        assertTrue(modelo.estado.value.pagoPendiente)
+    }
+
+    @Test
+    fun confirmacionRechazadaPorElServidorMantieneBloqueo() {
+        val api = ApiEntrega(pago = "PENDIENTE", modalidad = "CONTRAENTREGA").apply { rechazaConfirmar = true }
+        val modelo = modelo(api)
+        modelo.generarQrPago()
+
+        modelo.confirmarPago()
+
+        val estado = modelo.estado.value
+        assertEquals(1, api.confirmaciones)
+        assertTrue(estado.pagoPendiente)
+        assertFalse(estado.pagoConfirmadoReciente)
+        assertTrue(estado.errorPago != null)
+        assertTrue(estado.requierePagoQr)
+        // El QR sigue disponible para reintentar.
+        assertEquals(PAGO_ID, estado.qrPago?.pagoId)
+        modelo.establecerFoto(byteArrayOf(1))
+        modelo.fijarUbicacion(-12.0, -77.0)
+        modelo.registrar()
+        assertEquals(0, api.registros)
+    }
+
+    @Test
+    fun respuestaQueNoDiceConfirmadoNoLevantaElBloqueo() {
+        val api = ApiEntrega(pago = "PENDIENTE", modalidad = "CONTRAENTREGA").apply { confirmarSinAplicar = true }
+        val modelo = modelo(api)
+        modelo.generarQrPago()
+
+        modelo.confirmarPago()
+
+        assertTrue(modelo.estado.value.pagoPendiente)
+        assertFalse(modelo.estado.value.pagoConfirmadoReciente)
+        assertTrue(modelo.estado.value.errorPago != null)
+    }
+
+    @Test
+    fun errorDeRedEnConfirmacionVerificaConElServidorSinInventarExito() {
+        val api = ApiEntrega(pago = "PENDIENTE", modalidad = "CONTRAENTREGA").apply { fallaRedConfirmar = true }
+        val modelo = modelo(api)
+        modelo.generarQrPago()
+
+        modelo.confirmarPago()
+
+        // El servidor había aplicado el cobro: GET /pagos/pedido lo confirma y el detalle recargado desbloquea.
+        assertFalse(modelo.estado.value.pagoPendiente)
+        assertTrue(modelo.estado.value.pagoConfirmadoReciente)
+    }
+
+    @Test
+    fun reintentoTrasFalloReutilizaElMismoUuid() {
+        val api = ApiEntrega(pago = "PENDIENTE", modalidad = "CONTRAENTREGA").apply { rechazaConfirmar = true }
+        val modelo = modelo(api)
+        modelo.generarQrPago()
+        modelo.confirmarPago()
+        api.rechazaConfirmar = false
+
+        modelo.confirmarPago()
+
+        assertEquals(listOf("uuid-pago-1", "uuid-pago-1"), api.uuidsConfirmacion)
+        assertFalse(modelo.estado.value.pagoPendiente)
+    }
+
     private fun modelo(api: ApiEntrega): DetalleEntregaViewModel {
+        var contador = 0
         val repo = PedidosRepartoRepository(
             api = api,
             almacen = AlmacenReparto(),
@@ -112,7 +246,8 @@ class DetalleEntregaViewModelTest {
         )
         return DetalleEntregaViewModel(
             SavedStateHandle(mapOf(Ruta.ARG_PEDIDO to PEDIDO)),
-            repo
+            repo,
+            nuevoUuid = { "uuid-pago-${++contador}" }
         )
     }
 
@@ -127,10 +262,86 @@ class DetalleEntregaViewModelTest {
         override fun limpiarSesion() = Unit
     }
 
-    private class ApiEntrega(private val pago: String) : ApiService {
+    private class ApiEntrega(
+        pago: String,
+        private val modalidad: String = "ONLINE"
+    ) : ApiService {
         var registros = 0
         var subidas = 0
         var fallaRed = false
+        /** Estado de pago que reporta el "servidor"; solo cambia cuando confirma de verdad. */
+        var pago: String = pago
+        var qrGenerados = 0
+        var confirmaciones = 0
+        val uuidsConfirmacion = mutableListOf<String>()
+        var rechazaConfirmar = false
+        var fallaRedConfirmar = false
+        var confirmarSinAplicar = false
+
+        override suspend fun generarQr(body: GenerarQrRequest, owner: String): Response<GenerarQrResponse> {
+            qrGenerados++
+            return Response.success(
+                GenerarQrResponse(
+                    pago = PagoSimuladoDto(
+                        id = PAGO_ID,
+                        pedidoId = body.pedidoId,
+                        montoCentimos = 1500,
+                        modalidad = modalidad,
+                        estado = "QR_GENERADO"
+                    ),
+                    qr = QrSimuladoDto(
+                        contenido = "MEGAMARKET-SIMULACION|PAGO=$PAGO_ID",
+                        referencia = "REF-1",
+                        importeCentimos = 1500,
+                        pedidoId = body.pedidoId,
+                        generadoEn = "2030-01-01T10:00:00.000Z",
+                        expiraEn = "2030-01-01T10:15:00.000Z",
+                        estado = "QR_GENERADO",
+                        etiqueta = "SIMULACIÓN",
+                        aviso = "Simulación académica"
+                    )
+                )
+            )
+        }
+
+        override suspend fun confirmarPago(
+            id: String,
+            body: ConfirmarPagoRequest,
+            owner: String
+        ): Response<ConfirmarPagoResponse> {
+            confirmaciones++
+            uuidsConfirmacion += body.uuidOperacion
+            if (fallaRedConfirmar) {
+                // El servidor sí aplicó el cobro pero la respuesta se perdió.
+                pago = "CONFIRMADO"
+                throw java.io.IOException("timeout")
+            }
+            if (rechazaConfirmar) {
+                return Response.error(409, "{\"error\":\"QR_EXPIRADO\"}".toResponseBody("application/json".toMediaType()))
+            }
+            if (!confirmarSinAplicar) pago = "CONFIRMADO"
+            return Response.success(
+                ConfirmarPagoResponse(
+                    pago = PagoSimuladoDto(
+                        id = id,
+                        modalidad = modalidad,
+                        estado = if (confirmarSinAplicar) "QR_GENERADO" else "CONFIRMADO",
+                        numeroOperacionBanco = "OP-1"
+                    ),
+                    pedido = PedidoEstadoPagoDto(id = PEDIDO, estado = "EN_CAMINO")
+                )
+            )
+        }
+
+        override suspend fun obtenerPagoPedido(
+            pedidoId: String,
+            owner: String
+        ): Response<PagoPedidoResponse> = Response.success(
+            PagoPedidoResponse(
+                pago = PagoSimuladoDto(id = PAGO_ID, modalidad = modalidad, estado = pago),
+                pedidoId = pedidoId
+            )
+        )
 
         override suspend fun obtenerEntrega(id: String, owner: String): Response<EntregaDetalleResponse> =
             Response.success(
@@ -148,7 +359,7 @@ class DetalleEntregaViewModelTest {
                     ),
                     direccion = null,
                     entrega = null,
-                    pago = PagoDto("ONLINE", pago)
+                    pago = PagoDto(modalidad, pago)
                 )
             )
 
@@ -232,6 +443,7 @@ class DetalleEntregaViewModelTest {
     }
 
     private companion object {
+        const val PAGO_ID = "44444444-4444-4444-8444-444444444444"
         const val PEDIDO = "11111111-1111-4111-8111-111111111111"
         const val UUID_OP = "33333333-3333-4333-8333-333333333333"
     }

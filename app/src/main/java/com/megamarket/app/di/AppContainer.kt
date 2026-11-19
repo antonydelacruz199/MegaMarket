@@ -7,6 +7,7 @@ import com.megamarket.app.data.connectivity.EstadoConexion
 import com.megamarket.app.data.local.AppDatabase
 import com.megamarket.app.data.local.SesionLocalStore
 import com.megamarket.app.data.remote.ApiClient
+import com.megamarket.app.data.repository.BilleteraComercioRepository
 import com.megamarket.app.data.repository.CatalogoRemotoRepository
 import com.megamarket.app.data.repository.SesionRepository
 import com.megamarket.app.data.repository.CategoriaRepository
@@ -66,6 +67,8 @@ class AppContainer(context: Context) {
         resolver = appContext.contentResolver,
         programarSincronizacion = { SincronizacionWorker.programar(appContext) }
     )
+
+    val billeteraComercioRepository = BilleteraComercioRepository(api = apiService)
 
     val imagenRepository = ImagenRepository(
         contexto = appContext,

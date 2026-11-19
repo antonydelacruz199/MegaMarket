@@ -199,9 +199,27 @@ class SincronizacionRepository(
             items += ItemPedidoRequest(productoId = remoteId, cantidad = detalle.cantidad, precioEsperadoCentimos = detalle.precioUnitarioCentimos)
         }
 
+        val contrato = pedido.contratoVersion
+        val franjaId = pedido.franjaEntregaId?.trim().orEmpty()
+        val modalidad = pedido.modalidadPago?.trim().orEmpty()
+        val esV3 = contrato >= 3
+        if (esV3) {
+            if (franjaId.isEmpty() || modalidad !in setOf("ONLINE", "CONTRAENTREGA")) {
+                return ResultadoEnvio.ErrorDefinitivo(
+                    "Este pedido requiere franja y modalidad de pago. No se inventan en la sincronización."
+                )
+            }
+        } else if (franjaId.isNotEmpty() || modalidad.isNotEmpty()) {
+            // Pedido legado v2: no promover silenciosamente a v3.
+            return ResultadoEnvio.ErrorDefinitivo(
+                "Pedido legado incompatible con franja/modalidad. Conserva el contrato v2."
+            )
+        }
+
         val respuesta = api.crearPedido(
             CrearPedidoRequest(
                 clientUuid = pedido.clientUuid,
+                contratoVersion = if (esV3) 3 else 2,
                 direccion = DireccionPedidoRequest(
                     departamento = direccion.departamento,
                     provincia = direccion.provincia,
@@ -209,7 +227,9 @@ class SincronizacionRepository(
                     direccion = direccion.direccion,
                     telefono = direccion.telefono
                 ),
-                items = items
+                items = items,
+                franjaEntregaId = franjaId.takeIf { esV3 },
+                modalidadPago = modalidad.takeIf { esV3 }
             ), remoteOwner
         )
 
@@ -228,7 +248,8 @@ class SincronizacionRepository(
                     totalCentimos = remoto.totalCentimos ?: pedido.totalCentimos,
                     estado = remoto.estado ?: "CONFIRMADO",
                     remoteVersion = remoto.version ?: pedido.remoteVersion,
-                    estadoSync = EstadoSincronizacion.SINCRONIZADO
+                    estadoSync = EstadoSincronizacion.SINCRONIZADO,
+                    franjaEntregaId = remoto.franjaEntregaId ?: pedido.franjaEntregaId
                 )
             )
             ResultadoEnvio.Ok
@@ -241,23 +262,31 @@ class SincronizacionRepository(
     ): ResultadoEnvio {
         val codigo = respuesta.code()
         if (respuesta.isSuccessful) return onOk()
-        val mensaje = mensajeError(respuesta) ?: "Error HTTP $codigo"
+        val errorApi = leerErrorApi(respuesta)
+        val mensaje = errorApi?.error?.takeIf { it.isNotBlank() } ?: "Error HTTP $codigo"
+        val codigoNegocio = errorApi?.codigo
         return when (codigo) {
             408, 429 -> ResultadoEnvio.Reintentar(mensaje)
             in 500..599 -> ResultadoEnvio.Reintentar(mensaje)
-            409 -> ResultadoEnvio.ErrorDefinitivo("Conflicto: $mensaje")
+            409 -> ResultadoEnvio.ErrorDefinitivo(
+                when (codigoNegocio) {
+                    "FRANJA_LLENA" -> "La franja se agotó. Elige otra franja e intenta de nuevo."
+                    "FRANJA_FUERA_VENTANA" -> "La franja ya no está en la ventana de hoy o mañana."
+                    else -> "Conflicto: $mensaje"
+                }
+            )
             401 -> ResultadoEnvio.Reintentar("Sesión expirada. Inicia sesión de nuevo.")
             403, 404, 400 -> ResultadoEnvio.ErrorDefinitivo(mensaje)
             else -> ResultadoEnvio.ErrorDefinitivo(mensaje)
         }
     }
 
-    private fun <T> mensajeError(respuesta: Response<T>): String? {
+    private fun <T> leerErrorApi(respuesta: Response<T>): ErrorApiDto? {
         val raw = respuesta.errorBody()?.string()?.takeIf { it.isNotBlank() } ?: return null
         return try {
-            gson.fromJson(raw, ErrorApiDto::class.java)?.error ?: raw
+            gson.fromJson(raw, ErrorApiDto::class.java) ?: ErrorApiDto(error = raw)
         } catch (_: Exception) {
-            raw
+            ErrorApiDto(error = raw)
         }
     }
 

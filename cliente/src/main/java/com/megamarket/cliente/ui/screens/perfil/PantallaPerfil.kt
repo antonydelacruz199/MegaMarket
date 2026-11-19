@@ -23,7 +23,8 @@ import com.megamarket.cliente.viewmodel.PerfilViewModel
 fun PantallaPerfil(
     viewModel: PerfilViewModel,
     alNavegar: (String) -> Unit,
-    alCerrarSesion: () -> Unit
+    alCerrarSesion: () -> Unit,
+    alAbrirBilletera: () -> Unit = {}
 ) {
     val estado by viewModel.estado.collectAsStateWithLifecycle()
 
@@ -50,6 +51,12 @@ fun PantallaPerfil(
             androidx.compose.material3.TextButton(onClick = { alNavegar(Ruta.Sustituciones.ruta) }) {
                 Text("Ver propuestas de sustitución")
             }
+            Spacer(modifier = Modifier.height(16.dp))
+            Text("Billetera", style = MaterialTheme.typography.titleLarge)
+            androidx.compose.material3.TextButton(onClick = alAbrirBilletera) {
+                Text("Ver saldo y movimientos (simulación)")
+            }
+            Spacer(modifier = Modifier.height(8.dp))
             Text(estado.nombre, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
             Text(estado.correo, style = MaterialTheme.typography.bodyLarge)

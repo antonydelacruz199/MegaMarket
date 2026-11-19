@@ -10,7 +10,9 @@ import com.megamarket.picker.data.remote.DireccionEntregaDto
 import com.megamarket.picker.data.remote.EntregaDetalleResponse
 import com.megamarket.picker.data.remote.EntregaDto
 import com.megamarket.picker.data.remote.EntregaListaItemDto
+import com.megamarket.picker.data.remote.ConfirmarPagoRequest
 import com.megamarket.picker.data.remote.ErrorApiDto
+import com.megamarket.picker.data.remote.GenerarQrRequest
 import com.megamarket.picker.data.remote.PagoDto
 import com.megamarket.picker.data.remote.PedidoEntregaDto
 import com.megamarket.picker.data.remote.RegistrarEntregaRequest
@@ -103,6 +105,112 @@ class PedidosRepartoRepository(
                     "RESPUESTA_INVALIDA"
                 )
             ResultadoOperacion.Exito(detalle)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: IOException) {
+            falloRed(error)
+        }
+    }
+
+    /** Genera el QR simulado de contraentrega. El QR es informativo: no confirma el pago. */
+    suspend fun generarQrPago(pedidoId: String): ResultadoOperacion<PagoQrReparto> = withContext(io) {
+        exigirRepartidor()?.let { return@withContext it }
+        val owner = almacen.usuarioActivoId() ?: return@withContext sesionVencida()
+        try {
+            val respuesta = api.generarQr(GenerarQrRequest(pedidoId.trim()), owner)
+            if (!respuesta.isSuccessful) return@withContext fallo(respuesta)
+            val cuerpo = respuesta.body()
+            val pago = cuerpo?.pago
+            val id = pago?.id?.trim().orEmpty()
+            val estado = pago?.estado?.trim().orEmpty()
+            if (id.isEmpty() || estado.isEmpty()) {
+                return@withContext ResultadoOperacion.Error(
+                    TipoErrorPedido.SERVIDOR,
+                    MensajesEntrega.PAGO_RESPUESTA_INVALIDA,
+                    "RESPUESTA_INVALIDA"
+                )
+            }
+            val qr = cuerpo?.qr
+            ResultadoOperacion.Exito(
+                PagoQrReparto(
+                    pagoId = id,
+                    estadoPago = estado.uppercase(),
+                    montoCentimos = qr?.importeCentimos ?: pago?.montoCentimos ?: 0L,
+                    referencia = qr?.referencia ?: pago?.referenciaBanco,
+                    qrContenido = qr?.contenido?.takeIf { it.isNotBlank() }
+                        ?: pago?.qrContenido?.takeIf { it.isNotBlank() },
+                    generadoEn = qr?.generadoEn,
+                    expiraEn = qr?.expiraEn ?: pago?.fechaExpiracionQr,
+                    etiqueta = qr?.etiqueta?.takeIf { it.isNotBlank() } ?: ETIQUETA_SIMULACION,
+                    aviso = qr?.aviso
+                )
+            )
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: IOException) {
+            falloRed(error)
+        }
+    }
+
+    /**
+     * Confirma el pago simulado. Solo devuelve éxito si el cuerpo del servidor declara CONFIRMADO;
+     * [uuidOperacion] debe reutilizarse en los reintentos para mantener la idempotencia.
+     */
+    suspend fun confirmarPago(
+        pagoId: String,
+        uuidOperacion: String
+    ): ResultadoOperacion<ConfirmacionPagoReparto> = withContext(io) {
+        exigirRepartidor()?.let { return@withContext it }
+        val owner = almacen.usuarioActivoId() ?: return@withContext sesionVencida()
+        try {
+            val respuesta = api.confirmarPago(pagoId.trim(), ConfirmarPagoRequest(uuidOperacion), owner)
+            if (!respuesta.isSuccessful) return@withContext fallo(respuesta)
+            val cuerpo = respuesta.body()
+            val estado = cuerpo?.pago?.estado?.trim().orEmpty()
+            if (!estado.equals(ESTADO_PAGO_CONFIRMADO, ignoreCase = true)) {
+                return@withContext ResultadoOperacion.Error(
+                    TipoErrorPedido.SERVIDOR,
+                    MensajesEntrega.PAGO_NO_CONFIRMADO,
+                    "PAGO_NO_CONFIRMADO"
+                )
+            }
+            ResultadoOperacion.Exito(
+                ConfirmacionPagoReparto(
+                    estadoPago = estado.uppercase(),
+                    numeroOperacion = cuerpo?.pago?.numeroOperacionBanco,
+                    estadoPedido = cuerpo?.pedido?.estado?.trim()?.uppercase(),
+                    idempotente = cuerpo?.idempotente == true
+                )
+            )
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: IOException) {
+            falloRed(error)
+        }
+    }
+
+    /** Lee el estado actual del pago del pedido directamente del servidor. */
+    suspend fun consultarPago(pedidoId: String): ResultadoOperacion<PagoReparto> = withContext(io) {
+        exigirRepartidor()?.let { return@withContext it }
+        val owner = almacen.usuarioActivoId() ?: return@withContext sesionVencida()
+        try {
+            val respuesta = api.obtenerPagoPedido(pedidoId.trim(), owner)
+            if (!respuesta.isSuccessful) return@withContext fallo(respuesta)
+            val pago = pagoDesde(
+                respuesta.body()?.pago?.let {
+                    PagoDto(
+                        id = it.id,
+                        modalidad = it.modalidad,
+                        estado = it.estado,
+                        montoCentimos = it.montoCentimos
+                    )
+                }
+            ) ?: return@withContext ResultadoOperacion.Error(
+                TipoErrorPedido.SERVIDOR,
+                MensajesEntrega.PAGO_RESPUESTA_INVALIDA,
+                "RESPUESTA_INVALIDA"
+            )
+            ResultadoOperacion.Exito(pago)
         } catch (error: CancellationException) {
             throw error
         } catch (error: IOException) {
@@ -342,8 +450,10 @@ class PedidosRepartoRepository(
         val estado = dto?.estado?.trim().orEmpty()
         if (estado.isEmpty()) return null
         return PagoReparto(
+            id = dto?.id?.trim()?.takeIf { it.isNotEmpty() },
             modalidad = dto?.modalidad?.trim().orEmpty().ifBlank { "ONLINE" },
-            estado = estado
+            estado = estado,
+            montoCentimos = dto?.montoCentimos
         )
     }
 

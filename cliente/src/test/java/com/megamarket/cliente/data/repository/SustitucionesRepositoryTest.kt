@@ -5,6 +5,8 @@ import com.megamarket.cliente.data.local.Producto
 import com.megamarket.cliente.data.local.dao.PedidoDao
 import com.megamarket.cliente.data.local.dao.ProductoDao
 import com.megamarket.cliente.data.remote.ApiService
+import com.megamarket.cliente.data.remote.ConfirmarPagoRequest
+import com.megamarket.cliente.data.remote.GenerarQrRequest
 import com.megamarket.cliente.data.remote.CategoriasResponse
 import com.megamarket.cliente.data.remote.CrearPedidoRequest
 import com.megamarket.cliente.data.remote.CrearPedidoResponse
@@ -236,6 +238,9 @@ private class ApiFake : ApiService {
     override suspend fun login(body: LoginRequest): Response<LoginResponse> = error("n/a")
     override suspend fun listarCategorias(owner: String?): Response<CategoriasResponse> = error("n/a")
     override suspend fun listarProductos(owner: String?): Response<ProductosResponse> = error("n/a")
+    override suspend fun listarFranjas(owner: String?) = error("n/a")
+    override suspend fun obtenerFranja(id: String, owner: String?) = error("n/a")
+
     override suspend fun crearPedido(body: CrearPedidoRequest, owner: String?): Response<CrearPedidoResponse> =
         error("n/a")
 
@@ -271,6 +276,15 @@ private class ApiFake : ApiService {
         rechazadas++
         return decision
     }
+
+    override suspend fun obtenerSaldoBilletera(owner: String) = error("n/a")
+    override suspend fun listarMovimientosBilletera(owner: String) = error("n/a")
+    override suspend fun generarQrPago(body: GenerarQrRequest, owner: String) = error("n/a")
+    override suspend fun obtenerPagoDelPedido(pedidoId: String, owner: String) = error("n/a")
+    override suspend fun obtenerPago(id: String, owner: String) = error("n/a")
+    override suspend fun confirmarPago(id: String, body: ConfirmarPagoRequest, owner: String) = error("n/a")
+    override suspend fun confirmarAjustePago(id: String, body: ConfirmarPagoRequest, owner: String) =
+        error("n/a")
 }
 
 private class ProductoDaoMemoria(private val items: List<Producto>) : ProductoDao {
@@ -296,6 +310,9 @@ private class PedidoDaoMemoria(vararg iniciales: Pedido) : PedidoDao {
 
     override fun observarDelUsuario(ownerId: Long): Flow<List<Pedido>> =
         flowOf(items.filter { it.clienteId == ownerId })
+
+    override suspend fun listarDelUsuario(ownerId: Long): List<Pedido> =
+        items.filter { it.clienteId == ownerId }
 
     override suspend fun reservasPendientes(): List<Pedido> = emptyList()
     override suspend fun actualizarDetalle(detalle: com.megamarket.cliente.data.local.PedidoDetalle): Int = 0

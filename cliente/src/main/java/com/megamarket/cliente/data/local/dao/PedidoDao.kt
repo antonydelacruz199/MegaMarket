@@ -14,6 +14,9 @@ interface PedidoDao {
     @Query("SELECT * FROM pedidos WHERE clienteId=:ownerId ORDER BY fecha DESC")
     fun observarDelUsuario(ownerId: Long): kotlinx.coroutines.flow.Flow<List<Pedido>>
 
+    @Query("SELECT * FROM pedidos WHERE clienteId=:ownerId ORDER BY fecha DESC")
+    suspend fun listarDelUsuario(ownerId: Long): List<Pedido>
+
     @Query("SELECT * FROM pedidos WHERE remote_id IS NULL AND estado IN ('PENDIENTE_CONFIRMACION','REQUIERE_REVISION','CONFIRMADO')")
     suspend fun reservasPendientes(): List<Pedido>
 

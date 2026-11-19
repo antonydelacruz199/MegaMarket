@@ -131,8 +131,13 @@ private fun TarjetaPedido(pedido: PedidoResumenCliente, alAbrir: () -> Unit) {
         Text(pedido.fecha ?: "Sin fecha")
         Text(pedido.totalCentimos.formatearSoles(), fontWeight = FontWeight.Medium)
         Text("Estado: ${pedido.estado}")
-        if (!pedido.franjaEntregaId.isNullOrBlank()) {
-            Text("Franja: ${pedido.franjaEntregaId.take(8)}")
+        if (!pedido.franjaEtiqueta.isNullOrBlank()) {
+            Text("Entrega: ${pedido.franjaEtiqueta}")
+        } else if (!pedido.franjaEntregaId.isNullOrBlank()) {
+            Text("Entrega: horario por confirmar")
+        }
+        if (!pedido.modalidadEtiqueta.isNullOrBlank() || !pedido.modalidadPago.isNullOrBlank()) {
+            Text("Pago: ${pedido.modalidadVisible}")
         }
         if (pedido.tienePropuestaPendiente) {
             Text(

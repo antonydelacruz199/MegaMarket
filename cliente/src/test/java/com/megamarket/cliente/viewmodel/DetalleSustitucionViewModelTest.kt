@@ -4,6 +4,8 @@ import androidx.lifecycle.SavedStateHandle
 import com.megamarket.cliente.data.local.dao.PedidoDao
 import com.megamarket.cliente.data.local.dao.ProductoDao
 import com.megamarket.cliente.data.remote.ApiService
+import com.megamarket.cliente.data.remote.ConfirmarPagoRequest
+import com.megamarket.cliente.data.remote.GenerarQrRequest
 import com.megamarket.cliente.data.remote.CategoriasResponse
 import com.megamarket.cliente.data.remote.CrearPedidoRequest
 import com.megamarket.cliente.data.remote.CrearPedidoResponse
@@ -188,6 +190,8 @@ private class ApiVm : ApiService {
     override suspend fun login(body: LoginRequest): Response<LoginResponse> = error("n/a")
     override suspend fun listarCategorias(owner: String?): Response<CategoriasResponse> = error("n/a")
     override suspend fun listarProductos(owner: String?): Response<ProductosResponse> = error("n/a")
+    override suspend fun listarFranjas(owner: String?) = error("n/a")
+    override suspend fun obtenerFranja(id: String, owner: String?) = error("n/a")
     override suspend fun crearPedido(body: CrearPedidoRequest, owner: String?): Response<CrearPedidoResponse> =
         error("n/a")
     override suspend fun listarPedidos(estado: String?, owner: String) = error("n/a")
@@ -210,6 +214,15 @@ private class ApiVm : ApiService {
         puertaDecision?.let { return it.await() }
         return decision
     }
+
+    override suspend fun obtenerSaldoBilletera(owner: String) = error("n/a")
+    override suspend fun listarMovimientosBilletera(owner: String) = error("n/a")
+    override suspend fun generarQrPago(body: GenerarQrRequest, owner: String) = error("n/a")
+    override suspend fun obtenerPagoDelPedido(pedidoId: String, owner: String) = error("n/a")
+    override suspend fun obtenerPago(id: String, owner: String) = error("n/a")
+    override suspend fun confirmarPago(id: String, body: ConfirmarPagoRequest, owner: String) = error("n/a")
+    override suspend fun confirmarAjustePago(id: String, body: ConfirmarPagoRequest, owner: String) =
+        error("n/a")
 }
 
 private class ProductoDaoVacio : ProductoDao {
@@ -230,6 +243,7 @@ private class ProductoDaoVacio : ProductoDao {
 
 private class PedidoDaoVacio : PedidoDao {
     override fun observarDelUsuario(ownerId: Long) = flowOf(emptyList<com.megamarket.cliente.data.local.Pedido>())
+    override suspend fun listarDelUsuario(ownerId: Long) = emptyList<com.megamarket.cliente.data.local.Pedido>()
     override suspend fun reservasPendientes() = emptyList<com.megamarket.cliente.data.local.Pedido>()
     override suspend fun actualizarDetalle(detalle: com.megamarket.cliente.data.local.PedidoDetalle) = 0
     override suspend fun insertarPedido(pedido: com.megamarket.cliente.data.local.Pedido) = 0L

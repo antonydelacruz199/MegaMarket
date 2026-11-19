@@ -36,9 +36,17 @@ class ViewModelFactory(
             modelClass.isAssignableFrom(CarritoViewModel::class.java) ->
                 CarritoViewModel(container.carritoRepository, container.mediosImagenRepository)
             modelClass.isAssignableFrom(CheckoutViewModel::class.java) ->
-                CheckoutViewModel(container.sesionRepository, container.pedidoRepository)
+                CheckoutViewModel(
+                    container.sesionRepository,
+                    container.pedidoRepository,
+                    container.franjasRepository
+                )
             modelClass.isAssignableFrom(ConfirmacionViewModel::class.java) ->
-                ConfirmacionViewModel(extras.createSavedStateHandle(), container.pedidoRepository)
+                ConfirmacionViewModel(
+                    extras.createSavedStateHandle(),
+                    container.pedidoRepository,
+                    container.pagosRepository
+                )
             modelClass.isAssignableFrom(PerfilViewModel::class.java) ->
                 PerfilViewModel(container.sesionRepository,container.pedidoRepository)
             modelClass.isAssignableFrom(SincronizacionViewModel::class.java) ->
@@ -58,6 +66,10 @@ class ViewModelFactory(
                     container.misPedidosRepository,
                     container.sustitucionesRepository
                 )
+            modelClass.isAssignableFrom(PagoQrViewModel::class.java) ->
+                PagoQrViewModel(extras.createSavedStateHandle(), container.pagosRepository)
+            modelClass.isAssignableFrom(BilleteraViewModel::class.java) ->
+                BilleteraViewModel(container.billeteraRepository)
             else -> throw IllegalArgumentException("ViewModel no registrado: ${modelClass.name}")
         }
         @Suppress("UNCHECKED_CAST")

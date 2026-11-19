@@ -102,7 +102,10 @@ function mapearPago(fila) {
     estado: fila.estado,
     referenciaBanco: fila.referencia_banco || null,
     numeroOperacionBanco: fila.numero_operacion_banco || null,
+    qrContenido: fila.qr_contenido || null,
+    fechaExpiracionQr: fila.fecha_expiracion_qr || null,
     fechaConfirmacion: fila.fecha_confirmacion || null,
+    simulacion: true,
     createdAt: fila.created_at,
     updatedAt: fila.updated_at
   };
@@ -112,8 +115,8 @@ async function cargarPago(cliente, pedidoId) {
   try {
     const pago = await cliente.query(
       `SELECT id, uuid_operacion, pedido_id, monto_centimos, moneda, medio_pago, modalidad,
-              estado, referencia_banco, numero_operacion_banco, fecha_confirmacion,
-              created_at, updated_at
+              estado, referencia_banco, numero_operacion_banco, qr_contenido,
+              fecha_expiracion_qr, fecha_confirmacion, created_at, updated_at
        FROM pagos
        WHERE pedido_id = $1
        ORDER BY created_at DESC

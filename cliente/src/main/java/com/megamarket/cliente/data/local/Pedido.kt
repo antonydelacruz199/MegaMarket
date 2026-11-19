@@ -36,5 +36,13 @@ data class Pedido(
     /** Estado de negocio (p. ej. CONFIRMADO). */
     val estado: String,
     /** Estado de sincronización (PENDIENTE / ENVIANDO / SINCRONIZADO / ERROR). */
-    val estadoSync: String = EstadoSincronizacion.PENDIENTE
+    val estadoSync: String = EstadoSincronizacion.PENDIENTE,
+    /** 2 = legado sin franja; 3 = checkout con franja y modalidad. */
+    @ColumnInfo(name = "contrato_version") val contratoVersion: Int = 2,
+    @ColumnInfo(name = "franja_entrega_id") val franjaEntregaId: String? = null,
+    @ColumnInfo(name = "modalidad_pago") val modalidadPago: String? = null,
+    /** Instantánea legible de la franja elegida (no inventada en sync). */
+    @ColumnInfo(name = "franja_fecha") val franjaFecha: String? = null,
+    @ColumnInfo(name = "franja_hora_inicio") val franjaHoraInicio: String? = null,
+    @ColumnInfo(name = "franja_hora_fin") val franjaHoraFin: String? = null
 )

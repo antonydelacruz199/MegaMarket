@@ -17,7 +17,14 @@ fun PedidoRoom.toModel(
     totalCentimos = totalCentimos,
     estado = estado,
     detalles = detalles.map { it.toModel() },
-    direccion = direccion.toModel()
+    direccion = direccion.toModel(),
+    contratoVersion = contratoVersion,
+    franjaEntregaId = franjaEntregaId,
+    modalidadPago = modalidadPago,
+    franjaFecha = franjaFecha,
+    franjaHoraInicio = franjaHoraInicio,
+    franjaHoraFin = franjaHoraFin,
+    remoteId = remoteId
 )
 
 fun PedidoDetalleRoom.toModel(): PedidoDetalle = PedidoDetalle(

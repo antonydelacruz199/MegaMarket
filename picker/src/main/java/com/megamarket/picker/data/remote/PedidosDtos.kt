@@ -28,7 +28,9 @@ data class PedidoCompletoResponse(
 
 data class PagoDto(
     val modalidad: String?,
-    val estado: String?
+    val estado: String?,
+    val id: String? = null,
+    val montoCentimos: Long? = null
 )
 
 data class TransicionPedidoRequest(

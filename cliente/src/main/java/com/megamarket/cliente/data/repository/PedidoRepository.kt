@@ -14,6 +14,8 @@ import com.megamarket.cliente.data.mapper.toEntity
 import com.megamarket.cliente.data.mapper.toModel
 import com.megamarket.cliente.model.CheckoutException
 import com.megamarket.cliente.model.Direccion
+import com.megamarket.cliente.model.FranjaEntrega
+import com.megamarket.cliente.model.ModalidadPagoCheckout
 import com.megamarket.cliente.model.Pedido
 import com.megamarket.cliente.model.ProductoSolicitado
 import com.megamarket.cliente.model.armarDetallesPedido
@@ -43,15 +45,27 @@ class PedidoRepository(
     private val sesion: com.megamarket.cliente.data.local.SesionLocalStore
 ) {
     /**
+     * Checkout v3 local-first. Exige franja y modalidad; no inventa valores.
      * @throws CheckoutException con un mensaje listo para mostrar.
      */
-    suspend fun confirmarPedido(clienteId: Long, direccion: Direccion): Long {
+    suspend fun confirmarPedido(
+        clienteId: Long,
+        direccion: Direccion,
+        franja: FranjaEntrega,
+        modalidad: ModalidadPagoCheckout
+    ): Long {
         if(sesion.owner.value!=clienteId) throw CheckoutException("Tu sesión cambió. Vuelve a iniciar sesión.")
         val meta=database.metadatosSincronizacionDao().obtener()
         val ultima=meta?.ultimaSincronizacionExitosa
         if(!com.megamarket.cliente.model.FrescuraCatalogo.vigenteConReloj(ultima,System.currentTimeMillis(),meta?.sincronizadoElapsed,android.os.SystemClock.elapsedRealtime(),meta?.bootCount,sesion.bootCount()))
             throw CheckoutException("Tus datos llevan más de una hora sin actualizarse. Sincroniza para realizar el pedido.")
         direccion.error()?.let { throw CheckoutException(it) }
+        if (!franja.disponible) {
+            throw CheckoutException("La franja seleccionada ya no tiene cupo. Elige otra.")
+        }
+        if (franja.id.isBlank()) {
+            throw CheckoutException("Selecciona una franja de entrega válida.")
+        }
 
         val solicitados = carritoDao.obtenerTodos(clienteId)
             .map { ProductoSolicitado(it.productoId, it.cantidad) }
@@ -81,6 +95,7 @@ class PedidoRepository(
 
         val ahora = System.currentTimeMillis()
         val clientUuid = sesion.carritoId()
+        val total = detalles.sumOf { it.subtotalCentimos }
 
         return try {
             val pedidoId = database.withTransaction {
@@ -93,9 +108,15 @@ class PedidoRepository(
                         clienteId = clienteId,
                         clientUuid = clientUuid,
                         fecha = ahora,
-                        totalCentimos = detalles.sumOf { it.subtotalCentimos },
+                        totalCentimos = total,
                         estado = "PENDIENTE_CONFIRMACION",
-                        estadoSync = EstadoSincronizacion.PENDIENTE
+                        estadoSync = EstadoSincronizacion.PENDIENTE,
+                        contratoVersion = Pedido.CONTRATO_V3,
+                        franjaEntregaId = franja.id,
+                        modalidadPago = modalidad.valorApi,
+                        franjaFecha = franja.fechaIso,
+                        franjaHoraInicio = franja.horaInicio,
+                        franjaHoraFin = franja.horaFin
                     )
                 )
                 pedidoDao.insertarDireccion(direccion.toEntity(id))
@@ -110,7 +131,13 @@ class PedidoRepository(
                         operacion = TipoOperacionPendiente.CREAR_PEDIDO,
                         payload = JSONObject()
                             .put("clientUuid", clientUuid)
-                            .put("totalCentimos", detalles.sumOf { it.subtotalCentimos })
+                            .put("totalCentimos", total)
+                            .put("contratoVersion", Pedido.CONTRATO_V3)
+                            .put("franjaEntregaId", franja.id)
+                            .put("modalidadPago", modalidad.valorApi)
+                            .put("franjaFecha", franja.fechaIso)
+                            .put("franjaHoraInicio", franja.horaInicio)
+                            .put("franjaHoraFin", franja.horaFin)
                             .toString(),
                         estado = EstadoSincronizacion.PENDIENTE,
                         fechaCreacion = ahora,

@@ -13,6 +13,8 @@ import com.megamarket.cliente.data.local.dao.PedidoDao
 import com.megamarket.cliente.data.local.dao.ProductoDao
 import com.megamarket.cliente.data.local.dao.SyncMetadataDao
 import com.megamarket.cliente.data.remote.ApiService
+import com.megamarket.cliente.data.remote.ConfirmarPagoRequest
+import com.megamarket.cliente.data.remote.GenerarQrRequest
 import com.megamarket.cliente.data.remote.CategoriasResponse
 import com.megamarket.cliente.data.remote.CrearPedidoRequest
 import com.megamarket.cliente.data.remote.CrearPedidoResponse
@@ -130,6 +132,9 @@ class SincronizacionRepositoryTest {
         override suspend fun listarProductos(owner: String?): Response<ProductosResponse> =
             throw IOException("sin red")
 
+        override suspend fun listarFranjas(owner: String?) = throw IOException("sin red")
+        override suspend fun obtenerFranja(id: String, owner: String?) = throw IOException("sin red")
+
         override suspend fun crearPedido(body: CrearPedidoRequest, owner: String?): Response<CrearPedidoResponse> =
             throw IOException("sin red")
 
@@ -139,6 +144,15 @@ class SincronizacionRepositoryTest {
         override suspend fun obtenerSustitucion(id: String, owner: String) = throw IOException("sin red")
         override suspend fun aceptarSustitucion(id: String, owner: String) = throw IOException("sin red")
         override suspend fun rechazarSustitucion(id: String, owner: String) = throw IOException("sin red")
+        override suspend fun obtenerSaldoBilletera(owner: String) = throw IOException("sin red")
+        override suspend fun listarMovimientosBilletera(owner: String) = throw IOException("sin red")
+        override suspend fun generarQrPago(body: GenerarQrRequest, owner: String) = throw IOException("sin red")
+        override suspend fun obtenerPagoDelPedido(pedidoId: String, owner: String) = throw IOException("sin red")
+        override suspend fun obtenerPago(id: String, owner: String) = throw IOException("sin red")
+        override suspend fun confirmarPago(id: String, body: ConfirmarPagoRequest, owner: String) =
+            throw IOException("sin red")
+        override suspend fun confirmarAjustePago(id: String, body: ConfirmarPagoRequest, owner: String) =
+            throw IOException("sin red")
     }
 
     private class DaoMetadatosSincronizacionFalso : SyncMetadataDao {
@@ -152,6 +166,7 @@ class SincronizacionRepositoryTest {
 
     private class DaoPedidoFalso : PedidoDao {
         override fun observarDelUsuario(ownerId: Long) = flowOf(emptyList<Pedido>())
+        override suspend fun listarDelUsuario(ownerId: Long) = emptyList<Pedido>()
         override suspend fun reservasPendientes() = emptyList<Pedido>()
         override suspend fun actualizarDetalle(detalle: PedidoDetalle) = 0
 

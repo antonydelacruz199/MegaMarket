@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -53,6 +54,7 @@ fun EstructuraAdmin(
     val itemsMenu = listOf(
         ItemMenuAdmin("Panel", Ruta.PanelAdmin.ruta, Icons.Default.Home),
         ItemMenuAdmin("Productos", Ruta.ProductosAdmin.ruta, Icons.Default.List),
+        ItemMenuAdmin("Billetera", Ruta.BilleteraAdmin.ruta, Icons.Default.ShoppingCart),
         ItemMenuAdmin(
             etiqueta = stringResource(R.string.cerrar_sesion),
             ruta = null,

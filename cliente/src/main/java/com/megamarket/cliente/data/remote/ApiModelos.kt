@@ -71,7 +71,32 @@ data class CrearPedidoRequest(
     val clientUuid: String,
     val contratoVersion: Int = 2,
     val direccion: DireccionPedidoRequest,
-    val items: List<ItemPedidoRequest>
+    val items: List<ItemPedidoRequest>,
+    val franjaEntregaId: String? = null,
+    val modalidadPago: String? = null
+)
+
+data class ListaFranjasResponse(
+    val franjas: List<FranjaApiDto>? = null,
+    val error: String? = null
+)
+
+data class FranjaResponse(
+    val franja: FranjaApiDto? = null,
+    val error: String? = null
+)
+
+/** Contrato GET /api/franjas — campos reales del servidor (`mapearFranja`). */
+data class FranjaApiDto(
+    val id: String? = null,
+    val fecha: String? = null,
+    val horaInicio: String? = null,
+    val horaFin: String? = null,
+    val capacidad: Int? = null,
+    val ocupados: Int? = null,
+    val cupoRestante: Int? = null,
+    val activa: Boolean? = null,
+    val createdAt: String? = null
 )
 
 data class DireccionPedidoRequest(
@@ -101,7 +126,8 @@ data class PedidoApiDto(
     @SerializedName("total_centimos") val totalCentimos: Long?,
     val estado: String?,
     val version: Long?,
-    val fecha: String?
+    val fecha: String?,
+    val franjaEntregaId: String? = null
 )
 
 data class ReservaApiDto(val carritoId: String, val cantidad: Int)

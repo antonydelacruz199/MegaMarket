@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.megamarket.picker.data.repository.CODIGO_REQUIERE_PAGO
 import com.megamarket.picker.data.repository.DetalleReparto
+import com.megamarket.picker.data.repository.ESTADO_PAGO_CONFIRMADO
 import com.megamarket.picker.data.repository.MensajesEntrega
 import com.megamarket.picker.data.repository.MensajesSesion
 import com.megamarket.picker.data.repository.PedidosRepartoRepository
@@ -21,16 +22,21 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.util.UUID
 
 class DetalleEntregaViewModel(
     savedStateHandle: SavedStateHandle,
-    private val repositorio: PedidosRepartoRepository
+    private val repositorio: PedidosRepartoRepository,
+    private val nuevoUuid: () -> String = { UUID.randomUUID().toString() }
 ) : ViewModel() {
 
     private val pedidoId: String = savedStateHandle.get<String>(Ruta.ARG_PEDIDO).orEmpty()
     private val _estado = MutableStateFlow(DetalleEntregaUiState())
     val estado: StateFlow<DetalleEntregaUiState> = _estado.asStateFlow()
     private var carga: Job? = null
+    /** Se reutiliza en reintentos de la misma confirmación para que el servidor sea idempotente. */
+    private var uuidPago: String? = null
+    private var pagoEnCurso = false
     private var foto: ByteArray? = null
     private var fotoNueva: Boolean = false
 
@@ -81,6 +87,106 @@ class DetalleEntregaViewModel(
         _estado.update {
             it.copy(latitud = latitud, longitud = longitud, error = null, codigoError = null)
         }
+    }
+
+    /** Pide al servidor el QR simulado de cobro. No confirma nada ni desbloquea la entrega. */
+    fun generarQrPago() {
+        if (pagoEnCurso || !_estado.value.requierePagoQr) return
+        pagoEnCurso = true
+        viewModelScope.launch {
+            _estado.update { it.copy(generandoQr = true, errorPago = null) }
+            val resultado = try {
+                repositorio.generarQrPago(pedidoId)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                ResultadoOperacion.Error(TipoErrorPedido.RED, MensajesSesion.SIN_CONEXION)
+            }
+            when (resultado) {
+                is ResultadoOperacion.Exito -> {
+                    if (resultado.valor.confirmado) {
+                        // El servidor ya lo tenía confirmado: recargar para que el bloqueo se levante desde la API.
+                        _estado.update { it.copy(generandoQr = false, qrPago = null) }
+                        aplicar(cargarDetalle())
+                    } else {
+                        _estado.update { it.copy(generandoQr = false, qrPago = resultado.valor) }
+                    }
+                }
+                is ResultadoOperacion.Error -> _estado.update {
+                    it.copy(
+                        generandoQr = false,
+                        errorPago = resultado.mensaje,
+                        sesionVencida = resultado.tipo == TipoErrorPedido.SESION ||
+                            resultado.tipo == TipoErrorPedido.CUENTA
+                    )
+                }
+            }
+            pagoEnCurso = false
+        }
+    }
+
+    /**
+     * Acción explícita del repartidor tras cobrar. Solo la confirmación del servidor, seguida de una
+     * recarga del detalle (GET entrega), levanta el bloqueo `pagoPendiente`; nunca se fija en local.
+     */
+    fun confirmarPago() {
+        val actual = _estado.value
+        val qr = actual.qrPago ?: return
+        if (pagoEnCurso || actual.confirmandoPago || !actual.requierePagoQr) return
+        pagoEnCurso = true
+        val uuid = uuidPago ?: nuevoUuid().also { uuidPago = it }
+        viewModelScope.launch {
+            _estado.update { it.copy(confirmandoPago = true, errorPago = null) }
+            val resultado = try {
+                repositorio.confirmarPago(qr.pagoId, uuid)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                ResultadoOperacion.Error(TipoErrorPedido.RED, MensajesSesion.SIN_CONEXION)
+            }
+            when (resultado) {
+                is ResultadoOperacion.Exito -> {
+                    uuidPago = null
+                    _estado.update { it.copy(confirmandoPago = false, qrPago = null) }
+                    recargarTrasPago()
+                }
+                is ResultadoOperacion.Error -> {
+                    _estado.update {
+                        it.copy(
+                            confirmandoPago = false,
+                            errorPago = resultado.mensaje,
+                            sesionVencida = resultado.tipo == TipoErrorPedido.SESION ||
+                                resultado.tipo == TipoErrorPedido.CUENTA
+                        )
+                    }
+                    // Resultado desconocido (sin red): comprobar en el servidor si el cobro sí se aplicó.
+                    if (resultado.tipo == TipoErrorPedido.RED) verificarPagoRemoto()
+                }
+            }
+            pagoEnCurso = false
+        }
+    }
+
+    private suspend fun verificarPagoRemoto() {
+        val lectura = try {
+            repositorio.consultarPago(pedidoId)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (_: Exception) {
+            return
+        }
+        if (lectura is ResultadoOperacion.Exito &&
+            lectura.valor.estado.equals(ESTADO_PAGO_CONFIRMADO, ignoreCase = true)
+        ) {
+            uuidPago = null
+            _estado.update { it.copy(qrPago = null, errorPago = null) }
+            recargarTrasPago()
+        }
+    }
+
+    private suspend fun recargarTrasPago() {
+        aplicar(cargarDetalle())
+        _estado.update { it.copy(pagoConfirmadoReciente = !it.pagoPendiente && it.detalle != null) }
     }
 
     fun registrar() {
@@ -208,13 +314,16 @@ class DetalleEntregaViewModel(
                 val entregado = detalle.pedido.estado.equals("ENTREGADO", ignoreCase = true) ||
                     detalle.entrega != null
                 val fotoRemota = repositorio.fotoPublicada(pedidoId)
+                val pagoPendiente = pagoEstaPendiente(detalle.pago?.estado)
                 _estado.update {
                     it.copy(
                         cargando = false,
                         refrescando = false,
                         detalle = detalle,
                         entregado = entregado,
-                        pagoPendiente = pagoEstaPendiente(detalle.pago?.estado),
+                        pagoPendiente = pagoPendiente,
+                        qrPago = if (pagoPendiente) it.qrPago else null,
+                        errorPago = if (pagoPendiente) it.errorPago else null,
                         fotoLista = it.fotoLista || fotoRemota,
                         error = null,
                         codigoError = null,

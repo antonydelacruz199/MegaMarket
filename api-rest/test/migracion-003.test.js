@@ -52,7 +52,8 @@ test('cadena de migraciones versionadas está completa en sql/', () => {
   for (const file of [
     '001_esquema_inicial.sql',
     '002_reservas.sql',
-    '003_operaciones_extendidas.sql'
+    '003_operaciones_extendidas.sql',
+    '004_billetera_simulada.sql'
   ]) {
     assert.ok(fs.existsSync(path.join(sqlDir, file)), file);
   }

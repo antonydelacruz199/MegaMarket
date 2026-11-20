@@ -2,6 +2,7 @@ package com.megamarket.cliente.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.megamarket.cliente.data.repository.CarritoRepository
 import com.megamarket.cliente.data.repository.CatalogoNoDisponibleException
 import com.megamarket.cliente.data.repository.FranjasRepository
 import com.megamarket.cliente.data.repository.PedidoRepository
@@ -16,19 +17,22 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class CheckoutViewModel(
     private val sesionRepository: SesionRepository,
     private val pedidos: PedidoRepository,
-    private val franjasRepository: FranjasRepository
+    private val franjasRepository: FranjasRepository,
+    private val carrito: CarritoRepository
 ) : ViewModel() {
 
     private val _estado = MutableStateFlow(CheckoutUiState())
     val estado: StateFlow<CheckoutUiState> = _estado.asStateFlow()
 
     init {
+        observarCarrito()
         cargarFranjas()
     }
 
@@ -68,6 +72,19 @@ class CheckoutViewModel(
 
     fun seleccionarModalidad(modalidad: ModalidadPagoCheckout) {
         _estado.update { it.copy(modalidadPago = modalidad, error = null) }
+    }
+
+    fun aumentarCantidad(productoId: Long, cantidadActual: Int) {
+        aplicarCambioCarrito { carrito.actualizarCantidadCarrito(productoId, cantidadActual + 1) }
+    }
+
+    fun disminuirCantidad(productoId: Long, cantidadActual: Int) {
+        if (cantidadActual <= 1) return
+        aplicarCambioCarrito { carrito.actualizarCantidadCarrito(productoId, cantidadActual - 1) }
+    }
+
+    fun quitarProducto(productoId: Long) {
+        aplicarCambioCarrito { carrito.quitarDelCarrito(productoId) }
     }
 
     fun cargarFranjas() {
@@ -144,6 +161,10 @@ class CheckoutViewModel(
                     _estado.update { it.copy(error = "Elige cómo quieres pagar.") }
                     return
                 }
+                if (actual.lineasCarrito.isEmpty()) {
+                    _estado.update { it.copy(error = "Agrega al menos un producto para continuar.") }
+                    return
+                }
                 _estado.update { it.copy(paso = paso, error = null) }
             }
         }
@@ -162,13 +183,6 @@ class CheckoutViewModel(
     fun confirmarCompra() {
         val actual = _estado.value
         if (actual.cargando || actual.pedidoCreadoId != null) return
-        val direccion = Direccion(
-            departamento = actual.departamento.trim(),
-            provincia = actual.provincia.trim(),
-            distrito = actual.distrito.trim(),
-            direccion = actual.direccion.trim(),
-            telefono = actual.telefono.trim()
-        )
         validarDireccion(actual)?.let { error ->
             _estado.update { it.copy(error = error, paso = PasoCheckout.DIRECCION) }
             return
@@ -185,11 +199,22 @@ class CheckoutViewModel(
             _estado.update { it.copy(error = "Elige cómo quieres pagar.", paso = PasoCheckout.PAGO) }
             return
         }
+        if (actual.lineasCarrito.isEmpty()) {
+            _estado.update { it.copy(error = "Agrega al menos un producto para confirmar.") }
+            return
+        }
         val clienteId = sesionRepository.usuario.value?.id
         if (clienteId == null) {
             _estado.update { it.copy(error = "Tu sesión terminó. Vuelve a iniciar sesión.") }
             return
         }
+        val direccion = Direccion(
+            departamento = actual.departamento.trim(),
+            provincia = actual.provincia.trim(),
+            distrito = actual.distrito.trim(),
+            direccion = actual.direccion.trim(),
+            telefono = actual.telefono.trim()
+        )
         _estado.update { it.copy(cargando = true, error = null) }
         viewModelScope.launch {
             try {
@@ -209,6 +234,35 @@ class CheckoutViewModel(
 
     fun consumirNavegacion() {
         _estado.update { it.copy(pedidoCreadoId = null) }
+    }
+
+    private fun observarCarrito() {
+        viewModelScope.launch {
+            carrito.observarLineasCarrito()
+                .catch { error ->
+                    _estado.update {
+                        it.copy(error = error.message ?: "No se pudo leer el carrito")
+                    }
+                }
+                .collect { lineas ->
+                    _estado.update { it.copy(lineasCarrito = lineas) }
+                }
+        }
+    }
+
+    private fun aplicarCambioCarrito(accion: suspend () -> Unit) {
+        viewModelScope.launch {
+            try {
+                accion()
+                _estado.update { it.copy(error = null) }
+            } catch (error: CancellationException) {
+                throw error
+            } catch (error: Exception) {
+                _estado.update {
+                    it.copy(error = error.message ?: "No se pudo actualizar el carrito")
+                }
+            }
+        }
     }
 
     private fun validarDireccion(estado: CheckoutUiState): String? {

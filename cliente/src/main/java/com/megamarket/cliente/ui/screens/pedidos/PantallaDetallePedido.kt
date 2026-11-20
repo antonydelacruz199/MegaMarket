@@ -53,7 +53,8 @@ fun PantallaDetallePedido(
     viewModel: DetallePedidoViewModel,
     alVolver: () -> Unit,
     alCerrarSesion: () -> Unit,
-    alPagarQr: (String) -> Unit = {}
+    alPagarQr: (String) -> Unit = {},
+    alEscanearQr: (String) -> Unit = {}
 ) {
     val estado by viewModel.estado.collectAsStateWithLifecycle()
     val ciclo = LocalLifecycleOwner.current
@@ -170,44 +171,25 @@ fun PantallaDetallePedido(
                         if (d.puedePagarConQr) {
                             Text(
                                 if (pago.modalidad.equals("CONTRAENTREGA", ignoreCase = true)) {
-                                    "Puedes pagar con billetera ahora, o el repartidor cobrará al entregar."
+                                    "Puedes pagar con billetera escaneando el QR del repartidor, o él cobrará en efectivo."
                                 } else {
                                     "El pago aún no está confirmado. Completa el cobro para despachar."
                                 },
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            Button(
-                                onClick = { alPagarQr(d.id) },
-                                modifier = Modifier.fillMaxWidth()
-                            ) { Text("Realizar pago") }
-                        }
-                        if (d.puedeAutorizarBilletera) {
-                            Text(
-                                "Si pagarás con billetera al recibir, autoriza el débito para el repartidor.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            if (estado.autorizacionBilleteraOk) {
-                                Text(
-                                    "Autorización registrada. El repartidor puede cobrar con billetera.",
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            } else {
-                                OutlinedButton(
-                                    onClick = viewModel::autorizarBilleteraContraentrega,
-                                    enabled = !estado.autorizandoBilletera,
+                            if (!pago.modalidad.equals("CONTRAENTREGA", ignoreCase = true)) {
+                                Button(
+                                    onClick = { alPagarQr(d.id) },
                                     modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        if (estado.autorizandoBilletera) {
-                                            "Autorizando…"
-                                        } else {
-                                            "Autorizar cobro con billetera"
-                                        }
-                                    )
-                                }
+                                ) { Text("Realizar pago") }
                             }
+                        }
+                        if (d.puedeEscanearQrEntrega) {
+                            Button(
+                                onClick = { alEscanearQr(d.id) },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("Escanear QR") }
                         }
                     }
 

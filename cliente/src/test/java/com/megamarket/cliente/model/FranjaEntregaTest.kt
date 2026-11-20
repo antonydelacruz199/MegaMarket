@@ -28,8 +28,15 @@ class FranjaEntregaTest {
         assertTrue(franja!!.disponible)
         assertEquals("17 de 20 cupos", franja.etiquetaCupo)
         assertFalse(franja.etiquetaCompleta.contains("11111111"))
-        assertTrue(franja.etiquetaHorario.contains("10:00"))
-        assertTrue(franja.etiquetaHorario.contains("12:00"))
+        assertEquals("10:00 a.m. – 12:00 p.m.", franja.etiquetaHorario)
+    }
+
+    @Test
+    fun formateaHorasEnAmPm() {
+        assertEquals("12:00 a.m.", FranjaEntrega.formatearHora("00:00:00"))
+        assertEquals("10:00 a.m.", FranjaEntrega.formatearHora("10:00"))
+        assertEquals("12:00 p.m.", FranjaEntrega.formatearHora("12:00:00"))
+        assertEquals("2:00 p.m.", FranjaEntrega.formatearHora("14:00:00"))
     }
 
     @Test

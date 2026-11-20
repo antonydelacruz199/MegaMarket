@@ -24,7 +24,7 @@ import kotlinx.coroutines.launch
 import java.util.UUID
 
 /**
- * Pago ONLINE. El botón «Pagar ahora» confirma vía API; el QR es opcional y no modifica saldos.
+ * Pago ONLINE. Muestra QR y confirma con «Realizar pago»; también detecta confirmación externa.
  */
 class PagoQrViewModel(
     savedStateHandle: SavedStateHandle,
@@ -53,7 +53,7 @@ class PagoQrViewModel(
         cargar()
     }
 
-    /** Carga el pago pendiente y el saldo; no genera QR. */
+    /** Carga el pago pendiente y el saldo; genera QR si la ruta lo pide. */
     fun cargar() {
         if (pedidoId.isBlank()) {
             _estado.value = PagoQrUiState(
@@ -113,10 +113,11 @@ class PagoQrViewModel(
                             sesionVencida = false
                         )
                     }
-                    if (abrirQrAlCargar &&
-                        !qrSolicitadoAlInicio &&
-                        !pagoRes.valor.confirmado
-                    ) {
+                    if (pagoRes.valor.confirmado) {
+                        operacionEnCurso = false
+                        return@launch
+                    }
+                    if (abrirQrAlCargar && !qrSolicitadoAlInicio) {
                         qrSolicitadoAlInicio = true
                         operacionEnCurso = false
                         mostrarQr()
@@ -149,16 +150,21 @@ class PagoQrViewModel(
                 ResultadoPagos.Error(TipoErrorSustitucion.RED, MensajesPagoCliente.SIN_CONEXION)
             }
             when (resultado) {
-                is ResultadoPagos.Exito -> _estado.update {
-                    it.copy(
-                        generandoQr = false,
-                        mostrarQr = true,
-                        pago = resultado.valor.pago,
-                        qr = resultado.valor.qr,
-                        confirmado = resultado.valor.pago.confirmado,
-                        error = null,
-                        codigoError = null
-                    )
+                is ResultadoPagos.Exito -> {
+                    _estado.update {
+                        it.copy(
+                            generandoQr = false,
+                            mostrarQr = true,
+                            pago = resultado.valor.pago,
+                            qr = resultado.valor.qr,
+                            confirmado = resultado.valor.pago.confirmado,
+                            error = null,
+                            codigoError = null
+                        )
+                    }
+                    if (!resultado.valor.pago.confirmado) {
+                        iniciarSeguimiento()
+                    }
                 }
                 is ResultadoPagos.Error -> _estado.update {
                     aplicarError(it, resultado).copy(generandoQr = false)
@@ -166,10 +172,6 @@ class PagoQrViewModel(
             }
             operacionEnCurso = false
         }
-    }
-
-    fun ocultarQr() {
-        _estado.update { it.copy(mostrarQr = false) }
     }
 
     /** Acción principal: confirma el cobro en el servidor. */
@@ -200,6 +202,9 @@ class PagoQrViewModel(
             }
             when (resultado) {
                 is ResultadoPagos.Exito -> {
+                    // Persistir PAGADO en Room antes de marcar confirmado (evita volver a «Completa tu compra»).
+                    sincronizarPedidoLocalTrasPago(resultado.valor.pedidoEstado)
+                    detenerSeguimiento()
                     _estado.update {
                         it.copy(
                             confirmando = false,
@@ -214,8 +219,6 @@ class PagoQrViewModel(
                         )
                     }
                     operacionEnCurso = false
-                    sincronizarPedidoLocalTrasPago(resultado.valor.pedidoEstado)
-                    refrescarEstadoInterno(silencioso = true)
                 }
                 is ResultadoPagos.Error -> {
                     // QR expirado: el cobro no ocurrió; se puede retomar sin duplicar.
@@ -250,11 +253,10 @@ class PagoQrViewModel(
         if (seguimiento?.isActive == true) return
         seguimiento = viewModelScope.launch {
             var intentos = 0
-            while (intentos < maxConsultas && !_estado.value.confirmado) {
+            while (!_estado.value.confirmado && (maxConsultas <= 0 || intentos < maxConsultas)) {
                 delay(intervaloConsultaMs)
                 intentos++
-                val r = refrescarEstadoInterno(silencioso = true)
-                if (r is ResultadoPagos.Exito) break
+                refrescarEstadoInterno(silencioso = true)
             }
         }
     }
@@ -273,16 +275,23 @@ class PagoQrViewModel(
             ResultadoPagos.Error(TipoErrorSustitucion.RED, MensajesPagoCliente.SIN_CONEXION)
         }
         when (resultado) {
-            is ResultadoPagos.Exito -> _estado.update {
-                when {
-                    it.confirmado && !resultado.valor.confirmado -> it.copy(consultandoEstado = false)
-                    else -> it.copy(
-                        consultandoEstado = false,
-                        pago = resultado.valor,
-                        confirmado = resultado.valor.confirmado,
-                        error = if (resultado.valor.confirmado) null else it.error,
-                        codigoError = if (resultado.valor.confirmado) null else it.codigoError
-                    )
+            is ResultadoPagos.Exito -> {
+                val recienConfirmado = resultado.valor.confirmado && !_estado.value.confirmado
+                _estado.update {
+                    when {
+                        it.confirmado && !resultado.valor.confirmado -> it.copy(consultandoEstado = false)
+                        else -> it.copy(
+                            consultandoEstado = false,
+                            pago = resultado.valor,
+                            confirmado = resultado.valor.confirmado,
+                            error = if (resultado.valor.confirmado) null else it.error,
+                            codigoError = if (resultado.valor.confirmado) null else it.codigoError
+                        )
+                    }
+                }
+                if (recienConfirmado) {
+                    detenerSeguimiento()
+                    sincronizarPedidoLocalTrasPago("PAGADO")
                 }
             }
             is ResultadoPagos.Error -> _estado.update {
@@ -322,6 +331,7 @@ class PagoQrViewModel(
 
     companion object {
         const val INTERVALO_CONSULTA_MS = 3_000L
-        const val MAX_CONSULTAS = 5
+        /** 0 = seguir consultando mientras la pantalla esté abierta. */
+        const val MAX_CONSULTAS = 0
     }
 }

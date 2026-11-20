@@ -1,7 +1,9 @@
 package com.megamarket.cliente.state
 
 import com.megamarket.cliente.model.FranjaEntrega
+import com.megamarket.cliente.model.LineaCarrito
 import com.megamarket.cliente.model.ModalidadPagoCheckout
+import com.megamarket.cliente.model.totalCentimos
 
 enum class PasoCheckout {
     DIRECCION,
@@ -28,6 +30,8 @@ data class CheckoutUiState(
 
     val modalidadPago: ModalidadPagoCheckout? = null,
 
+    val lineasCarrito: List<LineaCarrito> = emptyList(),
+
     val cargando: Boolean = false,
     val error: String? = null,
 
@@ -38,4 +42,7 @@ data class CheckoutUiState(
 
     val franjasDeFecha: List<FranjaEntrega>
         get() = franjas.filter { it.fechaIso == fechaSeleccionada }
+
+    val totalCarritoCentimos: Long
+        get() = lineasCarrito.totalCentimos()
 }

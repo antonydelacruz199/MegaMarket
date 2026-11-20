@@ -15,9 +15,13 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -39,17 +43,20 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.megamarket.cliente.R
 import com.megamarket.cliente.model.FranjaEntrega
+import com.megamarket.cliente.model.LineaCarrito
 import com.megamarket.cliente.model.ModalidadPagoCheckout
 import com.megamarket.cliente.state.CheckoutUiState
 import com.megamarket.cliente.state.PasoCheckout
 import com.megamarket.cliente.ui.components.BarraSuperior
 import com.megamarket.cliente.viewmodel.CheckoutViewModel
+import com.megamarket.modelo.formatearSoles
 
 @Composable
 fun PantallaCheckout(
     viewModel: CheckoutViewModel,
     alVolver: () -> Unit,
-    alConfirmar: (pedidoId: Long) -> Unit
+    alConfirmar: (pedidoId: Long) -> Unit,
+    alAnadirProductos: () -> Unit = {}
 ) {
     val estado by viewModel.estado.collectAsStateWithLifecycle()
 
@@ -88,7 +95,7 @@ fun PantallaCheckout(
                 PasoCheckout.DIRECCION -> PasoDireccion(estado, viewModel)
                 PasoCheckout.FRANJA -> PasoFranja(estado, viewModel)
                 PasoCheckout.PAGO -> PasoPago(estado, viewModel)
-                PasoCheckout.RESUMEN -> PasoResumen(estado, viewModel)
+                PasoCheckout.RESUMEN -> PasoResumen(estado, viewModel, alAnadirProductos)
             }
             if (estado.error != null) {
                 Text(
@@ -324,13 +331,38 @@ private fun PasoPago(estado: CheckoutUiState, viewModel: CheckoutViewModel) {
 }
 
 @Composable
-private fun PasoResumen(estado: CheckoutUiState, viewModel: CheckoutViewModel) {
+private fun PasoResumen(
+    estado: CheckoutUiState,
+    viewModel: CheckoutViewModel,
+    alAnadirProductos: () -> Unit
+) {
     Text(
         text = "Revisa tu pedido",
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.SemiBold
     )
     Spacer(modifier = Modifier.height(8.dp))
+    BloqueResumen("Productos") {
+        if (estado.lineasCarrito.isEmpty()) {
+            Text("No hay productos en el carrito.", color = MaterialTheme.colorScheme.error)
+        } else {
+            estado.lineasCarrito.forEach { linea ->
+                LineaProductoResumen(
+                    linea = linea,
+                    alAumentar = { viewModel.aumentarCantidad(linea.producto.id, linea.cantidad) },
+                    alDisminuir = { viewModel.disminuirCantidad(linea.producto.id, linea.cantidad) },
+                    alQuitar = { viewModel.quitarProducto(linea.producto.id) }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+            Text(
+                text = "Total ${estado.totalCarritoCentimos.formatearSoles()}",
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(top = 4.dp)
+            )
+        }
+        TextButton(onClick = alAnadirProductos) { Text("Añadir productos") }
+    }
     BloqueResumen("Dirección") {
         Text("${estado.direccion}, ${estado.distrito}")
         Text("${estado.provincia}, ${estado.departamento}")
@@ -355,6 +387,46 @@ private fun PasoResumen(estado: CheckoutUiState, viewModel: CheckoutViewModel) {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         TextButton(onClick = { viewModel.irAPaso(PasoCheckout.PAGO) }) { Text("Cambiar") }
+    }
+}
+
+@Composable
+private fun LineaProductoResumen(
+    linea: LineaCarrito,
+    alAumentar: () -> Unit,
+    alDisminuir: () -> Unit,
+    alQuitar: () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(linea.producto.nombre, fontWeight = FontWeight.SemiBold)
+                Text(
+                    text = linea.producto.precioVigenteCentimos.formatearSoles(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            IconButton(onClick = alQuitar) {
+                Icon(Icons.Default.Delete, contentDescription = "Quitar producto")
+            }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = alDisminuir, enabled = linea.cantidad > 1) { Text("−") }
+            Text("${linea.cantidad}", fontWeight = FontWeight.Medium)
+            IconButton(
+                onClick = alAumentar,
+                enabled = linea.cantidad < linea.producto.stock
+            ) { Text("+") }
+            Text(
+                text = linea.subtotalCentimos.formatearSoles(),
+                modifier = Modifier.padding(start = 12.dp),
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }
 
@@ -396,7 +468,7 @@ private fun AccionesPaso(estado: CheckoutUiState, viewModel: CheckoutViewModel) 
         PasoCheckout.RESUMEN -> {
             Text(
                 text = if (estado.modalidadPago == ModalidadPagoCheckout.ONLINE) {
-                    "Al confirmar verás el resumen final con las opciones Realizar pago y Pagar con QR."
+                    "Al confirmar, el pedido pasa a preparación. Cuando el picker lo confirme podrás pagar con QR."
                 } else {
                     "Al confirmar verás el resumen final. Podrás cancelar mientras el pedido siga confirmado."
                 },
@@ -406,7 +478,7 @@ private fun AccionesPaso(estado: CheckoutUiState, viewModel: CheckoutViewModel) 
             )
             Button(
                 onClick = viewModel::confirmarCompra,
-                enabled = !estado.cargando,
+                enabled = !estado.cargando && estado.lineasCarrito.isNotEmpty(),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(48.dp),

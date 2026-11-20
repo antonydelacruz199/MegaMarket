@@ -23,7 +23,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -50,12 +49,17 @@ import com.megamarket.modelo.formatearSoles
 fun PantallaPagoQr(
     viewModel: PagoQrViewModel,
     alVolver: () -> Unit,
-    alCerrarSesion: () -> Unit
+    alCerrarSesion: () -> Unit,
+    alPagoConfirmado: () -> Unit = alVolver
 ) {
     val estado by viewModel.estado.collectAsStateWithLifecycle()
 
     LaunchedEffect(estado.sesionVencida) {
         if (estado.sesionVencida) alCerrarSesion()
+    }
+
+    LaunchedEffect(estado.confirmado) {
+        if (estado.confirmado) alPagoConfirmado()
     }
 
     Scaffold(
@@ -99,10 +103,6 @@ fun PantallaPagoQr(
             else -> ContenidoPago(
                 estado = estado,
                 alPagar = viewModel::confirmar,
-                alActualizar = viewModel::consultarEstado,
-                alVerQr = viewModel::mostrarQr,
-                alOcultarQr = viewModel::ocultarQr,
-                alVolver = alVolver,
                 modifier = Modifier.padding(padding)
             )
         }
@@ -113,10 +113,6 @@ fun PantallaPagoQr(
 private fun ContenidoPago(
     estado: PagoQrUiState,
     alPagar: () -> Unit,
-    alActualizar: () -> Unit,
-    alVerQr: () -> Unit,
-    alOcultarQr: () -> Unit,
-    alVolver: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val pago = checkNotNull(estado.pago)
@@ -151,84 +147,42 @@ private fun ContenidoPago(
                 )
             }
 
-            if (estado.confirmado) {
+            estado.error?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+            }
+
+            if (qr != null) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "Pago confirmado",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
-                )
-                pago.numeroOperacionBanco?.let { Text("Operación: $it") }
-                estado.pedidoEstado?.let { Text("Estado del pedido: $it") }
-                estado.saldoClienteCentimos?.let {
-                    Text("Saldo disponible: ${it.formatearSoles()}")
+                Text("Código QR", style = MaterialTheme.typography.titleSmall)
+                qr.referencia?.let {
+                    Text("Referencia: $it", style = MaterialTheme.typography.bodySmall)
                 }
-                Button(onClick = alVolver, modifier = Modifier.fillMaxWidth()) { Text("Volver") }
-            } else {
-                estado.error?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+                qr.generadoEn?.let { Text("Generado: ${textoFechaHora(it)}") }
+                (qr.expiraEn ?: pago.fechaExpiracionQr)?.let {
+                    Text("Vence: ${textoFechaHora(it)}")
                 }
+                ImagenQr(contenido = qr.contenido)
                 Text(
-                    "Usa «Realizar pago» para confirmar el cobro con tu billetera. El código QR es opcional e informativo.",
+                    "Si escaneas y confirmas el pago, esta pantalla se cerrará sola. También puedes usar el botón.",
                     style = MaterialTheme.typography.bodySmall,
                     textAlign = TextAlign.Center,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Button(
-                    onClick = alPagar,
-                    enabled = !estado.confirmando && !estado.cargando,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text(if (estado.confirmando) "Confirmando…" else "Realizar pago")
-                }
-                OutlinedButton(
-                    onClick = alActualizar,
-                    enabled = !estado.consultandoEstado && !estado.confirmando,
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("Actualizar estado") }
+            } else if (estado.generandoQr) {
+                Text(
+                    "Generando código QR…",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
 
-                if (estado.mostrarQr && qr != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text("Código QR", style = MaterialTheme.typography.titleSmall)
-                    qr.referencia?.let {
-                        Text("Referencia: $it", style = MaterialTheme.typography.bodySmall)
-                    }
-                    qr.generadoEn?.let { Text("Generado: ${textoFechaHora(it)}") }
-                    (qr.expiraEn ?: pago.fechaExpiracionQr)?.let {
-                        Text("Vence: ${textoFechaHora(it)}")
-                    }
-                    ImagenQr(contenido = qr.contenido)
-                    Text(
-                        "Ver el código no confirma el pago. Pulsa «Realizar pago» para cobrar.",
-                        style = MaterialTheme.typography.bodySmall,
-                        textAlign = TextAlign.Center
-                    )
-                    OutlinedButton(
-                        onClick = alOcultarQr,
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Ocultar código QR") }
-                    OutlinedButton(
-                        onClick = alVerQr,
-                        enabled = !estado.generandoQr && !estado.confirmando,
-                        modifier = Modifier.fillMaxWidth()
-                    ) { Text("Actualizar código QR") }
-                    Button(
-                        onClick = alPagar,
-                        enabled = !estado.confirmando && !estado.cargando,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(if (estado.confirmando) "Confirmando…" else "Realizar pago")
-                    }
-                } else {
-                    OutlinedButton(
-                        onClick = alVerQr,
-                        enabled = !estado.generandoQr && !estado.confirmando,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text(if (estado.generandoQr) "Generando…" else "Ver código QR")
-                    }
-                }
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = alPagar,
+                enabled = !estado.confirmando && !estado.cargando && !estado.confirmado,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (estado.confirmando) "Confirmando…" else "Realizar pago")
             }
         }
     }

@@ -29,7 +29,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -73,8 +72,7 @@ fun PantallaDetalleEntrega(
     alRegistrar: () -> Unit,
     alGenerarQr: () -> Unit = {},
     alOcultarQr: () -> Unit = {},
-    alConfirmarPago: () -> Unit = {},
-    alConfirmarPagoBilletera: () -> Unit = {}
+    alConfirmarPago: () -> Unit = {}
 ) {
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
@@ -209,8 +207,7 @@ fun PantallaDetalleEntrega(
                             estado = estado,
                             alGenerarQr = alGenerarQr,
                             alOcultarQr = alOcultarQr,
-                            alConfirmarPago = alConfirmarPago,
-                            alConfirmarPagoBilletera = alConfirmarPagoBilletera
+                            alConfirmarPago = alConfirmarPago
                         )
                     } else if (estado.pagoConfirmadoReciente) {
                         Text(
@@ -342,8 +339,7 @@ private fun BloquePagoQr(
     estado: DetalleEntregaUiState,
     alGenerarQr: () -> Unit,
     alOcultarQr: () -> Unit,
-    alConfirmarPago: () -> Unit,
-    alConfirmarPagoBilletera: () -> Unit = {}
+    alConfirmarPago: () -> Unit
 ) {
     val qr = estado.qrPago
     val imagen = remember(qr?.qrContenido) {
@@ -372,7 +368,7 @@ private fun BloquePagoQr(
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = "Registra el cobro en efectivo (sin debitar billetera) o usa billetera solo si el cliente autorizó el débito.",
+                text = "Confirma el cobro en efectivo, o muestra el QR para que el cliente lo escanee y pague con su billetera.",
                 style = MaterialTheme.typography.bodySmall
             )
             val puedeCobrar = !estado.confirmandoPago &&
@@ -389,13 +385,6 @@ private fun BloquePagoQr(
                         "Confirmar cobro en efectivo"
                     }
                 )
-            }
-            OutlinedButton(
-                onClick = alConfirmarPagoBilletera,
-                enabled = puedeCobrar,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text("Cobrar con billetera (requiere autorización del cliente)")
             }
             when {
                 estado.generandoQr -> {
@@ -421,7 +410,7 @@ private fun BloquePagoQr(
                         )
                     }
                     Text(
-                        text = stringResource(R.string.pago_qr_aviso_confirmar),
+                        text = "El cliente puede escanear este QR para pagar con billetera. Tú puedes confirmar el cobro en efectivo.",
                         style = MaterialTheme.typography.bodySmall
                     )
                     TextButton(onClick = alOcultarQr) {

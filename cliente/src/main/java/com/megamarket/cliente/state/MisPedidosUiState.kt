@@ -24,9 +24,7 @@ data class DetallePedidoUiState(
     val decidiendoId: String? = null,
     val ahoraEpochMs: Long = System.currentTimeMillis(),
     val cancelando: Boolean = false,
-    val cancelado: Boolean = false,
-    val autorizandoBilletera: Boolean = false,
-    val autorizacionBilleteraOk: Boolean = false
+    val cancelado: Boolean = false
 ) {
     val propuestasPendientes: List<PropuestaSustitucionCliente>
         get() = detalle?.sustituciones.orEmpty().filter {

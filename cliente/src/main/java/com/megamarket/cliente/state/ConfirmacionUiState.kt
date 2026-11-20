@@ -20,10 +20,17 @@ data class ConfirmacionUiState(
     val esContraentrega: Boolean
         get() = pedido?.modalidadPago.equals(MODALIDAD_CONTRAENTREGA, ignoreCase = true)
 
+    val pagoRealizado: Boolean
+        get() {
+            if (pagoConfirmado == true) return true
+            return pedido?.estado.equals("PAGADO", ignoreCase = true) == true
+        }
+
     /** ONLINE solo cuando el pedido está CONFIRMADO (preparación validada). */
     val listoParaPagarOnline: Boolean
         get() {
             val p = pedido ?: return false
+            if (pagoRealizado) return false
             return esOnline &&
                 p.estado == Pedido.ESTADO_CONFIRMADO &&
                 !p.remoteId.isNullOrBlank() &&
@@ -34,6 +41,7 @@ data class ConfirmacionUiState(
     val listoParaPagarContraentrega: Boolean
         get() {
             val p = pedido ?: return false
+            if (pagoRealizado) return false
             val e = p.estado.trim().uppercase()
             return esContraentrega &&
                 !p.remoteId.isNullOrBlank() &&

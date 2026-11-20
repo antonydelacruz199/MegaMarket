@@ -22,14 +22,12 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.util.UUID
 
 class DetallePedidoViewModel(
     savedStateHandle: SavedStateHandle,
     private val misPedidos: MisPedidosRepository,
     private val sustituciones: SustitucionesRepository,
-    private val pagos: PagosRepository? = null,
-    private val nuevoUuid: () -> String = { UUID.randomUUID().toString() }
+    private val pagos: PagosRepository? = null
 ) : ViewModel() {
 
     private val pedidoId: String =
@@ -40,7 +38,6 @@ class DetallePedidoViewModel(
 
     private var reloj: Job? = null
     private var polling: Job? = null
-    private var uuidAutorizacion: String? = null
 
     init {
         cargar()
@@ -110,45 +107,6 @@ class DetallePedidoViewModel(
                 is ResultadoPagos.Error -> _estado.update {
                     it.copy(
                         cancelando = false,
-                        error = resultado.mensaje,
-                        codigoError = resultado.codigo,
-                        sesionVencida = resultado.tipo == TipoErrorSustitucion.SESION ||
-                            resultado.tipo == TipoErrorSustitucion.CUENTA
-                    )
-                }
-            }
-        }
-    }
-
-    fun autorizarBilleteraContraentrega() {
-        val actual = _estado.value
-        val detalle = actual.detalle ?: return
-        val pagoId = detalle.pago?.id?.trim().orEmpty()
-        val repo = pagos ?: return
-        if (actual.autorizandoBilletera || !detalle.puedeAutorizarBilletera || pagoId.isEmpty()) return
-        val uuid = uuidAutorizacion ?: nuevoUuid().also { uuidAutorizacion = it }
-        viewModelScope.launch {
-            _estado.update {
-                it.copy(autorizandoBilletera = true, error = null, codigoError = null)
-            }
-            val resultado = try {
-                repo.autorizarBilletera(pagoId, uuid)
-            } catch (error: CancellationException) {
-                throw error
-            } catch (_: Exception) {
-                ResultadoPagos.Error(TipoErrorSustitucion.RED, "Sin conexión")
-            }
-            when (resultado) {
-                is ResultadoPagos.Exito -> _estado.update {
-                    it.copy(
-                        autorizandoBilletera = false,
-                        autorizacionBilleteraOk = true,
-                        error = null
-                    )
-                }
-                is ResultadoPagos.Error -> _estado.update {
-                    it.copy(
-                        autorizandoBilletera = false,
                         error = resultado.mensaje,
                         codigoError = resultado.codigo,
                         sesionVencida = resultado.tipo == TipoErrorSustitucion.SESION ||

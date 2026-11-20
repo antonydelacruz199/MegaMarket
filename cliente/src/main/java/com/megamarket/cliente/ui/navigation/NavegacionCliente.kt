@@ -2,8 +2,10 @@ package com.megamarket.cliente.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -19,6 +21,7 @@ import com.megamarket.cliente.ui.screens.confirmacion.PantallaConfirmacion
 import com.megamarket.cliente.ui.screens.favoritos.PantallaFavoritos
 import com.megamarket.cliente.ui.screens.inicio.PantallaInicio
 import com.megamarket.cliente.ui.screens.pagos.PantallaBilletera
+import com.megamarket.cliente.ui.screens.pagos.PantallaEscanearPago
 import com.megamarket.cliente.ui.screens.pagos.PantallaPagoQr
 import com.megamarket.cliente.ui.screens.perfil.PantallaPerfil
 import com.megamarket.cliente.ui.screens.presentacion.PantallaPresentacion
@@ -37,6 +40,7 @@ import com.megamarket.cliente.viewmodel.ConfirmacionViewModel
 import com.megamarket.cliente.viewmodel.DetallePedidoViewModel
 import com.megamarket.cliente.viewmodel.DetalleProductoViewModel
 import com.megamarket.cliente.viewmodel.DetalleSustitucionViewModel
+import com.megamarket.cliente.viewmodel.EscanearPagoViewModel
 import com.megamarket.cliente.viewmodel.FavoritosViewModel
 import com.megamarket.cliente.viewmodel.InicioViewModel
 import com.megamarket.cliente.viewmodel.MisPedidosViewModel
@@ -160,7 +164,13 @@ fun NavegacionCliente(
             PantallaPagoQr(
                 viewModel = viewModel<PagoQrViewModel>(factory = fabrica),
                 alVolver = { controlador.popBackStack() },
-                alCerrarSesion = cerrarSesion
+                alCerrarSesion = cerrarSesion,
+                alPagoConfirmado = {
+                    controlador.previousBackStackEntry
+                        ?.savedStateHandle
+                        ?.set(ConfirmacionViewModel.KEY_PAGO_REALIZADO, true)
+                    controlador.popBackStack()
+                }
             )
         }
 
@@ -181,7 +191,24 @@ fun NavegacionCliente(
                 viewModel = viewModel<DetallePedidoViewModel>(factory = fabrica),
                 alVolver = { controlador.popBackStack() },
                 alCerrarSesion = cerrarSesion,
-                alPagarQr = { pedidoId -> controlador.navigate(Ruta.PagoQr.crear(pedidoId)) }
+                alPagarQr = { pedidoId ->
+                    controlador.navigate(Ruta.PagoQr.crear(pedidoId, abrirQr = true))
+                },
+                alEscanearQr = { pedidoId ->
+                    controlador.navigate(Ruta.EscanearPago.crear(pedidoId))
+                }
+            )
+        }
+
+        composable(
+            route = Ruta.EscanearPago.ruta,
+            arguments = listOf(navArgument(Ruta.ARG_PEDIDO_REMOTO) { type = NavType.StringType })
+        ) {
+            PantallaEscanearPago(
+                viewModel = viewModel<EscanearPagoViewModel>(factory = fabrica),
+                alVolver = { controlador.popBackStack() },
+                alCerrarSesion = cerrarSesion,
+                alPagoConfirmado = { controlador.popBackStack() }
             )
         }
 
@@ -230,6 +257,9 @@ fun NavegacionCliente(
                     controlador.navigate(Ruta.Confirmacion.crear(pedidoId)) {
                         popUpTo(Ruta.Inicio.ruta)
                     }
+                },
+                alAnadirProductos = {
+                    controlador.navigate(Ruta.Catalogo.ruta)
                 }
             )
         }
@@ -237,15 +267,29 @@ fun NavegacionCliente(
         composable(
             route = Ruta.Confirmacion.ruta,
             arguments = listOf(navArgument(ConfirmacionViewModel.ARG_PEDIDO) { type = NavType.LongType })
-        ) {
+        ) { entrada ->
+            val pagoRecienConfirmado by entrada.savedStateHandle
+                .getStateFlow(ConfirmacionViewModel.KEY_PAGO_REALIZADO, false)
+                .collectAsStateWithLifecycle()
             PantallaConfirmacion(
                 viewModel = viewModel<ConfirmacionViewModel>(factory = fabrica),
                 alIrAlInicio = { controlador.irARaiz(Ruta.Inicio.ruta) },
-                alPagar = { pedidoId ->
-                    controlador.navigate(Ruta.PagoQr.crear(pedidoId, abrirQr = false))
-                },
                 alPagarConQr = { pedidoId ->
+                    entrada.savedStateHandle[ConfirmacionViewModel.KEY_PAGO_REALIZADO] = false
                     controlador.navigate(Ruta.PagoQr.crear(pedidoId, abrirQr = true))
+                },
+                alEscanearQr = { pedidoId ->
+                    entrada.savedStateHandle[ConfirmacionViewModel.KEY_PAGO_REALIZADO] = false
+                    controlador.navigate(Ruta.EscanearPago.crear(pedidoId))
+                },
+                alSeguirPedido = { pedidoRemotoId ->
+                    controlador.navigate(Ruta.DetallePedido.crear(pedidoRemotoId)) {
+                        popUpTo(Ruta.Inicio.ruta)
+                    }
+                },
+                pagoRecienConfirmado = pagoRecienConfirmado,
+                alConsumirPagoConfirmado = {
+                    entrada.savedStateHandle[ConfirmacionViewModel.KEY_PAGO_REALIZADO] = false
                 }
             )
         }

@@ -39,7 +39,8 @@ class ViewModelFactory(
                 CheckoutViewModel(
                     container.sesionRepository,
                     container.pedidoRepository,
-                    container.franjasRepository
+                    container.franjasRepository,
+                    container.carritoRepository
                 )
             modelClass.isAssignableFrom(ConfirmacionViewModel::class.java) ->
                 ConfirmacionViewModel(
@@ -75,6 +76,11 @@ class ViewModelFactory(
                     container.pagosRepository,
                     container.billeteraRepository,
                     container.pedidoRepository
+                )
+            modelClass.isAssignableFrom(EscanearPagoViewModel::class.java) ->
+                EscanearPagoViewModel(
+                    extras.createSavedStateHandle(),
+                    container.pagosRepository
                 )
             modelClass.isAssignableFrom(BilleteraViewModel::class.java) ->
                 BilleteraViewModel(container.billeteraRepository)

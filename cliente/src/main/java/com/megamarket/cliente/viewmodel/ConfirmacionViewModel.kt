@@ -3,8 +3,8 @@ package com.megamarket.cliente.viewmodel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.megamarket.cliente.data.repository.ESTADO_PAGO_CONFIRMADO
 import com.megamarket.cliente.data.repository.MisPedidosRepository
-import com.megamarket.cliente.data.repository.MODALIDAD_ONLINE
 import com.megamarket.cliente.data.repository.PagosRepository
 import com.megamarket.cliente.data.repository.PedidoRepository
 import com.megamarket.cliente.data.repository.ResultadoMisPedidos
@@ -14,6 +14,7 @@ import com.megamarket.cliente.data.repository.SincronizacionRepository
 import com.megamarket.cliente.model.Pedido
 import com.megamarket.cliente.state.ConfirmacionUiState
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -35,6 +36,7 @@ class ConfirmacionViewModel(
 
     private val _estado = MutableStateFlow(ConfirmacionUiState())
     val estado: StateFlow<ConfirmacionUiState> = _estado.asStateFlow()
+    private var seguimientoEstado: Job? = null
 
     init {
         cargarPedido(forzarSincronizacion = true)
@@ -84,6 +86,7 @@ class ConfirmacionViewModel(
             if (necesitaSyncParaPagar(_estado.value.pedido) && forzarSincronizacion) {
                 reintentarHastaListoParaPagar()
             }
+            asegurarSeguimientoEstado()
         }
     }
 
@@ -119,6 +122,7 @@ class ConfirmacionViewModel(
                     )
                 }
                 consultarPago()
+                asegurarSeguimientoEstado()
             } else {
                 _estado.update {
                     it.copy(sincronizando = false, error = "No se pudo actualizar el pedido")
@@ -127,13 +131,43 @@ class ConfirmacionViewModel(
         }
     }
 
+    /** Marca el cobro localmente al volver de la pantalla QR. */
+    fun marcarPagoRealizado() {
+        viewModelScope.launch {
+            _estado.update { it.copy(pagoConfirmado = true, error = null) }
+            val remoto = _estado.value.pedido?.remoteId?.trim().orEmpty()
+            if (remoto.isNotEmpty()) {
+                runCatching { pedidos.marcarPagadoPorRemoteId(remoto, "PAGADO") }
+            }
+            val pedido = runCatching { pedidos.obtenerPedido(pedidoId) }.getOrNull()
+            if (pedido != null) {
+                _estado.update { it.copy(pedido = pedido, pagoConfirmado = true) }
+            }
+            consultarPago()
+            asegurarSeguimientoEstado()
+        }
+    }
+
     private suspend fun refrescarEstadoRemoto(pedido: Pedido): Pedido? {
         val remoto = pedido.remoteId?.trim().orEmpty()
         val repo = misPedidos ?: return null
         if (remoto.isEmpty()) return null
         return try {
-            when (repo.obtenerDetalle(remoto)) {
-                is ResultadoMisPedidos.Exito -> pedidos.obtenerPedido(pedidoId)
+            when (val resultado = repo.obtenerDetalle(remoto)) {
+                is ResultadoMisPedidos.Exito -> {
+                    val pagoRemoto = resultado.valor.pago?.estado
+                    if (pagoRemoto.equals(ESTADO_PAGO_CONFIRMADO, ignoreCase = true) ||
+                        resultado.valor.estado.equals("PAGADO", ignoreCase = true)
+                    ) {
+                        _estado.update { it.copy(pagoConfirmado = true) }
+                        if (!pedido.estado.equals("PAGADO", ignoreCase = true) &&
+                            resultado.valor.estado.equals("PAGADO", ignoreCase = true)
+                        ) {
+                            runCatching { pedidos.marcarPagadoPorRemoteId(remoto, "PAGADO") }
+                        }
+                    }
+                    pedidos.obtenerPedido(pedidoId)
+                }
                 else -> null
             }
         } catch (_: Exception) {
@@ -233,8 +267,58 @@ class ConfirmacionViewModel(
             return
         }
         if (resultado is ResultadoPagos.Exito) {
-            _estado.update { it.copy(pagoConfirmado = resultado.valor.confirmado) }
+            // No bajar de true a false: un cobro ya visto no debe reabrir «Pago con QR».
+            _estado.update {
+                it.copy(
+                    pagoConfirmado = if (resultado.valor.confirmado) true else it.pagoConfirmado
+                )
+            }
+            if (resultado.valor.confirmado) {
+                val remoto = pedido.remoteId?.trim().orEmpty()
+                if (remoto.isNotEmpty() && !pedido.estado.equals("PAGADO", ignoreCase = true)) {
+                    runCatching { pedidos.marcarPagadoPorRemoteId(remoto, "PAGADO") }
+                    runCatching { pedidos.obtenerPedido(pedidoId) }.getOrNull()?.let { local ->
+                        _estado.update { prev -> prev.copy(pedido = local) }
+                    }
+                }
+            }
+            asegurarSeguimientoEstado()
         }
+    }
+
+    /**
+     * Mientras el pedido está en preparación o esperando sync, consulta el servidor
+     * para mostrar «Pago con QR» sin botón manual de actualizar.
+     */
+    private fun asegurarSeguimientoEstado() {
+        val actual = _estado.value
+        val debeSeguir = actual.enPreparacion || actual.esperandoSincronizacionPago
+        if (!debeSeguir) {
+            seguimientoEstado?.cancel()
+            seguimientoEstado = null
+            return
+        }
+        if (seguimientoEstado?.isActive == true) return
+        seguimientoEstado = viewModelScope.launch {
+            while (true) {
+                delay(INTERVAL_SEGUIMIENTO_MS)
+                val estadoActual = _estado.value
+                if (!estadoActual.enPreparacion && !estadoActual.esperandoSincronizacionPago) break
+                runCatching {
+                    sincronizarConReintentos(maxIntentos = 1)
+                    val pedido = pedidos.obtenerPedido(pedidoId) ?: return@runCatching
+                    val actualizado = refrescarEstadoRemoto(pedido) ?: pedido
+                    _estado.update { it.copy(pedido = actualizado) }
+                    consultarPago()
+                }
+            }
+            seguimientoEstado = null
+        }
+    }
+
+    override fun onCleared() {
+        seguimientoEstado?.cancel()
+        super.onCleared()
     }
 
     fun aceptarPrecios() {
@@ -304,7 +388,9 @@ class ConfirmacionViewModel(
 
     companion object {
         const val ARG_PEDIDO = "pedidoId"
+        const val KEY_PAGO_REALIZADO = "pago_realizado"
         private const val MAX_REINTENTOS_PAGO = 4
         private const val INTERVAL_REINTENTO_MS = 600L
+        private const val INTERVAL_SEGUIMIENTO_MS = 4_000L
     }
 }

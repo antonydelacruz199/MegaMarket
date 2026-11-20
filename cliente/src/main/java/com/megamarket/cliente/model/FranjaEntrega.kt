@@ -111,7 +111,16 @@ data class FranjaEntrega(
 
         fun formatearHora(crudo: String): String {
             val normalizada = normalizarHora(crudo) ?: return crudo.take(5)
-            return normalizada.take(5)
+            val partes = normalizada.split(':')
+            val hora24 = partes[0].toIntOrNull() ?: return normalizada.take(5)
+            val minuto = partes.getOrNull(1)?.take(2)?.padStart(2, '0') ?: "00"
+            val periodo = if (hora24 < 12) "a.m." else "p.m."
+            val hora12 = when {
+                hora24 == 0 -> 12
+                hora24 > 12 -> hora24 - 12
+                else -> hora24
+            }
+            return "$hora12:$minuto $periodo"
         }
 
         fun normalizarFecha(crudo: String?): String? {

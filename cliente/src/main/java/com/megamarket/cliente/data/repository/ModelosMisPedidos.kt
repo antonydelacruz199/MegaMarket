@@ -127,8 +127,10 @@ data class PedidoDetalleCliente(
             return e == "RECIBIDO" || e == "EN_PICKING" || e == "CONFIRMADO" || e == "PAGADO"
         }
 
-    /** Autorizar débito de billetera en contraentrega durante la entrega. */
-    val puedeAutorizarBilletera: Boolean
+    /**
+     * Escanea el QR del repartidor para pagar contraentrega con billetera.
+     */
+    val puedeEscanearQrEntrega: Boolean
         get() = pago?.modalidad.equals(MODALIDAD_CONTRAENTREGA, ignoreCase = true) &&
             !pago?.estado.equals(ESTADO_PAGO_CONFIRMADO, ignoreCase = true) &&
             estado.trim().uppercase().let { it == "LISTO" || it == "EN_CAMINO" }

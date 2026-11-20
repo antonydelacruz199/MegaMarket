@@ -25,6 +25,9 @@ sealed class Ruta(val ruta: String) {
         fun crear(pedidoRemotoId: String, abrirQr: Boolean = false) =
             "pago-qr/$pedidoRemotoId?$ARG_ABRIR_QR=$abrirQr"
     }
+    data object EscanearPago : Ruta("escanear-pago/{${ARG_PEDIDO_REMOTO}}") {
+        fun crear(pedidoRemotoId: String) = "escanear-pago/$pedidoRemotoId"
+    }
     data object Sustituciones : Ruta("sustituciones")
     data object DetalleSustitucion : Ruta("sustituciones/{${ARG_SUSTITUCION}}") {
         fun crear(id: String) = "sustituciones/$id"

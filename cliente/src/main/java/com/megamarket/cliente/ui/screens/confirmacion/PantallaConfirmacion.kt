@@ -1,6 +1,7 @@
 package com.megamarket.cliente.ui.screens.confirmacion
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -13,7 +14,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -21,12 +24,14 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -35,21 +40,34 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.megamarket.cliente.R
 import com.megamarket.cliente.model.Pedido
+import com.megamarket.cliente.model.PedidoDetalle
 import com.megamarket.cliente.state.ConfirmacionUiState
 import com.megamarket.cliente.ui.components.BarraSuperior
 import com.megamarket.cliente.ui.components.EstadoVacio
 import com.megamarket.cliente.viewmodel.ConfirmacionViewModel
 import com.megamarket.modelo.formatearSoles
 
+private val VerdePagoQr = Color(0xFF2E7D32)
+
 @Composable
 fun PantallaConfirmacion(
     viewModel: ConfirmacionViewModel,
     alIrAlInicio: () -> Unit,
-    alPagar: (String) -> Unit = {},
-    alPagarConQr: (String) -> Unit = alPagar
+    alPagarConQr: (String) -> Unit = {},
+    alEscanearQr: (String) -> Unit = {},
+    alSeguirPedido: (String) -> Unit = {},
+    pagoRecienConfirmado: Boolean = false,
+    alConsumirPagoConfirmado: () -> Unit = {}
 ) {
     val estado by viewModel.estado.collectAsStateWithLifecycle()
     var yaMostrado by remember { mutableStateOf(false) }
+
+    LaunchedEffect(pagoRecienConfirmado) {
+        if (pagoRecienConfirmado) {
+            viewModel.marcarPagoRealizado()
+            alConsumirPagoConfirmado()
+        }
+    }
 
     LifecycleResumeEffect(Unit) {
         if (yaMostrado) {
@@ -88,25 +106,31 @@ fun PantallaConfirmacion(
                     )
                     else -> ResumenYAcciones(
                         estado = estado,
-                        alPagar = alPagar,
                         alPagarConQr = alPagarConQr,
+                        alEscanearQr = alEscanearQr,
                         alCancelar = viewModel::cancelarPedido,
-                        alSincronizar = viewModel::sincronizarYRecargar,
                         alAceptarPrecios = viewModel::aceptarPrecios,
                         alReintentarEnvio = viewModel::reintentarEnvio,
-                        alCancelarRevision = viewModel::cancelarPedido
+                        alCancelarRevision = viewModel::cancelarPedido,
+                        alSeguirPedido = {
+                            val remoto = pedido.remoteId?.trim().orEmpty()
+                            if (remoto.isNotEmpty()) alSeguirPedido(remoto)
+                            else alIrAlInicio()
+                        }
                     )
                 }
                 estado.error?.let {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(it, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
                 }
-                Spacer(modifier = Modifier.height(24.dp))
-                OutlinedButton(
-                    onClick = alIrAlInicio,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                ) { Text(stringResource(R.string.volver_inicio)) }
+                if (!estado.pagoRealizado) {
+                    Spacer(modifier = Modifier.height(24.dp))
+                    OutlinedButton(
+                        onClick = alIrAlInicio,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) { Text(stringResource(R.string.volver_inicio)) }
+                }
             }
         }
     }
@@ -115,13 +139,13 @@ fun PantallaConfirmacion(
 @Composable
 private fun ResumenYAcciones(
     estado: ConfirmacionUiState,
-    alPagar: (String) -> Unit,
     alPagarConQr: (String) -> Unit,
+    alEscanearQr: (String) -> Unit,
     alCancelar: () -> Unit,
-    alSincronizar: () -> Unit,
     alAceptarPrecios: () -> Unit,
     alReintentarEnvio: () -> Unit,
-    alCancelarRevision: () -> Unit
+    alCancelarRevision: () -> Unit,
+    alSeguirPedido: () -> Unit
 ) {
     val pedido = checkNotNull(estado.pedido)
     Icon(
@@ -132,7 +156,7 @@ private fun ResumenYAcciones(
     Spacer(modifier = Modifier.height(16.dp))
     Text(
         text = when {
-            estado.pagoConfirmado == true || pedido.estado == "PAGADO" -> "Pedido pagado"
+            estado.pagoRealizado -> "Pago realizado"
             pedido.estado == "CANCELADO" -> "Pedido cancelado"
             pedido.estado == "REQUIERE_REVISION" -> "Pedido requiere revisión"
             estado.listoParaPagarOnline || estado.listoParaPagarContraentrega -> "Completa tu compra"
@@ -154,7 +178,8 @@ private fun ResumenYAcciones(
         text = "Total ${pedido.totalCentimos.formatearSoles()}",
         style = MaterialTheme.typography.titleLarge
     )
-    Text("${pedido.cantidadProductos} producto(s)")
+    Spacer(modifier = Modifier.height(12.dp))
+    ListaProductosPedido(pedido.detalles)
     Spacer(modifier = Modifier.height(12.dp))
     Text(
         text = "${pedido.direccion.direccion}, ${pedido.direccion.distrito}",
@@ -207,42 +232,64 @@ private fun ResumenYAcciones(
             Text("Este pedido fue cancelado.", textAlign = TextAlign.Center)
         }
 
-        pedido.estado == "PAGADO" ||
-            (estado.esOnline && estado.pagoConfirmado == true) -> {
+        estado.pagoRealizado -> {
             Text(
-                "Pago confirmado. El pedido pasará a preparación.",
+                "Tu pago se registró correctamente. Puedes rastrear el proceso de tu pedido.",
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.SemiBold
             )
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = alSeguirPedido,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) { Text("Rastrear Pedido") }
         }
 
-        estado.listoParaPagarOnline || estado.listoParaPagarContraentrega -> {
+        estado.listoParaPagarOnline -> {
             val remoto = pedido.remoteId!!.trim()
             Text(
-                if (estado.listoParaPagarContraentrega) {
-                    "Puedes pagar ahora con billetera, o el repartidor cobrará al entregar (efectivo o QR)."
-                } else {
-                    "Para completar la compra elige una opción de pago."
-                },
+                "Tu pedido ya está confirmado. Continúa con el pago en línea.",
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodyMedium
             )
             Spacer(modifier = Modifier.height(8.dp))
             Button(
-                onClick = { alPagar(remoto) },
+                onClick = { alPagarConQr(remoto) },
                 enabled = !estado.cancelando,
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            ) { Text("Realizar pago") }
-            if (estado.listoParaPagarOnline) {
-                OutlinedButton(
-                    onClick = { alPagarConQr(remoto) },
-                    enabled = !estado.cancelando,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                ) { Text("Pagar con QR") }
-            }
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = VerdePagoQr,
+                    contentColor = Color.White
+                )
+            ) { Text("Pago con QR") }
+            OutlinedButton(
+                onClick = alCancelar,
+                enabled = !estado.cancelando,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text(if (estado.cancelando) "Cancelando…" else "Cancelar pedido") }
+        }
+
+        estado.listoParaPagarContraentrega -> {
+            val remoto = pedido.remoteId!!.trim()
+            Text(
+                "En la entrega el repartidor cobrará en efectivo o te mostrará un QR para pagar con billetera.",
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(
+                onClick = { alEscanearQr(remoto) },
+                enabled = !estado.cancelando,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = VerdePagoQr,
+                    contentColor = Color.White
+                )
+            ) { Text("Escanear QR") }
             OutlinedButton(
                 onClick = alCancelar,
                 enabled = !estado.cancelando,
@@ -255,20 +302,12 @@ private fun ResumenYAcciones(
                 if (estado.sincronizando) {
                     "Registrando el pedido en el servidor…"
                 } else {
-                    "El pedido aún no está en el servidor. Actualiza para continuar."
+                    "El pedido aún no está en el servidor. Se actualizará automáticamente."
                 },
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodyMedium
             )
             Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = alSincronizar,
-                enabled = !estado.sincronizando && !estado.cancelando,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Text(if (estado.sincronizando) "Sincronizando…" else "Actualizar pedido")
-            }
             OutlinedButton(
                 onClick = alCancelar,
                 enabled = !estado.cancelando && !estado.sincronizando,
@@ -279,7 +318,7 @@ private fun ResumenYAcciones(
         estado.enPreparacion -> {
             Text(
                 if (estado.esOnline) {
-                    "El picker está preparando tu pedido. Cuando quede CONFIRMADO podrás pagar en línea."
+                    "El picker está preparando tu pedido. Cuando quede confirmado aparecerá el pago con QR."
                 } else {
                     "El picker está preparando tu pedido. Pagarás al recibir (contraentrega)."
                 },
@@ -288,11 +327,6 @@ private fun ResumenYAcciones(
             )
             Spacer(modifier = Modifier.height(8.dp))
             OutlinedButton(
-                onClick = alSincronizar,
-                enabled = !estado.sincronizando && !estado.cancelando,
-                modifier = Modifier.fillMaxWidth()
-            ) { Text("Actualizar estado") }
-            OutlinedButton(
                 onClick = alCancelar,
                 enabled = !estado.cancelando && !pedido.remoteId.isNullOrBlank(),
                 modifier = Modifier.fillMaxWidth()
@@ -300,7 +334,6 @@ private fun ResumenYAcciones(
         }
 
         else -> {
-            // CONTRAENTREGA ya CONFIRMADO/LISTO u otros: no exige cobro inmediato.
             Text(
                 "No hace falta pagar ahora. Pagarás al recibir el pedido.",
                 textAlign = TextAlign.Center,
@@ -316,6 +349,49 @@ private fun ResumenYAcciones(
                     modifier = Modifier.fillMaxWidth()
                 ) { Text(if (estado.cancelando) "Cancelando…" else "Cancelar pedido") }
             }
+        }
+    }
+}
+
+@Composable
+private fun ListaProductosPedido(detalles: List<PedidoDetalle>) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.Start
+    ) {
+        Text(
+            text = "Productos",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        if (detalles.isEmpty()) {
+            Text(
+                "Sin detalle de productos",
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            detalles.forEach { detalle ->
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(detalle.nombreProducto, fontWeight = FontWeight.Medium)
+                        Text(
+                            text = "${detalle.cantidad} × ${detalle.precioUnitarioCentimos.formatearSoles()}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        detalle.subtotalCentimos.formatearSoles(),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp))
         }
     }
 }

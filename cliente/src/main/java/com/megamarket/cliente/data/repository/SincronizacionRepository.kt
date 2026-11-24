@@ -272,6 +272,7 @@ class SincronizacionRepository(
                 when (codigoNegocio) {
                     "FRANJA_LLENA" -> "La franja se agotó. Elige otra franja e intenta de nuevo."
                     "FRANJA_FUERA_VENTANA" -> "La franja ya no está en la ventana de hoy o mañana."
+                    "FRANJA_HORARIO_PASADO" -> "Esa franja ya pasó. Elige un horario vigente."
                     else -> "Conflicto: $mensaje"
                 }
             )

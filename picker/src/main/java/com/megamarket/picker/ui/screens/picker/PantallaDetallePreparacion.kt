@@ -1,5 +1,6 @@
 package com.megamarket.picker.ui.screens.picker
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -17,15 +18,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,10 +46,13 @@ import com.megamarket.picker.data.repository.LineaPreparacion
 import com.megamarket.picker.data.repository.listoParaSalida
 import com.megamarket.picker.data.repository.resumenCierre
 import com.megamarket.picker.state.DetallePreparacionUiState
+import com.megamarket.picker.ui.components.ChipEstado
 import com.megamarket.picker.ui.components.ImagenProductoRemota
+import com.megamarket.picker.ui.components.TonoChip
 import com.megamarket.picker.ui.formatearSoles
 import com.megamarket.picker.ui.textoEstadoLinea
 import com.megamarket.picker.ui.textoFecha
+import com.megamarket.picker.ui.theme.Espaciado
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,7 +71,12 @@ fun PantallaDetallePreparacion(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.detalle_preparacion)) },
+                title = {
+                    Text(
+                        text = stringResource(R.string.detalle_preparacion),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = alVolver) {
                         Icon(
@@ -71,7 +84,11 @@ fun PantallaDetallePreparacion(
                             contentDescription = stringResource(R.string.volver)
                         )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    navigationIconContentColor = MaterialTheme.colorScheme.primary
+                )
             )
         }
     ) { padding ->
@@ -247,94 +264,141 @@ private fun LineaProducto(
     val faltanteConfirmado = linea.estadoPicking.equals("FALTANTE", ignoreCase = true) &&
         !linea.faltantePendiente
     val escaneoSustituto = linea.requiereEscaneoSustituto()
-    val puedeEscanear = escaneoSustituto ||
-        linea.estadoPicking.equals("PENDIENTE", true) ||
-        linea.estadoPicking.equals("ARMADO", true)
+    val unidadesEfectivas = linea.cantidadArmada + linea.cantidadPendienteLocal
+    val cantidadCompleta = linea.cantidad > 0 && unidadesEfectivas >= linea.cantidad
+    val puedeEscanear = when {
+        escaneoSustituto -> !cantidadCompleta
+        linea.estadoPicking.equals("PENDIENTE", true) -> !cantidadCompleta
+        linea.estadoPicking.equals("ARMADO", true) -> !cantidadCompleta
+        else -> false
+    }
     val nombreMostrar = linea.nombreVigente()
+    val tonoEstado = when {
+        linea.estadoPicking.equals("ARMADO", true) -> TonoChip.Exito
+        linea.estadoPicking.equals("FALTANTE", true) -> TonoChip.Advertencia
+        else -> TonoChip.Neutro
+    }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        ImagenProductoRemota(
-            url = linea.imagenUrl,
-            descripcion = nombreMostrar,
-            modifier = Modifier.size(72.dp)
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(nombreMostrar, fontWeight = FontWeight.Medium)
-            if (escaneoSustituto) {
-                Text(
-                    text = stringResource(R.string.sustituto_pendiente_escaneo),
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.SemiBold
-                )
-                if (!linea.nombre.equals(nombreMostrar, ignoreCase = true)) {
-                    Text(
-                        text = stringResource(R.string.producto_original, linea.nombre),
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            }
-            Text(stringResource(R.string.cantidad_solicitada, linea.cantidad))
-            Text(stringResource(R.string.cantidad_armada, linea.cantidadArmada))
-            if (linea.cantidadPendienteLocal > 0) {
-                Text(stringResource(R.string.pendiente_local, linea.cantidadPendienteLocal))
-            }
-            if (linea.faltantePendiente) {
-                Text(stringResource(R.string.faltante_pendiente))
-            }
-            Text(stringResource(R.string.estado_producto, textoEstadoLinea(linea.estadoPicking)))
-            if (!linea.codigoBarras.isNullOrBlank()) {
-                Text(stringResource(R.string.codigo_barras, linea.codigoBarras))
-            }
-            linea.operacionesLocales.take(3).forEach { op ->
-                Text(
-                    text = "${op.estado}${op.resultado?.let { "/$it" } ?: ""}",
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-            Text(
-                if (linea.pasillo.isNullOrBlank()) {
-                    stringResource(R.string.sin_pasillo)
-                } else {
-                    stringResource(R.string.pasillo_nombre, linea.pasillo)
-                }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Espaciado.md),
+            verticalAlignment = Alignment.Top
+        ) {
+            ImagenProductoRemota(
+                url = linea.imagenUrl,
+                descripcion = nombreMostrar,
+                modifier = Modifier.size(72.dp)
             )
-            if (puedeEscanear) {
-                TextButton(onClick = { alEscanear(linea.id) }) {
+            Spacer(modifier = Modifier.width(Espaciado.md))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(nombreMostrar, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Spacer(modifier = Modifier.height(Espaciado.xs))
+                ChipEstado(textoEstadoLinea(linea.estadoPicking), tonoEstado)
+                if (escaneoSustituto) {
                     Text(
-                        if (escaneoSustituto) {
-                            stringResource(R.string.escanear_sustituto)
-                        } else {
-                            stringResource(R.string.escanear)
-                        }
+                        text = stringResource(R.string.sustituto_pendiente_escaneo),
+                        color = MaterialTheme.colorScheme.primary,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(top = Espaciado.xs)
+                    )
+                    if (!linea.nombre.equals(nombreMostrar, ignoreCase = true)) {
+                        Text(
+                            text = stringResource(R.string.producto_original, linea.nombre),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Text(
+                    text = stringResource(R.string.cantidad_solicitada, linea.cantidad),
+                    style = MaterialTheme.typography.bodyMedium,
+                    modifier = Modifier.padding(top = Espaciado.xs)
+                )
+                Text(
+                    text = stringResource(R.string.cantidad_armada, linea.cantidadArmada),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                if (linea.cantidadPendienteLocal > 0) {
+                    Text(
+                        text = stringResource(R.string.pendiente_local, linea.cantidadPendienteLocal),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.secondary
                     )
                 }
-            }
-            if (linea.faltantePendiente) {
-                Text(
-                    text = stringResource(R.string.sustitucion_faltante_pendiente),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.error
-                )
-            } else if (faltanteConfirmado && !escaneoSustituto) {
-                TextButton(onClick = { alSustituir(linea.id) }) {
-                    Text(stringResource(R.string.proponer_sustituto))
+                if (linea.faltantePendiente) {
+                    Text(
+                        text = stringResource(R.string.faltante_pendiente),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error
+                    )
                 }
-                if (linea.resolubleSinProducto) {
-                    TextButton(onClick = alResolver, enabled = !resolviendo) {
+                Text(
+                    text = if (linea.pasillo.isNullOrBlank()) {
+                        stringResource(R.string.sin_pasillo)
+                    } else {
+                        stringResource(R.string.pasillo_nombre, linea.pasillo)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (puedeEscanear) {
+                    Spacer(modifier = Modifier.height(Espaciado.sm))
+                    Button(
+                        onClick = { alEscanear(linea.id) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp),
+                        shape = MaterialTheme.shapes.small
+                    ) {
                         Text(
-                            if (resolviendo) {
-                                stringResource(R.string.eliminando_linea)
+                            text = if (escaneoSustituto) {
+                                stringResource(R.string.escanear_sustituto)
                             } else {
-                                stringResource(R.string.resolver_sin_producto)
-                            }
+                                stringResource(R.string.escanear)
+                            },
+                            style = MaterialTheme.typography.labelLarge
                         )
+                    }
+                }
+                if (linea.faltantePendiente) {
+                    Text(
+                        text = stringResource(R.string.sustitucion_faltante_pendiente),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(top = Espaciado.xs)
+                    )
+                } else if (faltanteConfirmado && !escaneoSustituto) {
+                    Spacer(modifier = Modifier.height(Espaciado.sm))
+                    OutlinedButton(
+                        onClick = { alSustituir(linea.id) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(44.dp),
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Text(stringResource(R.string.proponer_sustituto))
+                    }
+                    if (linea.resolubleSinProducto) {
+                        Spacer(modifier = Modifier.height(Espaciado.sm))
+                        OutlinedButton(
+                            onClick = alResolver,
+                            enabled = !resolviendo,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(44.dp),
+                            shape = MaterialTheme.shapes.small
+                        ) {
+                            Text(stringResource(R.string.informar_sin_stock))
+                        }
                     }
                 }
             }

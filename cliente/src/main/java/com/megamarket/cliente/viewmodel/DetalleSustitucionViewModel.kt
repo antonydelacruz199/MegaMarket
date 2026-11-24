@@ -5,7 +5,11 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.megamarket.cliente.data.repository.EstadoSustitucion
 import com.megamarket.cliente.data.repository.MensajesSustitucionCliente
+import com.megamarket.cliente.data.repository.MisPedidosRepository
+import com.megamarket.cliente.data.repository.PagosRepository
 import com.megamarket.cliente.data.repository.PropuestaSustitucionCliente
+import com.megamarket.cliente.data.repository.ResultadoMisPedidos
+import com.megamarket.cliente.data.repository.ResultadoPagos
 import com.megamarket.cliente.data.repository.ResultadoSustitucion
 import com.megamarket.cliente.data.repository.SustitucionesRepository
 import com.megamarket.cliente.data.repository.TipoErrorSustitucion
@@ -26,6 +30,8 @@ import kotlinx.coroutines.launch
 class DetalleSustitucionViewModel(
     savedStateHandle: SavedStateHandle,
     private val sustituciones: SustitucionesRepository,
+    private val misPedidos: MisPedidosRepository? = null,
+    private val pagos: PagosRepository? = null,
     private val intervaloConsultaMs: Long = INTERVALO_CONSULTA_MS,
     private val intervaloRelojMs: Long = INTERVALO_RELOJ_MS
 ) : ViewModel() {
@@ -91,6 +97,53 @@ class DetalleSustitucionViewModel(
             _estado.update { it.copy(consultandoEstado = true, error = null) }
             aplicarResultado(consultar(), silencioso = false)
             _estado.update { it.copy(consultandoEstado = false) }
+        }
+    }
+
+    fun cancelarPedido() {
+        val pedidoId = _estado.value.propuesta?.pedidoId?.trim().orEmpty()
+        val repo = pagos
+        if (pedidoId.isEmpty() || repo == null) {
+            _estado.update {
+                it.copy(error = "No se encontró el pedido para cancelar")
+            }
+            return
+        }
+        if (!_estado.value.puedeCancelarPedido || _estado.value.cancelandoPedido) return
+        viewModelScope.launch {
+            _estado.update { it.copy(cancelandoPedido = true, error = null) }
+            when (val resultado = try {
+                repo.cancelarPedido(pedidoId)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                ResultadoPagos.Error(
+                    TipoErrorSustitucion.RED,
+                    MensajesSustitucionCliente.SIN_CONEXION
+                )
+            }) {
+                is ResultadoPagos.Exito -> {
+                    _estado.update {
+                        it.copy(
+                            cancelandoPedido = false,
+                            pedidoCancelado = true,
+                            puedeCancelarPedido = false,
+                            estadoPedido = "CANCELADO"
+                        )
+                    }
+                    // Refresca: la API marca la propuesta como CANCELADA.
+                    aplicarResultado(consultar(), silencioso = true)
+                }
+                is ResultadoPagos.Error -> _estado.update {
+                    it.copy(
+                        cancelandoPedido = false,
+                        error = resultado.mensaje,
+                        codigoError = resultado.codigo,
+                        sesionVencida = resultado.tipo == TipoErrorSustitucion.SESION ||
+                            resultado.tipo == TipoErrorSustitucion.CUENTA
+                    )
+                }
+            }
         }
     }
 
@@ -215,6 +268,40 @@ class DetalleSustitucionViewModel(
                     null
                 }
             )
+        }
+        cargarContextoPedido(propuesta.pedidoId)
+    }
+
+    private fun cargarContextoPedido(pedidoId: String?) {
+        val id = pedidoId?.trim().orEmpty()
+        val repo = misPedidos
+        if (id.isEmpty() || repo == null) return
+        viewModelScope.launch {
+            when (val resultado = try {
+                repo.obtenerDetalle(id)
+            } catch (_: Exception) {
+                return@launch
+            }) {
+                is ResultadoMisPedidos.Exito -> {
+                    val detalle = resultado.valor
+                    val faltantes = detalle.lineas.filter {
+                        it.estadoPicking.equals("FALTANTE", ignoreCase = true)
+                    }
+                    val disponibles = detalle.lineas.filter {
+                        !it.estadoPicking.equals("FALTANTE", ignoreCase = true) &&
+                            !it.estadoPicking.equals("ELIMINADO", ignoreCase = true)
+                    }
+                    _estado.update {
+                        it.copy(
+                            lineasDisponibles = disponibles,
+                            lineasFaltantes = faltantes,
+                            estadoPedido = detalle.estado,
+                            puedeCancelarPedido = detalle.puedeCancelar
+                        )
+                    }
+                }
+                is ResultadoMisPedidos.Error -> Unit
+            }
         }
     }
 

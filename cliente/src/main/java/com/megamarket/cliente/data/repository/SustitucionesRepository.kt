@@ -26,20 +26,44 @@ class SustitucionesRepository(
 ) {
     private val gson = Gson()
 
-    suspend fun listar(estado: String? = null): ResultadoSustitucion<List<PropuestaSustitucionCliente>> =
+    suspend fun listar(
+        estado: String? = null,
+        page: Int = 1,
+        limit: Int = 20
+    ): ResultadoSustitucion<PaginaSustituciones> =
         withContext(io) {
             val owner = usuarioRemotoId() ?: return@withContext sesionVencida()
             try {
-                val respuesta = api.listarSustituciones(estado?.trim()?.takeIf { it.isNotEmpty() }, owner)
+                val respuesta = api.listarSustituciones(
+                    estado = estado?.trim()?.takeIf { it.isNotEmpty() },
+                    owner = owner,
+                    page = page,
+                    limit = limit
+                )
                 if (!respuesta.isSuccessful) return@withContext fallo(respuesta)
-                val lista = respuesta.body()?.sustituciones.orEmpty().mapNotNull { enriquecer(it) }
-                ResultadoSustitucion.Exito(lista)
+                val cuerpo = respuesta.body()
+                val lista = cuerpo?.sustituciones.orEmpty().mapNotNull { enriquecer(it) }
+                ResultadoSustitucion.Exito(
+                    PaginaSustituciones(
+                        propuestas = lista,
+                        pagina = cuerpo?.pagina ?: page,
+                        hayMas = cuerpo?.hayMas == true,
+                        total = cuerpo?.total ?: lista.size
+                    )
+                )
             } catch (error: CancellationException) {
                 throw error
             } catch (error: IOException) {
                 falloRed(error)
             }
         }
+
+    data class PaginaSustituciones(
+        val propuestas: List<PropuestaSustitucionCliente>,
+        val pagina: Int,
+        val hayMas: Boolean,
+        val total: Int
+    )
 
     suspend fun obtener(sustitucionId: String): ResultadoSustitucion<PropuestaSustitucionCliente> =
         withContext(io) {
@@ -216,15 +240,29 @@ class SustitucionesRepository(
             productoOriginalId = originalId,
             productoSustitutoId = sustitutoId,
             nombreOriginal = original?.nombre?.trim().orEmpty().ifBlank { "Producto original" },
-            nombreSustituto = sustituto?.nombre?.trim().orEmpty().ifBlank { "Producto sustituto" },
+            nombreSustituto = when {
+                EstadoSustitucion.esSinStock(estado) || sustitutoId.isNullOrBlank() ->
+                    "Sin stock en almacén"
+                else -> sustituto?.nombre?.trim().orEmpty().ifBlank { "Producto sustituto" }
+            },
             marcaOriginal = original?.marca?.trim()?.takeIf { it.isNotEmpty() },
             marcaSustituto = sustituto?.marca?.trim()?.takeIf { it.isNotEmpty() },
             imagenOriginal = imagenDe(originalId, original?.imagenKey),
-            imagenSustituto = imagenDe(sustitutoId, sustituto?.imagenKey),
+            imagenSustituto = if (sustitutoId.isNullOrBlank()) {
+                null
+            } else {
+                imagenDe(sustitutoId, sustituto?.imagenKey)
+            },
             cantidad = cantidad,
             precioOriginalCentimos = precioOriginal,
             precioSustitutoCentimos = precioSustituto,
-            importeClienteCentimos = importeClienteCentimos(precioOriginal, precioSustituto, cantidad),
+            importeClienteCentimos = if (
+                EstadoSustitucion.esSinStock(estado) || sustitutoId.isNullOrBlank()
+            ) {
+                0L
+            } else {
+                importeClienteCentimos(precioOriginal, precioSustituto, cantidad)
+            },
             estado = estado.uppercase(),
             fechaPropuesta = dto.fechaPropuesta,
             fechaLimite = dto.fechaLimite,

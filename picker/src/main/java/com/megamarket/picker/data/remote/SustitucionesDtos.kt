@@ -3,6 +3,9 @@ package com.megamarket.picker.data.remote
 data class CandidatosSustitucionResponse(
     val detalleId: String?,
     val precioOriginalCentimos: Long?,
+    val cantidadSolicitada: Int? = null,
+    val cantidadArmada: Int? = null,
+    val cantidadFaltante: Int? = null,
     val tolerancia: Double?,
     val candidatos: List<CandidatoSustitutoDto>?
 )

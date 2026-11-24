@@ -230,7 +230,7 @@ class SesionRepositoryTest {
             return meRespuesta
         }
 
-        override suspend fun listarPedidos(estado: String, owner: String) =
+        override suspend fun listarPedidos(estado: String, owner: String, page: Int?, limit: Int?) =
             throw UnsupportedOperationException("no usado")
 
         override suspend fun obtenerPedido(id: String, owner: String) =
@@ -242,7 +242,7 @@ class SesionRepositoryTest {
             owner: String
         ) = throw UnsupportedOperationException("no usado")
 
-        override suspend fun listarPicking(owner: String) =
+        override suspend fun listarPicking(owner: String, page: Int?, limit: Int?) =
             throw UnsupportedOperationException("no usado")
 
         override suspend fun obtenerPicking(id: String, owner: String) =
@@ -279,7 +279,14 @@ class SesionRepositoryTest {
             body: com.megamarket.picker.data.remote.PropuestaSustitucionRequest,
             owner: String
         ) = throw UnsupportedOperationException("no usado")
-        override suspend fun listarEntregas(owner: String) =
+
+        override suspend fun avisarSinStock(
+            id: String,
+            detalleId: String,
+            owner: String
+        ) = throw UnsupportedOperationException("no usado")
+
+        override suspend fun listarEntregas(owner: String, estado: String?, page: Int?, limit: Int?) =
             throw UnsupportedOperationException("no usado")
 
         override suspend fun obtenerEntrega(

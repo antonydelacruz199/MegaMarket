@@ -39,14 +39,20 @@ async function cargarLineasPedido(cliente, pedidoId) {
             ps.nombre AS nombre_sustituto,
             (
               d.estado_picking = 'FALTANTE'
-              AND EXISTS (
-                SELECT 1 FROM sustituciones_pedido sr
-                WHERE sr.pedido_detalle_id = d.id AND sr.estado = 'RECHAZADA'
-              )
               AND NOT EXISTS (
                 SELECT 1 FROM sustituciones_pedido sa
                 WHERE sa.pedido_detalle_id = d.id
                   AND sa.estado IN ('PENDIENTE', 'ACEPTADA')
+              )
+              AND (
+                EXISTS (
+                  SELECT 1 FROM sustituciones_pedido sr
+                  WHERE sr.pedido_detalle_id = d.id AND sr.estado = 'RECHAZADA'
+                )
+                OR NOT EXISTS (
+                  SELECT 1 FROM sustituciones_pedido sx
+                  WHERE sx.pedido_detalle_id = d.id
+                )
               )
             ) AS resoluble_sin_producto
      FROM pedido_detalle d
@@ -147,6 +153,8 @@ async function validarPedidoPreparable(cliente, pedidoId, pickerId) {
 
 async function listar(req, res) {
   try {
+    const { paginar, metaPaginacion } = require('../paginacion');
+    const { page, limit, offset } = paginar(req);
     const { rows: pedidos } = await pool.query(
       `SELECT id, cliente_id, estado, total_centimos, franja_entrega_id, picker_id,
               preferencia_sustitucion, fecha, version, updated_at
@@ -158,18 +166,22 @@ async function listar(req, res) {
       [req.usuario.id]
     );
 
-    const resultado = [];
+    const elegibles = [];
     for (const pedido of pedidos) {
       const pago = await cargarPago(pool, pedido.id);
       if (!puedePrepararSegunPago(pago).ok) continue;
       const lineas = await cargarLineasPedido(pool, pedido.id);
-      resultado.push({
+      elegibles.push({
         pedido: mapearPedidoPicking(pedido),
         detalles: lineas
       });
     }
-
-    return res.status(200).json({ pedidos: resultado });
+    const total = elegibles.length;
+    const pagina = elegibles.slice(offset, offset + limit);
+    return res.status(200).json({
+      pedidos: pagina,
+      ...metaPaginacion(total, { page, limit })
+    });
   } catch (error) {
     console.error('Error al listar picking:', error.message);
     return res.status(500).json({ error: 'No se pudieron listar los pedidos de picking' });
@@ -541,7 +553,7 @@ function mapearAjuste(ajuste) {
  * Ajuste económico pendiente por la línea que ya no se entrega.
  * No actualiza pagos: un pago CONFIRMADO permanece intacto y la devolución no se confirma.
  */
-async function registrarAjusteEliminacion(cliente, { pago, sustitucionId, detalleId, monto }) {
+async function registrarAjusteEliminacion(cliente, { pago, sustitucionId, detalleId, monto, sinStock }) {
   if (!pago || ESTADOS_PAGO_SIN_DEVOLUCION.has(pago.estado)) return null;
   const montoCentimos = Number(monto);
   if (!Number.isSafeInteger(montoCentimos) || montoCentimos <= 0) return null;
@@ -550,12 +562,16 @@ async function registrarAjusteEliminacion(cliente, { pago, sustitucionId, detall
   const previo = await cliente.query(
     `SELECT * FROM ajustes_pago
      WHERE uuid_operacion = $1
-        OR (pago_id = $2 AND sustitucion_id = $3 AND tipo = 'DEVOLUCION')
+        OR ($3::uuid IS NOT NULL AND pago_id = $2 AND sustitucion_id = $3 AND tipo = 'DEVOLUCION')
      ORDER BY created_at ASC
      LIMIT 1`,
-    [uuid, pago.id, sustitucionId]
+    [uuid, pago.id, sustitucionId || null]
   );
   if (previo.rows[0]) return previo.rows[0];
+
+  const observacion = sinStock
+    ? 'No hay productos en almacén; línea eliminada sin sustituto'
+    : 'Línea eliminada tras rechazo de sustitución';
 
   try {
     const { rows: [ins] } = await cliente.query(
@@ -567,9 +583,9 @@ async function registrarAjusteEliminacion(cliente, { pago, sustitucionId, detall
       [
         uuid,
         pago.id,
-        sustitucionId,
+        sustitucionId || null,
         montoCentimos,
-        'Línea eliminada tras rechazo de sustitución'
+        observacion
       ]
     );
     if (ins) return ins;
@@ -580,12 +596,51 @@ async function registrarAjusteEliminacion(cliente, { pago, sustitucionId, detall
   const { rows: [otra] } = await cliente.query(
     `SELECT * FROM ajustes_pago
      WHERE uuid_operacion = $1
-        OR (pago_id = $2 AND sustitucion_id = $3 AND tipo = 'DEVOLUCION')
+        OR ($3::uuid IS NOT NULL AND pago_id = $2 AND sustitucion_id = $3 AND tipo = 'DEVOLUCION')
      ORDER BY created_at ASC
      LIMIT 1`,
-    [uuid, pago.id, sustitucionId]
+    [uuid, pago.id, sustitucionId || null]
   );
   return otra || null;
+}
+
+/** Misma regla de candidatos que listarCandidatos (±20 % y stock ≥ cantidad). */
+async function noHayCandidatosSustituto(cliente, detalle) {
+  const { rows: productos } = await cliente.query(
+    `SELECT p.categoria_id, p.precio_centimos
+     FROM productos p
+     WHERE p.id = $1`,
+    [detalle.producto_id]
+  );
+  const producto = productos[0];
+  if (!producto) return true;
+  const precioOriginal = Number(detalle.precio_unitario_centimos);
+  const cantidad = Number(detalle.cantidad);
+  const { rows } = await cliente.query(
+    `SELECT p.id, p.precio_centimos, p.precio_oferta_centimos, p.es_oferta,
+            (p.stock - COALESCE((
+              SELECT SUM(r.cantidad)::int FROM reservas_carrito r WHERE r.producto_id = p.id
+            ), 0)) AS disponible
+     FROM productos p
+     WHERE p.deleted_at IS NULL
+       AND p.activo = true
+       AND p.categoria_id = $1
+       AND p.id <> $2
+       AND (p.stock - COALESCE((
+         SELECT SUM(r.cantidad)::int FROM reservas_carrito r WHERE r.producto_id = p.id
+       ), 0)) >= $3`,
+    [producto.categoria_id, detalle.producto_id, cantidad]
+  );
+  const tolerancia = 0.2;
+  const hay = rows.some((p) => {
+    const vigente = p.es_oferta && p.precio_oferta_centimos != null
+      ? Number(p.precio_oferta_centimos)
+      : Number(p.precio_centimos);
+    if (!precioOriginal || !vigente) return false;
+    const delta = Math.abs(vigente - precioOriginal) / precioOriginal;
+    return delta <= tolerancia;
+  });
+  return !hay;
 }
 
 async function eliminarLinea(req, res) {
@@ -634,7 +689,8 @@ async function eliminarLinea(req, res) {
        FOR UPDATE`,
       [detalle.id]
     );
-    const decision = evaluarEliminacionLinea(detalle, sustituciones);
+    const sinCandidatos = await noHayCandidatosSustituto(cliente, detalle);
+    const decision = evaluarEliminacionLinea(detalle, sustituciones, { sinCandidatos });
     if (!decision.ok) {
       await cliente.query('ROLLBACK');
       return res.status(decision.http).json({
@@ -672,7 +728,8 @@ async function eliminarLinea(req, res) {
       pago,
       sustitucionId: decision.sustitucionId,
       detalleId: detalle.id,
-      monto: detalle.subtotal_centimos
+      monto: detalle.subtotal_centimos,
+      sinStock: Boolean(decision.sinStock)
     });
 
     if (!decision.yaResuelta) {

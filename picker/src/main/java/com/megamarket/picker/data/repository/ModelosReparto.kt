@@ -14,6 +14,13 @@ data class TableroReparto(
     val entregados: List<PedidoReparto>
 )
 
+data class PaginaReparto(
+    val pedidos: List<PedidoReparto>,
+    val pagina: Int,
+    val hayMas: Boolean,
+    val total: Int
+)
+
 data class DireccionReparto(
     val departamento: String,
     val provincia: String,

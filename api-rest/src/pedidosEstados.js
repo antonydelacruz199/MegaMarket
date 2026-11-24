@@ -163,14 +163,23 @@ function evaluarTransicion(ctx) {
         error: 'El cliente solo puede cancelar sus propios pedidos permitidos'
       };
     }
-    // Cancelación cliente: antes de despacho (LISTO) y sin cobro, o con devolución.
-    if (!['RECIBIDO', 'EN_PICKING', 'CONFIRMADO', 'PAGADO'].includes(desde)) {
+    // Cancelación cliente: solo antes de cerrar preparación (CONFIRMADO).
+    if (desde === 'CONFIRMADO' || desde === 'PAGADO') {
       return {
         ok: false,
         http: 409,
         codigo: 'CANCELACION_NO_PERMITIDA',
         error:
-          'Solo se puede cancelar antes del despacho; en ruta requiere gestión administrativa'
+          'El pedido ya está confirmado por el picker; ya no se puede cancelar'
+      };
+    }
+    if (!['RECIBIDO', 'EN_PICKING'].includes(desde)) {
+      return {
+        ok: false,
+        http: 409,
+        codigo: 'CANCELACION_NO_PERMITIDA',
+        error:
+          'Solo se puede cancelar antes de confirmar la preparación; en ruta requiere gestión administrativa'
       };
     }
     return { ok: true };

@@ -24,7 +24,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -64,8 +63,10 @@ fun PantallaSustitucion(
     alIniciarSeguimiento: () -> Unit,
     alDetenerSeguimiento: () -> Unit,
     alConsultarEstado: () -> Unit,
+    alInformarSinStock: () -> Unit = {},
     alResolverSinProducto: () -> Unit = {}
 ) {
+    var confirmarInformar by remember { mutableStateOf(false) }
     var confirmarEliminacion by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, estado.propuesta?.id, estado.propuesta?.estado) {
@@ -158,16 +159,50 @@ fun PantallaSustitucion(
                             PanelPropuesta(estado, alConsultarEstado)
                         }
                     }
-                    if (EstadoSustitucion.esRechazada(estado.propuesta?.estado) &&
-                        !estado.faltantePendienteLocal
-                    ) {
+                    val sinCandidatos = estado.sinStockAlmacen &&
+                        !estado.faltantePendienteLocal &&
+                        !EstadoSustitucion.esPendiente(estado.propuesta?.estado)
+                    val rechazo = EstadoSustitucion.esRechazada(estado.propuesta?.estado)
+                    val avisoEnviado = estado.avisoSinStockEnviado ||
+                        EstadoSustitucion.esSinStock(estado.propuesta?.estado)
+                    if (sinCandidatos && !estado.faltantePendienteLocal) {
+                        item {
+                            Text(
+                                text = stringResource(R.string.informar_sin_stock),
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(stringResource(R.string.informar_sin_stock_ayuda))
+                            Spacer(Modifier.height(8.dp))
+                            if (avisoEnviado) {
+                                Text(
+                                    text = stringResource(R.string.informar_sin_stock_ok),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    fontWeight = FontWeight.SemiBold
+                                )
+                            } else {
+                                if (estado.resolviendo) {
+                                    Text(stringResource(R.string.eliminando_linea))
+                                    Spacer(Modifier.height(8.dp))
+                                }
+                                Button(
+                                    onClick = { confirmarInformar = true },
+                                    enabled = !estado.resolviendo && !estado.enviando,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text(stringResource(R.string.informar_sin_stock))
+                                }
+                            }
+                        }
+                    }
+                    if (rechazo && !estado.faltantePendienteLocal) {
                         item {
                             Text(stringResource(R.string.sustitucion_rechazo_nueva))
                             Spacer(Modifier.height(8.dp))
                             if (estado.resolviendo) {
-                                LinearProgressIndicator(Modifier.fillMaxWidth())
-                                Spacer(Modifier.height(8.dp))
                                 Text(stringResource(R.string.eliminando_linea))
+                                Spacer(Modifier.height(8.dp))
                             }
                             Button(
                                 onClick = { confirmarEliminacion = true },
@@ -193,9 +228,8 @@ fun PantallaSustitucion(
                         ) {
                             item {
                                 if (estado.enviando) {
-                                    LinearProgressIndicator(Modifier.fillMaxWidth())
-                                    Spacer(Modifier.height(8.dp))
                                     Text(stringResource(R.string.sustitucion_enviando))
+                                    Spacer(Modifier.height(8.dp))
                                 }
                                 Button(
                                     onClick = alProponer,
@@ -214,6 +248,29 @@ fun PantallaSustitucion(
         }
     }
 
+    if (confirmarInformar) {
+        AlertDialog(
+            onDismissRequest = { confirmarInformar = false },
+            title = { Text(stringResource(R.string.confirmar_informar_titulo)) },
+            text = { Text(stringResource(R.string.confirmar_informar_mensaje)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmarInformar = false
+                        alInformarSinStock()
+                    },
+                    enabled = !estado.resolviendo
+                ) {
+                    Text(stringResource(R.string.confirmar_informar_ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmarInformar = false }) {
+                    Text(stringResource(R.string.cancelar))
+                }
+            }
+        )
+    }
     if (confirmarEliminacion) {
         AlertDialog(
             onDismissRequest = { confirmarEliminacion = false },
@@ -259,7 +316,7 @@ private fun EncabezadoSustitucion(estado: SustitucionUiState) {
             )
         }
         if (estado.cantidadLinea > 0) {
-            Text(stringResource(R.string.cantidad_solicitada, estado.cantidadLinea))
+            Text(stringResource(R.string.cantidad_fija_sustitucion, estado.cantidadLinea))
         }
         if (estado.precioOriginalCentimos > 0) {
             Text(
@@ -304,10 +361,6 @@ private fun PanelPropuesta(
             val restante = estado.tiempoRestanteTexto
             if (!restante.isNullOrBlank()) {
                 Text(stringResource(R.string.sustitucion_tiempo_restante, restante))
-            }
-            if (estado.consultandoEstado) {
-                Spacer(Modifier.height(8.dp))
-                LinearProgressIndicator(Modifier.fillMaxWidth())
             }
             TextButton(
                 onClick = alConsultarEstado,

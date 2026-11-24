@@ -7,5 +7,6 @@ fun textoEstadoSustitucion(estado: String?): String = when (estado?.trim()?.uppe
     EstadoSustitucion.ACEPTADA -> "Aceptada"
     EstadoSustitucion.RECHAZADA -> "Rechazada"
     EstadoSustitucion.CANCELADA -> "Cancelada"
+    EstadoSustitucion.SIN_STOCK -> "Sin stock en almacén"
     else -> estado?.trim().orEmpty().ifBlank { "Desconocido" }
 }

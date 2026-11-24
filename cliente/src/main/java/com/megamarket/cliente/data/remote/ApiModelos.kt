@@ -44,7 +44,11 @@ data class CategoriaApiDto(
 )
 
 data class ProductosResponse(
-    val productos: List<ProductoApiDto>
+    val productos: List<ProductoApiDto>,
+    val pagina: Int? = null,
+    val limite: Int? = null,
+    val total: Int? = null,
+    val hayMas: Boolean? = null
 )
 
 data class ProductoApiDto(
@@ -96,6 +100,7 @@ data class FranjaApiDto(
     val ocupados: Int? = null,
     val cupoRestante: Int? = null,
     val activa: Boolean? = null,
+    val horarioPasado: Boolean? = null,
     val createdAt: String? = null
 )
 

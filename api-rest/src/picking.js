@@ -112,15 +112,18 @@ function marcaTiempo(valor) {
 }
 
 /**
- * Una línea solo puede pasar a ELIMINADO con un rechazo trazable y sin
- * propuesta pendiente ni sustituto aceptado. No muta datos.
+ * Una línea pasa a ELIMINADO tras rechazo del cliente, o sin candidatos de
+ * almacén (sinStock). Sin propuesta pendiente ni sustituto aceptado.
+ * @param {object} [opts]
+ * @param {boolean} [opts.sinCandidatos]
  */
-function evaluarEliminacionLinea(linea, sustituciones) {
+function evaluarEliminacionLinea(linea, sustituciones, opts = {}) {
   const estado = String(linea.estado_picking || '').trim();
   const susts = sustituciones || [];
   const pendiente = susts.find((s) => s.estado === 'PENDIENTE') || null;
   const aceptada = susts.find((s) => s.estado === 'ACEPTADA') || null;
   const rechazadas = susts.filter((s) => s.estado === 'RECHAZADA');
+  const sinCandidatos = Boolean(opts.sinCandidatos);
 
   if (pendiente) {
     return {
@@ -140,24 +143,31 @@ function evaluarEliminacionLinea(linea, sustituciones) {
       sustitucionId: aceptada.id
     };
   }
-  if (rechazadas.length === 0) {
+  if (rechazadas.length === 0 && !sinCandidatos) {
     return {
       ok: false,
       http: 409,
       codigo: 'ELIMINADO_SIN_RESOLUCION',
-      error: 'Solo se elimina la línea tras un rechazo del cliente'
+      error: 'Solo se elimina la línea tras un rechazo del cliente o sin stock en almacén'
     };
   }
 
-  const justificante = rechazadas.slice().sort((a, b) => {
-    const delta = marcaTiempo(b.fecha_respuesta || b.created_at) -
-      marcaTiempo(a.fecha_respuesta || a.created_at);
-    if (delta !== 0) return delta;
-    return String(b.id).localeCompare(String(a.id));
-  })[0];
+  const justificante = rechazadas.length
+    ? rechazadas.slice().sort((a, b) => {
+        const delta = marcaTiempo(b.fecha_respuesta || b.created_at) -
+          marcaTiempo(a.fecha_respuesta || a.created_at);
+        if (delta !== 0) return delta;
+        return String(b.id).localeCompare(String(a.id));
+      })[0]
+    : null;
 
   if (estado === 'ELIMINADO') {
-    return { ok: true, yaResuelta: true, sustitucionId: justificante.id };
+    return {
+      ok: true,
+      yaResuelta: true,
+      sustitucionId: justificante ? justificante.id : null,
+      sinStock: !justificante
+    };
   }
   if (estado !== 'FALTANTE') {
     return {
@@ -167,7 +177,12 @@ function evaluarEliminacionLinea(linea, sustituciones) {
       error: `No se puede eliminar una línea en estado ${estado || '(vacío)'}`
     };
   }
-  return { ok: true, yaResuelta: false, sustitucionId: justificante.id };
+  return {
+    ok: true,
+    yaResuelta: false,
+    sustitucionId: justificante ? justificante.id : null,
+    sinStock: !justificante && sinCandidatos
+  };
 }
 
 function lineasListasParaSalida(estados) {
@@ -298,7 +313,7 @@ function evaluarPreparacionCompleta(lineas, sustituciones = []) {
     }
 
     if (estado === 'ELIMINADO') {
-      // Resolución válida: rechazo del cliente y ningún sustituto aún aceptado.
+      // Resolución válida: rechazo del cliente o sin stock (sin aceptación pendiente).
       if (aceptada) {
         impedimentos.push({
           pedidoDetalleId: linea.id,
@@ -309,14 +324,12 @@ function evaluarPreparacionCompleta(lineas, sustituciones = []) {
         });
         continue;
       }
-      if (!rechazada || armada !== 0) {
+      if (armada !== 0) {
         impedimentos.push({
           pedidoDetalleId: linea.id,
           estadoPicking: estado,
           codigo: 'ELIMINADO_SIN_RESOLUCION',
-          motivo: rechazada
-            ? 'ELIMINADO exige cantidad armada en cero'
-            : 'ELIMINADO solo es válido tras una sustitución RECHAZADA'
+          motivo: 'ELIMINADO exige cantidad armada en cero'
         });
       }
       continue;

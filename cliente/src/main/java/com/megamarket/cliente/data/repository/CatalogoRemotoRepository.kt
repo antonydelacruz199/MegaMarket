@@ -39,13 +39,23 @@ class CatalogoRemotoRepository(
             }
             val categorias = catsResp.body()?.categorias ?: return@withContext ResultadoDescargaCatalogo.Error("Respuesta de categorías inválida")
 
-            val prodResp = api.listarProductos(remoteOwner)
-            if (!prodResp.isSuccessful) {
-                return@withContext ResultadoDescargaCatalogo.Error(
-                    "No se pudieron descargar los productos (${prodResp.code()})"
-                )
+            val productos = mutableListOf<ProductoApiDto>()
+            var pagina = 1
+            var hayMas = true
+            while (hayMas) {
+                val prodResp = api.listarProductos(remoteOwner, page = pagina, limit = 50)
+                if (!prodResp.isSuccessful) {
+                    return@withContext ResultadoDescargaCatalogo.Error(
+                        "No se pudieron descargar los productos (${prodResp.code()})"
+                    )
+                }
+                val cuerpo = prodResp.body()
+                    ?: return@withContext ResultadoDescargaCatalogo.Error("Respuesta de catálogo inválida")
+                productos += cuerpo.productos
+                hayMas = cuerpo.hayMas == true
+                pagina++
+                if (pagina > 200) break
             }
-            val productos = prodResp.body()?.productos ?: return@withContext ResultadoDescargaCatalogo.Error("Respuesta de catálogo inválida")
             suspend fun guardarCatalogo() {
                 if(sesion?.owner?.value!=ownerAlIniciar) throw IOException("La cuenta activa cambió")
                 upsertCategorias(categorias)

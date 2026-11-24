@@ -295,6 +295,11 @@ class SustitucionesRepositoryTest {
             ultimoProducto = body.productoSustitutoId
             return propuesta
         }
+        override suspend fun avisarSinStock(
+            id: String,
+            detalleId: String,
+            owner: String
+        ): Response<SustitucionResponse> = Response.error(501, okhttp3.ResponseBody.create(null, ByteArray(0)))
 
         override suspend fun obtenerSustitucion(
             id: String,
@@ -306,14 +311,14 @@ class SustitucionesRepositoryTest {
 
         override suspend fun login(body: LoginRequest) = err<LoginResponse>()
         override suspend fun me(owner: String?) = err<MeResponse>()
-        override suspend fun listarPedidos(estado: String, owner: String) = err<PedidosResponse>()
+        override suspend fun listarPedidos(estado: String, owner: String, page: Int?, limit: Int?) = err<PedidosResponse>()
         override suspend fun obtenerPedido(id: String, owner: String) = err<PedidoCompletoResponse>()
         override suspend fun transicionarPedido(
             id: String,
             body: TransicionPedidoRequest,
             owner: String
         ) = err<PedidoCompletoResponse>()
-        override suspend fun listarPicking(owner: String) = err<PickingListaResponse>()
+        override suspend fun listarPicking(owner: String, page: Int?, limit: Int?) = err<PickingListaResponse>()
         override suspend fun obtenerPicking(id: String, owner: String) = err<PickingDetalleResponse>()
         override suspend fun registrarEscaneo(
             id: String,
@@ -332,7 +337,7 @@ class SustitucionesRepositoryTest {
             owner: String
         ) = err<FaltanteResponse>()
 
-        override suspend fun listarEntregas(owner: String) = err<EntregasListaResponse>()
+        override suspend fun listarEntregas(owner: String, estado: String?, page: Int?, limit: Int?) = err<EntregasListaResponse>()
 
         override suspend fun obtenerEntrega(
             id: String,

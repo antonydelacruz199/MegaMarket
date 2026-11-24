@@ -5,6 +5,7 @@ object EstadoSustitucion {
     const val ACEPTADA = "ACEPTADA"
     const val RECHAZADA = "RECHAZADA"
     const val CANCELADA = "CANCELADA"
+    const val SIN_STOCK = "SIN_STOCK"
 
     fun esPendiente(estado: String?): Boolean =
         estado?.trim().equals(PENDIENTE, ignoreCase = true) == true
@@ -12,8 +13,11 @@ object EstadoSustitucion {
     fun esRechazada(estado: String?): Boolean =
         estado?.trim().equals(RECHAZADA, ignoreCase = true) == true
 
+    fun esSinStock(estado: String?): Boolean =
+        estado?.trim().equals(SIN_STOCK, ignoreCase = true) == true
+
     fun estaResuelta(estado: String?): Boolean = when (estado?.trim()?.uppercase()) {
-        ACEPTADA, RECHAZADA, CANCELADA -> true
+        ACEPTADA, RECHAZADA, CANCELADA, SIN_STOCK -> true
         else -> false
     }
 }
@@ -58,7 +62,7 @@ object MensajesSustitucion {
     const val SOLO_FALTANTE = "Solo se proponen sustitutos para líneas confirmadas como faltante."
     const val FALTANTE_PENDIENTE =
         "El faltante aún no está confirmado por el servidor. Espera la sincronización."
-    const val SIN_CANDIDATOS = "No hay productos sustitutos disponibles."
+    const val SIN_CANDIDATOS = "No hay productos en almacén para sustituir."
     const val PROPUESTA_EN_CURSO = "Ya hay una operación de sustitución en curso."
     const val SELECCIONA = "Selecciona un producto sustituto."
     const val PROHIBIDO = "No tienes permiso para proponer o consultar esta sustitución."

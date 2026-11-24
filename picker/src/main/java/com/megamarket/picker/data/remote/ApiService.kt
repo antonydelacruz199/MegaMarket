@@ -23,7 +23,9 @@ interface ApiService {
     @GET("api/pedidos")
     suspend fun listarPedidos(
         @Query("estado") estado: String,
-        @Header("X-Expected-User") owner: String
+        @Header("X-Expected-User") owner: String,
+        @Query("page") page: Int? = null,
+        @Query("limit") limit: Int? = null
     ): Response<PedidosResponse>
 
     @GET("api/pedidos/{id}")
@@ -41,7 +43,9 @@ interface ApiService {
 
     @GET("api/picking/pedidos")
     suspend fun listarPicking(
-        @Header("X-Expected-User") owner: String
+        @Header("X-Expected-User") owner: String,
+        @Query("page") page: Int? = null,
+        @Query("limit") limit: Int? = null
     ): Response<PickingListaResponse>
 
     @GET("api/picking/pedidos/{id}")
@@ -87,6 +91,13 @@ interface ApiService {
         @Header("X-Expected-User") owner: String
     ): Response<SustitucionResponse>
 
+    @POST("api/picking/pedidos/{id}/detalles/{detalleId}/aviso-sin-stock")
+    suspend fun avisarSinStock(
+        @Path("id") id: String,
+        @Path("detalleId") detalleId: String,
+        @Header("X-Expected-User") owner: String
+    ): Response<SustitucionResponse>
+
     @GET("api/sustituciones/{id}")
     suspend fun obtenerSustitucion(
         @Path("id") id: String,
@@ -95,7 +106,10 @@ interface ApiService {
 
     @GET("api/entregas/pedidos")
     suspend fun listarEntregas(
-        @Header("X-Expected-User") owner: String
+        @Header("X-Expected-User") owner: String,
+        @Query("estado") estado: String? = null,
+        @Query("page") page: Int? = null,
+        @Query("limit") limit: Int? = null
     ): Response<EntregasListaResponse>
 
     @GET("api/entregas/pedidos/{id}")

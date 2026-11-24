@@ -45,7 +45,14 @@ class SustitucionesRepository(
                     "No se pudieron listar sustitutos"
                 )
             val linea = lineaDao.obtener(detalleId, owner)
-            val cantidad = linea?.cantidad ?: 1
+            val faltanteLocal = linea?.let {
+                (it.cantidad - it.cantidadArmada).coerceAtLeast(0)
+            }
+            val cantidad = body.cantidadFaltante
+                ?.takeIf { it > 0 }
+                ?: faltanteLocal?.takeIf { it > 0 }
+                ?: linea?.cantidad
+                ?: 1
             val precio = body.precioOriginalCentimos ?: 0L
             ResultadoOperacion.Exito(
                 ListaCandidatosSustitucion(
@@ -57,6 +64,30 @@ class SustitucionesRepository(
                     }
                 )
             )
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: IOException) {
+            falloRed(error)
+        }
+    }
+
+    /** Informa al cliente (Sustituciones) que no hay stock/sustituto. No elimina la línea. */
+    suspend fun avisarSinStock(
+        pedidoId: String,
+        detalleId: String
+    ): ResultadoOperacion<SustitucionPropuesta> = withContext(io) {
+        val owner = almacen.usuarioActivoId() ?: return@withContext sesionVencida()
+        val elegibilidad = validarLineaFaltanteConfirmada(pedidoId, detalleId, owner)
+        if (elegibilidad != null) return@withContext elegibilidad
+        try {
+            val respuesta = api.avisarSinStock(pedidoId, detalleId, owner)
+            if (!respuesta.isSuccessful) return@withContext fallo(respuesta)
+            val propuesta = respuesta.body()?.sustitucion?.aDominio()
+                ?: return@withContext ResultadoOperacion.Error(
+                    TipoErrorPedido.SERVIDOR,
+                    "No se pudo leer el aviso de sin stock"
+                )
+            ResultadoOperacion.Exito(propuesta)
         } catch (error: CancellationException) {
             throw error
         } catch (error: IOException) {

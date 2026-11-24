@@ -9,9 +9,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -24,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.megamarket.cliente.ui.theme.Espaciado
 import com.megamarket.cliente.ui.theme.FeriaCoral
 import com.megamarket.cliente.ui.theme.FeriaPetalo
 import com.megamarket.cliente.ui.theme.MegaSobrePrimario
@@ -43,7 +44,7 @@ fun TarjetaProducto(
         modifier = modifier
             .fillMaxWidth()
             .clickable(onClick = alPulsar),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = if (producto.ofertaValida) {
                 FeriaPetalo
@@ -51,24 +52,28 @@ fun TarjetaProducto(
                 MaterialTheme.colorScheme.surface
             }
         ),
-        border = if (producto.ofertaValida) BorderStroke(2.dp, FeriaCoral) else null,
-        elevation = CardDefaults.cardElevation(defaultElevation = if (producto.ofertaValida) 3.dp else 1.dp)
+        border = if (producto.ofertaValida) {
+            BorderStroke(1.5.dp, FeriaCoral.copy(alpha = 0.7f))
+        } else {
+            BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+        },
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(Espaciado.lg),
             verticalAlignment = Alignment.CenterVertically
         ) {
             ImagenProducto(
                 solicitud = solicitudImagen,
                 modifier = Modifier
-                    .padding(end = 12.dp)
-                    .size(72.dp),
+                    .padding(end = Espaciado.md)
+                    .size(76.dp),
                 descripcion = producto.nombre
             )
             Column(modifier = Modifier.weight(1f)) {
                 if (producto.ofertaValida) {
                     Surface(
-                        shape = RoundedCornerShape(8.dp),
+                        shape = MaterialTheme.shapes.extraSmall,
                         color = FeriaCoral
                     ) {
                         Text(
@@ -79,7 +84,7 @@ fun TarjetaProducto(
                             color = MegaSobrePrimario
                         )
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(Espaciado.sm))
                 }
                 Text(
                     text = producto.nombre,
@@ -91,17 +96,18 @@ fun TarjetaProducto(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+                Spacer(modifier = Modifier.height(Espaciado.xs))
                 FilaPrecio(producto)
             }
             if (alAlternarFavorito != null) {
                 IconButton(onClick = alAlternarFavorito) {
                     Icon(
-                        imageVector = Icons.Default.Favorite,
+                        imageVector = if (esFavorito) Icons.Default.Favorite else Icons.Default.FavoriteBorder,
                         contentDescription = if (esFavorito) "Quitar de favoritos" else "Agregar a favoritos",
                         tint = if (esFavorito) {
                             MaterialTheme.colorScheme.tertiary
                         } else {
-                            MaterialTheme.colorScheme.outline
+                            MaterialTheme.colorScheme.onSurfaceVariant
                         }
                     )
                 }

@@ -21,7 +21,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -104,9 +103,6 @@ fun PantallaEscanearPago(
             verticalArrangement = Arrangement.spacedBy(12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (estado.confirmando) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
             Text(
                 text = "Apunta al código QR que muestra el repartidor para pagar con tu billetera.",
                 style = MaterialTheme.typography.bodyMedium,

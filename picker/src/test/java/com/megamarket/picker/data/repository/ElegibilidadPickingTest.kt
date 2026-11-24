@@ -1,6 +1,5 @@
 package com.megamarket.picker.data.repository
 
-import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -28,9 +27,19 @@ class ElegibilidadPickingTest {
     }
 
     @Test
-    fun pagadoSiPuedeTomarse() {
-        assertTrue(puedePasarAEnPicking("PAGADO", PagoDtoConsulta("ONLINE")))
-        assertTrue(puedePasarAEnPicking("PAGADO", null))
+    fun pagadoYaNoSeTomaAPickingSeDespacha() {
+        assertFalse(puedePasarAEnPicking("PAGADO", PagoDtoConsulta("ONLINE")))
+        assertFalse(puedePasarAEnPicking("PAGADO", null))
+        assertTrue(puedeMandarADelivery("PAGADO", PagoDtoConsulta("ONLINE")))
+        assertTrue(puedeMandarADelivery("PAGADO", null))
+    }
+
+    @Test
+    fun confirmadoContraentregaPuedeDespacharse() {
+        assertTrue(puedeMandarADelivery("CONFIRMADO", null))
+        assertTrue(puedeMandarADelivery("CONFIRMADO", PagoDtoConsulta("CONTRAENTREGA")))
+        assertFalse(puedeMandarADelivery("CONFIRMADO", PagoDtoConsulta("ONLINE")))
+        assertFalse(puedeMandarADelivery("RECIBIDO", null))
     }
 
     @Test

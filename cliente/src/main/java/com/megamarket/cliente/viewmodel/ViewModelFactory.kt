@@ -52,14 +52,14 @@ class ViewModelFactory(
                 )
             modelClass.isAssignableFrom(PerfilViewModel::class.java) ->
                 PerfilViewModel(container.sesionRepository,container.pedidoRepository)
-            modelClass.isAssignableFrom(SincronizacionViewModel::class.java) ->
-                SincronizacionViewModel(container.sincronizacionRepository)
             modelClass.isAssignableFrom(SustitucionesViewModel::class.java) ->
                 SustitucionesViewModel(container.sustitucionesRepository)
             modelClass.isAssignableFrom(DetalleSustitucionViewModel::class.java) ->
                 DetalleSustitucionViewModel(
                     extras.createSavedStateHandle(),
-                    container.sustitucionesRepository
+                    container.sustitucionesRepository,
+                    container.misPedidosRepository,
+                    container.pagosRepository
                 )
             modelClass.isAssignableFrom(MisPedidosViewModel::class.java) ->
                 MisPedidosViewModel(container.misPedidosRepository)

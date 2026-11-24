@@ -15,6 +15,26 @@ enum class FiltroMisPedidos(val etiqueta: String) {
     ENTREGADOS("Entregados"),
     CANCELADOS("Cancelados");
 
+    /**
+     * Query `filtro` del API (paginación en servidor para todos los chips).
+     * `TODOS` no envía filtro.
+     */
+    val filtroApi: String?
+        get() = when (this) {
+            TODOS -> null
+            else -> name
+        }
+
+    /** Estado API cuando el filtro mapea 1:1 (compatibilidad / tests). */
+    val estadoApi: String?
+        get() = when (this) {
+            LISTOS -> "LISTO"
+            EN_CAMINO -> "EN_CAMINO"
+            ENTREGADOS -> "ENTREGADO"
+            CANCELADOS -> "CANCELADO"
+            else -> null
+        }
+
     fun coincide(estado: String, modalidadPago: String?): Boolean {
         val e = estado.trim().uppercase()
         return when (this) {
@@ -32,6 +52,13 @@ enum class FiltroMisPedidos(val etiqueta: String) {
         }
     }
 }
+
+data class PaginaMisPedidos(
+    val pedidos: List<PedidoResumenCliente>,
+    val pagina: Int,
+    val hayMas: Boolean,
+    val total: Int
+)
 
 data class PedidoResumenCliente(
     val id: String,
@@ -118,13 +145,13 @@ data class PedidoDetalleCliente(
         }
 
     /**
-     * Cancelación del cliente: RECIBIDO, EN_PICKING, CONFIRMADO o PAGADO
-     * (antes de despacho). Con cobro confirmado el servidor aplica devolución.
+     * Cancelación del cliente solo mientras el picking no se ha cerrado.
+     * Tras CONFIRMADO (preparación validada) ya no puede cancelar.
      */
     val puedeCancelar: Boolean
         get() {
             val e = estado.trim().uppercase()
-            return e == "RECIBIDO" || e == "EN_PICKING" || e == "CONFIRMADO" || e == "PAGADO"
+            return e == "RECIBIDO" || e == "EN_PICKING"
         }
 
     /**

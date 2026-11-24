@@ -30,19 +30,27 @@ class BilleteraRepository(
         }
     }
 
-    suspend fun listarMovimientos(): ResultadoPagos<BilleteraCliente> = withContext(io) {
+    suspend fun listarMovimientos(
+        page: Int = 1,
+        limit: Int = 50
+    ): ResultadoPagos<PaginaBilletera> = withContext(io) {
         val owner = usuarioRemotoId() ?: return@withContext sesionVencidaPago()
         try {
-            val respuesta = api.listarMovimientosBilletera(owner)
+            val respuesta = api.listarMovimientosBilletera(owner, page = page, limit = limit)
             if (!respuesta.isSuccessful) return@withContext falloPago(respuesta)
             val cuerpo = respuesta.body()
             val cuenta = cuerpo?.cuenta?.aCuentaCliente()
                 ?: return@withContext respuestaInvalidaPago()
             ResultadoPagos.Exito(
-                BilleteraCliente(
-                    cuenta = cuenta,
-                    saldoInicialCentimos = null,
-                    movimientos = cuerpo.movimientos.orEmpty().mapNotNull { it.aMovimientoCliente() }
+                PaginaBilletera(
+                    billetera = BilleteraCliente(
+                        cuenta = cuenta,
+                        saldoInicialCentimos = null,
+                        movimientos = cuerpo.movimientos.orEmpty().mapNotNull { it.aMovimientoCliente() }
+                    ),
+                    pagina = cuerpo.pagina ?: page,
+                    hayMas = cuerpo.hayMas == true,
+                    total = cuerpo.total ?: cuerpo.movimientos.orEmpty().size
                 )
             )
         } catch (error: CancellationException) {
@@ -53,14 +61,24 @@ class BilleteraRepository(
     }
 
     /** Saldo + movimientos: ambas consultas deben resolver; el saldo de `/saldo` manda sobre el de `/movimientos`. */
-    suspend fun cargar(): ResultadoPagos<BilleteraCliente> {
+    suspend fun cargar(page: Int = 1): ResultadoPagos<PaginaBilletera> {
         val saldo = obtenerSaldo()
         if (saldo is ResultadoPagos.Error) return saldo
-        val movimientos = listarMovimientos()
+        val movimientos = listarMovimientos(page = page)
         if (movimientos is ResultadoPagos.Error) return movimientos
         val base = (saldo as ResultadoPagos.Exito).valor
+        val pagina = (movimientos as ResultadoPagos.Exito).valor
         return ResultadoPagos.Exito(
-            base.copy(movimientos = (movimientos as ResultadoPagos.Exito).valor.movimientos)
+            pagina.copy(
+                billetera = base.copy(movimientos = pagina.billetera.movimientos)
+            )
         )
     }
 }
+
+data class PaginaBilletera(
+    val billetera: BilleteraCliente,
+    val pagina: Int,
+    val hayMas: Boolean,
+    val total: Int
+)

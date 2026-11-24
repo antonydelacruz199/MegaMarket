@@ -9,8 +9,10 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -73,7 +75,7 @@ fun PantallaFavoritos(
                         )
                     }
                 }
-                items(estado.productos, key = { it.id }) { producto ->
+                items(estado.visibles, key = { it.id }) { producto ->
                     TarjetaProducto(
                         producto = producto,
                         esFavorito = true,
@@ -81,6 +83,14 @@ fun PantallaFavoritos(
                         solicitudImagen = viewModel.solicitudImagen(producto),
                         alAlternarFavorito = { viewModel.alternarFavorito(producto.id) }
                     )
+                }
+                if (estado.hayMas) {
+                    item {
+                        OutlinedButton(
+                            onClick = viewModel::cargarMas,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Cargar más") }
+                    }
                 }
             }
         }

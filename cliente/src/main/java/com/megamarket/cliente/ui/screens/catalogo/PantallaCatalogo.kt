@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -139,6 +140,14 @@ fun PantallaCatalogo(
                                 alPulsar = { alAbrirProducto(producto.id) },
                                 solicitudImagen = viewModel.solicitudImagen(producto)
                             )
+                        }
+                        if (estado.hayMas) {
+                            item {
+                                OutlinedButton(
+                                    onClick = viewModel::cargarMas,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("Cargar más") }
+                            }
                         }
                     }
                 }

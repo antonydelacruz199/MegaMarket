@@ -2,6 +2,10 @@ package com.megamarket.cliente.data.remote
 
 data class ListaSustitucionesResponse(
     val sustituciones: List<SustitucionDto>? = null,
+    val pagina: Int? = null,
+    val limite: Int? = null,
+    val total: Int? = null,
+    val hayMas: Boolean? = null,
     val error: String? = null
 )
 
@@ -43,6 +47,10 @@ data class SustitucionDto(
 
 data class ListaPedidosResponse(
     val pedidos: List<PedidoRemotoDto>? = null,
+    val pagina: Int? = null,
+    val limite: Int? = null,
+    val total: Int? = null,
+    val hayMas: Boolean? = null,
     val error: String? = null
 )
 

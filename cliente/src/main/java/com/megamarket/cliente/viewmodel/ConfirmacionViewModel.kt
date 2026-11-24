@@ -336,7 +336,7 @@ class ConfirmacionViewModel(
     /**
      * Cancela según el estado:
      * - REQUIERE_REVISION / PENDIENTE sin remoteId → local
-     * - CONFIRMADO con pago pendiente → API
+     * - RECIBIDO / EN_PICKING → API (tras CONFIRMADO ya no se cancela)
      */
     fun cancelarPedido() {
         val pedido = _estado.value.pedido ?: return
@@ -352,11 +352,7 @@ class ConfirmacionViewModel(
                         pedido.estado in setOf("PENDIENTE_CONFIRMACION", "REQUIERE_REVISION") -> {
                         pedidos.abortarLocalSinEnviar(pedidoId)
                     }
-                    pedido.estado in setOf(
-                        "RECIBIDO",
-                        "EN_PICKING",
-                        Pedido.ESTADO_CONFIRMADO
-                    ) &&
+                    pedido.estado in setOf("RECIBIDO", "EN_PICKING") &&
                         _estado.value.pagoConfirmado != true &&
                         !pedido.remoteId.isNullOrBlank() -> {
                         when (val r = pagos.cancelarPedido(pedido.remoteId!!)) {

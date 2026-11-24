@@ -8,11 +8,19 @@ class RutaTest {
 
     @Test
     fun pickerYRepartidorTienenRutasDistintas() {
-        assertEquals("picker", rutaDeRol(RolOperativo.PICKER))
-        assertEquals("repartidor", rutaDeRol(RolOperativo.REPARTIDOR))
+        assertEquals("picker/disponibles", rutaDeRol(RolOperativo.PICKER))
+        assertEquals("repartidor/en_camino", rutaDeRol(RolOperativo.REPARTIDOR))
         assertEquals(Ruta.Sesion.ruta, "sesion")
         assertEquals("preparacion/abc", Ruta.Preparacion.crear("abc"))
         assertEquals("preparacion/abc/escaner/det-1", Ruta.Escaner.crear("abc", "det-1"))
         assertEquals("preparacion/abc/sustitucion/det-1", Ruta.Sustitucion.crear("abc", "det-1"))
+    }
+
+    @Test
+    fun seccionesDesdeRuta() {
+        assertEquals(SeccionPicker.DESPACHO, seccionPickerDeRuta(Ruta.PickerDespacho.ruta))
+        assertEquals(SeccionReparto.LISTOS, seccionRepartoDeRuta(Ruta.RepartidorListos.ruta))
+        assertEquals("LISTO", SeccionReparto.LISTOS.estadoApi)
+        assertEquals("EN_CAMINO", SeccionReparto.EN_CAMINO.estadoApi)
     }
 }

@@ -3,7 +3,8 @@ package com.megamarket.app.ui.screens.sesion
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -11,17 +12,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -31,6 +35,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -47,6 +52,9 @@ import com.megamarket.app.data.connectivity.registrarEstadoPermisoRedLocal
 import com.megamarket.app.data.connectivity.requierePermisoRedLocal
 import com.megamarket.app.data.connectivity.tienePermisoRedLocal
 import com.megamarket.app.ui.components.LogoMegaMarket
+import com.megamarket.app.ui.theme.Espaciado
+import com.megamarket.app.ui.theme.MegaContenedorPrimario
+import com.megamarket.app.ui.theme.MegaFondo
 
 private const val TAG = "MegaMarketSesion"
 
@@ -90,108 +98,149 @@ fun PantallaSesion(
         alIngresar(nombreUsuario, clave)
     }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 32.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(MegaContenedorPrimario, MegaFondo)
+                )
+            )
     ) {
-        LogoMegaMarket(tamano = 72.dp)
-        Spacer(modifier = Modifier.height(12.dp))
-        Text(
-            text = "MegaMarket Express",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = stringResource(R.string.administracion_catalogo),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(32.dp))
-
-        OutlinedTextField(
-            value = usuario,
-            onValueChange = {
-                usuario = it
-                errorLocal = null
-            },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(stringResource(R.string.usuario)) },
-            singleLine = true,
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-            isError = mensajeError != null
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        OutlinedTextField(
-            value = contrasena,
-            onValueChange = {
-                contrasena = it
-                errorLocal = null
-            },
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(stringResource(R.string.contrasena)) },
-            singleLine = true,
-            isError = mensajeError != null,
-            visualTransformation = if (contrasenaVisible) {
-                VisualTransformation.None
-            } else {
-                PasswordVisualTransformation()
-            },
-            trailingIcon = {
-                IconButton(onClick = { contrasenaVisible = !contrasenaVisible }) {
-                    Icon(
-                        imageVector = if (contrasenaVisible) {
-                            Icons.Default.Info
-                        } else {
-                            Icons.Default.Lock
-                        },
-                        contentDescription = if (contrasenaVisible) {
-                            "Ocultar contraseña"
-                        } else {
-                            "Mostrar contraseña"
-                        }
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Espaciado.xl, vertical = Espaciado.xxl),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            LogoMegaMarket(tamano = 88.dp)
+            Spacer(modifier = Modifier.height(Espaciado.md))
+            Text(
+                text = "MegaMarket Admin",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = stringResource(R.string.administracion_catalogo),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(Espaciado.xl))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = MaterialTheme.shapes.large,
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(Espaciado.xl)) {
+                    Text(
+                        text = "Acceso seguro",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold
                     )
+                    Text(
+                        text = "Ingresa con tu cuenta de administración",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = Espaciado.xs, bottom = Espaciado.lg)
+                    )
+                    OutlinedTextField(
+                        value = usuario,
+                        onValueChange = {
+                            usuario = it
+                            errorLocal = null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(stringResource(R.string.usuario)) },
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.small,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+                        isError = mensajeError != null,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            cursorColor = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                    Spacer(modifier = Modifier.height(Espaciado.md))
+                    OutlinedTextField(
+                        value = contrasena,
+                        onValueChange = {
+                            contrasena = it
+                            errorLocal = null
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(stringResource(R.string.contrasena)) },
+                        singleLine = true,
+                        shape = MaterialTheme.shapes.small,
+                        isError = mensajeError != null,
+                        visualTransformation = if (contrasenaVisible) {
+                            VisualTransformation.None
+                        } else {
+                            PasswordVisualTransformation()
+                        },
+                        trailingIcon = {
+                            IconButton(onClick = { contrasenaVisible = !contrasenaVisible }) {
+                                Icon(
+                                    imageVector = if (contrasenaVisible) {
+                                        Icons.Default.VisibilityOff
+                                    } else {
+                                        Icons.Default.Visibility
+                                    },
+                                    contentDescription = if (contrasenaVisible) {
+                                        "Ocultar contraseña"
+                                    } else {
+                                        "Mostrar contraseña"
+                                    }
+                                )
+                            }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            cursorColor = MaterialTheme.colorScheme.primary
+                        )
+                    )
+                    if (mensajeError != null) {
+                        Spacer(modifier = Modifier.height(Espaciado.sm))
+                        Text(
+                            text = mensajeError,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(Espaciado.lg))
+                    Button(
+                        onClick = {
+                            if (usuario.isBlank() || contrasena.isBlank()) {
+                                errorLocal = "Completa usuario y contraseña"
+                            } else {
+                                errorLocal = null
+                                intentarIngresar(usuario.trim(), contrasena)
+                            }
+                        },
+                        enabled = !cargando,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = MaterialTheme.shapes.small,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text(
+                            text = if (cargando) {
+                                stringResource(R.string.ingresando)
+                            } else {
+                                stringResource(R.string.iniciar_sesion)
+                            },
+                            style = MaterialTheme.typography.labelLarge
+                        )
+                    }
                 }
             }
-        )
-        if (mensajeError != null) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = mensajeError,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(
-            onClick = {
-                if (usuario.isBlank() || contrasena.isBlank()) {
-                    errorLocal = "Completa usuario y contraseña"
-                } else {
-                    errorLocal = null
-                    intentarIngresar(usuario.trim(), contrasena)
-                }
-            },
-            enabled = !cargando,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text(
-                if (cargando) {
-                    stringResource(R.string.ingresando)
-                } else {
-                    stringResource(R.string.iniciar_sesion)
-                }
-            )
         }
     }
 }

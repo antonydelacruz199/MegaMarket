@@ -7,6 +7,7 @@ import com.megamarket.app.data.repository.ImagenRepository
 import com.megamarket.app.data.repository.ProductoRepository
 import com.megamarket.app.model.FiltroProducto
 import com.megamarket.app.state.ProductoUiState
+import com.megamarket.app.state.TAMANO_PAGINA_ADMIN
 import com.megamarket.modelo.Producto
 import com.megamarket.modelo.SolicitudImagenProducto
 import kotlinx.coroutines.CancellationException
@@ -33,21 +34,38 @@ class ProductoViewModel(
             _estado.update { it.copy(cargando = true, error = null) }
             try {
                 val lista = productos.obtenerTodos()
-                _estado.update { it.copy(cargando = false, productos = lista) }
+                _estado.update {
+                    it.copy(
+                        cargando = false,
+                        productos = lista,
+                        limiteVisible = TAMANO_PAGINA_ADMIN
+                    )
+                }
             } catch (error: CancellationException) {
                 throw error
-            } catch (error: Exception) {
+            } catch (_: Exception) {
                 _estado.update { it.copy(cargando = false, error = "No se pudo cargar el catálogo") }
             }
         }
     }
 
     fun actualizarConsulta(consulta: String) {
-        _estado.update { it.copy(consulta = consulta) }
+        _estado.update {
+            it.copy(consulta = consulta, limiteVisible = TAMANO_PAGINA_ADMIN)
+        }
     }
 
     fun seleccionarFiltro(filtro: FiltroProducto) {
-        _estado.update { it.copy(filtro = filtro) }
+        _estado.update {
+            it.copy(filtro = filtro, limiteVisible = TAMANO_PAGINA_ADMIN)
+        }
+    }
+
+    fun cargarMas() {
+        _estado.update {
+            if (!it.hayMas) it
+            else it.copy(limiteVisible = it.limiteVisible + TAMANO_PAGINA_ADMIN)
+        }
     }
 
     fun solicitudImagen(producto: Producto): SolicitudImagenProducto? =

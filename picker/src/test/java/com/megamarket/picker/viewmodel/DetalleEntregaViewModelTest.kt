@@ -418,11 +418,11 @@ class DetalleEntregaViewModelTest {
 
         override suspend fun login(body: LoginRequest) = error<LoginResponse>()
         override suspend fun me(owner: String?) = error<MeResponse>()
-        override suspend fun listarPedidos(estado: String, owner: String) = error<PedidosResponse>()
+        override suspend fun listarPedidos(estado: String, owner: String, page: Int?, limit: Int?) = error<PedidosResponse>()
         override suspend fun obtenerPedido(id: String, owner: String) = error<PedidoCompletoResponse>()
         override suspend fun transicionarPedido(id: String, body: TransicionPedidoRequest, owner: String) =
             error<PedidoCompletoResponse>()
-        override suspend fun listarPicking(owner: String) = error<PickingListaResponse>()
+        override suspend fun listarPicking(owner: String, page: Int?, limit: Int?) = error<PickingListaResponse>()
         override suspend fun obtenerPicking(id: String, owner: String) = error<PickingDetalleResponse>()
         override suspend fun registrarEscaneo(id: String, detalleId: String, body: EscaneoRequest, owner: String) =
             error<EscaneoResponse>()
@@ -436,8 +436,15 @@ class DetalleEntregaViewModelTest {
             body: PropuestaSustitucionRequest,
             owner: String
         ) = error<SustitucionResponse>()
+
+        override suspend fun avisarSinStock(
+            id: String,
+            detalleId: String,
+            owner: String
+        ) = error<SustitucionResponse>()
+
         override suspend fun obtenerSustitucion(id: String, owner: String) = error<SustitucionResponse>()
-        override suspend fun listarEntregas(owner: String) = error<EntregasListaResponse>()
+        override suspend fun listarEntregas(owner: String, estado: String?, page: Int?, limit: Int?) = error<EntregasListaResponse>()
 
         private fun <T> error(): Response<T> =
             Response.error(500, "{}".toResponseBody("application/json".toMediaType()))

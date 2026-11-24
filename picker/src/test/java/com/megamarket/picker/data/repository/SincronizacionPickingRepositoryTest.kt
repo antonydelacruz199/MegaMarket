@@ -391,14 +391,14 @@ class SincronizacionPickingRepositoryTest {
 
         override suspend fun login(body: LoginRequest) = err<LoginResponse>()
         override suspend fun me(owner: String?) = err<MeResponse>()
-        override suspend fun listarPedidos(estado: String, owner: String) = err<PedidosResponse>()
+        override suspend fun listarPedidos(estado: String, owner: String, page: Int?, limit: Int?) = err<PedidosResponse>()
         override suspend fun obtenerPedido(id: String, owner: String) = err<PedidoCompletoResponse>()
         override suspend fun transicionarPedido(
             id: String,
             body: TransicionPedidoRequest,
             owner: String
         ) = err<PedidoCompletoResponse>()
-        override suspend fun listarPicking(owner: String) = err<PickingListaResponse>()
+        override suspend fun listarPicking(owner: String, page: Int?, limit: Int?) = err<PickingListaResponse>()
         override suspend fun obtenerPicking(id: String, owner: String) = err<PickingDetalleResponse>()
         override suspend fun listarSustitutos(
             id: String,
@@ -411,7 +411,14 @@ class SincronizacionPickingRepositoryTest {
             body: com.megamarket.picker.data.remote.PropuestaSustitucionRequest,
             owner: String
         ) = err<com.megamarket.picker.data.remote.SustitucionResponse>()
-        override suspend fun listarEntregas(owner: String) =
+
+        override suspend fun avisarSinStock(
+            id: String,
+            detalleId: String,
+            owner: String
+        ) = err<com.megamarket.picker.data.remote.SustitucionResponse>()
+
+        override suspend fun listarEntregas(owner: String, estado: String?, page: Int?, limit: Int?) =
             throw UnsupportedOperationException("no usado")
 
         override suspend fun obtenerEntrega(

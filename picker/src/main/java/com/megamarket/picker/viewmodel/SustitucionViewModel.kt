@@ -154,6 +154,70 @@ class SustitucionViewModel(
         relojJob = null
     }
 
+    /** Envía aviso SIN_STOCK a Sustituciones del cliente (no elimina la línea). */
+    fun informarSinStock() {
+        if (operacionEnCurso || _estado.value.resolviendo || _estado.value.enviando) return
+        if (!_estado.value.sinStockAlmacen &&
+            !EstadoSustitucion.esSinStock(_estado.value.propuesta?.estado)
+        ) {
+            _estado.update {
+                it.copy(
+                    error = "Solo se informa sin stock cuando no hay productos sustitutos",
+                    codigoError = "SIN_CANDIDATOS"
+                )
+            }
+            return
+        }
+        if (EstadoSustitucion.esSinStock(_estado.value.propuesta?.estado) ||
+            _estado.value.avisoSinStockEnviado
+        ) {
+            _estado.update {
+                it.copy(
+                    avisoSinStockEnviado = true,
+                    error = null,
+                    codigoError = null
+                )
+            }
+            return
+        }
+        operacionEnCurso = true
+        viewModelScope.launch {
+            _estado.update { it.copy(resolviendo = true, error = null, codigoError = null) }
+            val resultado = try {
+                sustituciones.avisarSinStock(pedidoId, detalleId)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                ResultadoOperacion.Error(TipoErrorPedido.RED, MensajesSustitucion.SIN_CONEXION)
+            }
+            when (resultado) {
+                is ResultadoOperacion.Exito -> {
+                    aplicarPropuesta(resultado.valor)
+                    _estado.update {
+                        it.copy(
+                            resolviendo = false,
+                            avisoSinStockEnviado = true,
+                            detalleActualizado = true,
+                            error = null,
+                            codigoError = null
+                        )
+                    }
+                }
+                is ResultadoOperacion.Error -> _estado.update {
+                    it.copy(
+                        resolviendo = false,
+                        error = resultado.mensaje,
+                        codigoError = resultado.codigo,
+                        sesionVencida = resultado.tipo == TipoErrorPedido.SESION ||
+                            resultado.tipo == TipoErrorPedido.CUENTA
+                    )
+                }
+            }
+            operacionEnCurso = false
+        }
+    }
+
+    /** Tras rechazo del cliente: quitar línea del pedido. */
     fun resolverSinProducto() {
         if (operacionEnCurso || _estado.value.resolviendo || _estado.value.enviando) return
         if (!EstadoSustitucion.esRechazada(_estado.value.propuesta?.estado)) {
@@ -223,7 +287,7 @@ class SustitucionViewModel(
                 _estado.update {
                     it.copy(
                         nombreProductoOriginal = linea.nombre,
-                        cantidadLinea = linea.cantidad,
+                        cantidadLinea = (linea.cantidad - linea.cantidadArmada).coerceAtLeast(0),
                         faltantePendienteLocal = linea.faltantePendiente
                     )
                 }
@@ -287,6 +351,9 @@ class SustitucionViewModel(
                             cantidadLinea = lista.cantidadLinea,
                             precioOriginalCentimos = lista.precioOriginalCentimos,
                             candidatos = lista.candidatos,
+                            sinStockAlmacen = lista.candidatos.isEmpty(),
+                            avisoSinStockEnviado = it.avisoSinStockEnviado ||
+                                EstadoSustitucion.esSinStock(it.propuesta?.estado),
                             error = if (lista.candidatos.isEmpty()) {
                                 MensajesSustitucion.SIN_CANDIDATOS
                             } else {

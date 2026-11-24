@@ -129,7 +129,7 @@ class SincronizacionRepositoryTest {
         override suspend fun listarCategorias(owner: String?): Response<CategoriasResponse> =
             throw IOException("sin red")
 
-        override suspend fun listarProductos(owner: String?): Response<ProductosResponse> =
+        override suspend fun listarProductos(owner: String?, page: Int?, limit: Int?, q: String?): Response<ProductosResponse> =
             throw IOException("sin red")
 
         override suspend fun listarFranjas(owner: String?) = throw IOException("sin red")
@@ -138,19 +138,27 @@ class SincronizacionRepositoryTest {
         override suspend fun crearPedido(body: CrearPedidoRequest, owner: String?): Response<CrearPedidoResponse> =
             throw IOException("sin red")
 
-        override suspend fun listarPedidos(estado: String?, owner: String) = throw IOException("sin red")
+        override suspend fun listarPedidos(
+            estado: String?,
+            owner: String,
+            page: Int?,
+            limit: Int?,
+            q: String?,
+            filtro: String?,
+            estados: String?
+        ) = throw IOException("sin red")
         override suspend fun obtenerPedido(id: String, owner: String) = throw IOException("sin red")
         override suspend fun transicionarPedido(
             id: String,
             body: com.megamarket.cliente.data.remote.TransicionPedidoRequest,
             owner: String
         ) = throw IOException("sin red")
-        override suspend fun listarSustituciones(estado: String?, owner: String) = throw IOException("sin red")
+        override suspend fun listarSustituciones(estado: String?, owner: String, page: Int?, limit: Int?) = throw IOException("sin red")
         override suspend fun obtenerSustitucion(id: String, owner: String) = throw IOException("sin red")
         override suspend fun aceptarSustitucion(id: String, owner: String) = throw IOException("sin red")
         override suspend fun rechazarSustitucion(id: String, owner: String) = throw IOException("sin red")
         override suspend fun obtenerSaldoBilletera(owner: String) = throw IOException("sin red")
-        override suspend fun listarMovimientosBilletera(owner: String) = throw IOException("sin red")
+        override suspend fun listarMovimientosBilletera(owner: String, page: Int?, limit: Int?) = throw IOException("sin red")
         override suspend fun generarQrPago(body: GenerarQrRequest, owner: String) = throw IOException("sin red")
         override suspend fun obtenerPagoDelPedido(pedidoId: String, owner: String) = throw IOException("sin red")
         override suspend fun obtenerPago(id: String, owner: String) = throw IOException("sin red")

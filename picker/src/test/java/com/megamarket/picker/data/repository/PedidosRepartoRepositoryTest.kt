@@ -70,6 +70,24 @@ class PedidosRepartoRepositoryTest {
     }
 
     @Test
+    fun listarPorEstadoDevuelveSoloEsaCola() = runTest(io) {
+        val api = FakeApi().apply {
+            listarEntregasRespuesta = Response.success(
+                EntregasListaResponse(
+                    pedidos = listOf(item("b", "EN_CAMINO")),
+                    pagina = 1,
+                    hayMas = false,
+                    total = 1
+                )
+            )
+        }
+        val resultado = repo(api).listarPorEstado("EN_CAMINO") as ResultadoOperacion.Exito
+        assertEquals(listOf("b"), resultado.valor.pedidos.map { it.id })
+        assertFalse(resultado.valor.hayMas)
+        assertEquals("EN_CAMINO", api.ultimoEstadoListado)
+    }
+
+    @Test
     fun tomarPasaAEnCaminoSoloSiElServidorLoConfirma() = runTest(io) {
         val api = FakeApi().apply { transicionRespuesta = respuestaEnCamino() }
         val repo = repo(api)
@@ -530,7 +548,7 @@ class PedidosRepartoRepositoryTest {
 
         override suspend fun login(body: LoginRequest): Response<LoginResponse> = error("n/a")
         override suspend fun me(owner: String?): Response<MeResponse> = error("n/a")
-        override suspend fun listarPedidos(estado: String, owner: String): Response<PedidosResponse> = error("n/a")
+        override suspend fun listarPedidos(estado: String, owner: String, page: Int?, limit: Int?): Response<PedidosResponse> = error("n/a")
         override suspend fun obtenerPedido(id: String, owner: String): Response<PedidoCompletoResponse> = error("n/a")
         override suspend fun transicionarPedido(
             id: String,
@@ -542,7 +560,7 @@ class PedidosRepartoRepositoryTest {
             ultimoEstado = body.estado
             return transicionRespuesta
         }
-        override suspend fun listarPicking(owner: String): Response<PickingListaResponse> = error("n/a")
+        override suspend fun listarPicking(owner: String, page: Int?, limit: Int?): Response<PickingListaResponse> = error("n/a")
         override suspend fun obtenerPicking(id: String, owner: String): Response<PickingDetalleResponse> = error("n/a")
         override suspend fun registrarEscaneo(
             id: String,
@@ -565,9 +583,18 @@ class PedidosRepartoRepositoryTest {
             body: PropuestaSustitucionRequest,
             owner: String
         ): Response<SustitucionResponse> = error("n/a")
+
+        override suspend fun avisarSinStock(
+            id: String,
+            detalleId: String,
+            owner: String
+        ): Response<SustitucionResponse> = error("n/a")
+
         override suspend fun obtenerSustitucion(id: String, owner: String): Response<SustitucionResponse> = error("n/a")
-        override suspend fun listarEntregas(owner: String): Response<EntregasListaResponse> {
+        var ultimoEstadoListado: String? = null
+        override suspend fun listarEntregas(owner: String, estado: String?, page: Int?, limit: Int?): Response<EntregasListaResponse> {
             listados++
+            ultimoEstadoListado = estado
             if (fallarListado) throw IOException("timeout")
             return listarEntregasRespuesta
         }

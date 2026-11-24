@@ -33,7 +33,10 @@ data class BilleteraComercio(
     val saldoCentimos: Long,
     val moneda: String,
     val saldoInicialCentimos: Long?,
-    val movimientos: List<MovimientoComercio>
+    val movimientos: List<MovimientoComercio>,
+    val pagina: Int = 1,
+    val hayMas: Boolean = false,
+    val total: Int = 0
 )
 
 sealed class ResultadoBilleteraComercio {
@@ -48,15 +51,15 @@ class BilleteraComercioRepository(
     private val gson: Gson = Gson()
 ) {
 
-    suspend fun cargar(): ResultadoBilleteraComercio = withContext(io) {
+    suspend fun cargar(page: Int = 1, limit: Int = 50): ResultadoBilleteraComercio = withContext(io) {
         try {
             val saldo = api.obtenerBilleteraComercio()
             if (!saldo.isSuccessful) return@withContext ResultadoBilleteraComercio.Error(mensajeError(saldo))
-            val movimientos = api.listarMovimientosBilletera()
+            val movimientos = api.listarMovimientosBilletera(page = page, limit = limit)
             if (!movimientos.isSuccessful) {
                 return@withContext ResultadoBilleteraComercio.Error(mensajeError(movimientos))
             }
-            aDominio(saldo.body(), movimientos.body())
+            aDominio(saldo.body(), movimientos.body(), page)
                 ?: ResultadoBilleteraComercio.Error("El servidor devolvió una billetera inválida")
         } catch (error: CancellationException) {
             throw error
@@ -67,7 +70,8 @@ class BilleteraComercioRepository(
 
     private fun aDominio(
         saldo: BilleteraSaldoResponse?,
-        movimientos: BilleteraMovimientosResponse?
+        movimientos: BilleteraMovimientosResponse?,
+        page: Int
     ): ResultadoBilleteraComercio.Ok? {
         val monto = saldo?.cuenta?.saldoCentimos ?: return null
         return ResultadoBilleteraComercio.Ok(
@@ -75,7 +79,10 @@ class BilleteraComercioRepository(
                 saldoCentimos = monto,
                 moneda = saldo.cuenta.moneda?.takeIf { it.isNotBlank() } ?: "PEN",
                 saldoInicialCentimos = saldo.saldoInicialCentimos,
-                movimientos = movimientos?.movimientos.orEmpty().mapNotNull { it.aDominio() }
+                movimientos = movimientos?.movimientos.orEmpty().mapNotNull { it.aDominio() },
+                pagina = movimientos?.pagina ?: page,
+                hayMas = movimientos?.hayMas == true,
+                total = movimientos?.total ?: movimientos?.movimientos.orEmpty().size
             )
         )
     }

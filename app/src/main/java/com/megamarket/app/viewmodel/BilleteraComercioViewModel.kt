@@ -22,12 +22,46 @@ class BilleteraComercioViewModel(
         if (_estado.value.cargando) return
         _estado.update { it.copy(cargando = true, error = null) }
         viewModelScope.launch {
-            when (val resultado = repositorio.cargar()) {
+            when (val resultado = repositorio.cargar(page = 1)) {
                 is ResultadoBilleteraComercio.Ok ->
-                    _estado.update { it.copy(cargando = false, billetera = resultado.billetera, error = null) }
-                // Se conserva el último saldo conocido, pero se avisa que no se pudo refrescar.
+                    _estado.update {
+                        it.copy(
+                            cargando = false,
+                            billetera = resultado.billetera,
+                            movimientos = resultado.billetera.movimientos,
+                            pagina = resultado.billetera.pagina,
+                            hayMas = resultado.billetera.hayMas,
+                            error = null
+                        )
+                    }
                 is ResultadoBilleteraComercio.Error ->
                     _estado.update { it.copy(cargando = false, error = resultado.mensaje) }
+            }
+        }
+    }
+
+    fun cargarMas() {
+        val actual = _estado.value
+        if (!actual.hayMas || actual.cargandoMas || actual.cargando) return
+        _estado.update { it.copy(cargandoMas = true, error = null) }
+        viewModelScope.launch {
+            when (val resultado = repositorio.cargar(page = actual.pagina + 1)) {
+                is ResultadoBilleteraComercio.Ok ->
+                    _estado.update {
+                        it.copy(
+                            cargandoMas = false,
+                            billetera = resultado.billetera.copy(
+                                movimientos = (it.movimientos + resultado.billetera.movimientos)
+                                    .distinctBy { m -> m.id }
+                            ),
+                            movimientos = (it.movimientos + resultado.billetera.movimientos)
+                                .distinctBy { m -> m.id },
+                            pagina = resultado.billetera.pagina,
+                            hayMas = resultado.billetera.hayMas
+                        )
+                    }
+                is ResultadoBilleteraComercio.Error ->
+                    _estado.update { it.copy(cargandoMas = false, error = resultado.mensaje) }
             }
         }
     }

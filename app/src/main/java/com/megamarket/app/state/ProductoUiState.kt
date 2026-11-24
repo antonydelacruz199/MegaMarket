@@ -3,11 +3,14 @@ package com.megamarket.app.state
 import com.megamarket.app.model.FiltroProducto
 import com.megamarket.modelo.Producto
 
+const val TAMANO_PAGINA_ADMIN = 20
+
 data class ProductoUiState(
     val cargando: Boolean = false,
     val productos: List<Producto> = emptyList(),
     val consulta: String = "",
     val filtro: FiltroProducto = FiltroProducto.TODOS,
+    val limiteVisible: Int = TAMANO_PAGINA_ADMIN,
     val error: String? = null
 ) {
     val totalProductos: Int
@@ -25,7 +28,7 @@ data class ProductoUiState(
     val agotados: Int
         get() = productos.count { it.agotado }
 
-    val visibles: List<Producto>
+    val filtrados: List<Producto>
         get() {
             val texto = consulta.trim()
             return productos.filter { producto ->
@@ -35,4 +38,10 @@ data class ProductoUiState(
                 coincideTexto && filtro.admite(producto)
             }
         }
+
+    val visibles: List<Producto>
+        get() = filtrados.take(limiteVisible)
+
+    val hayMas: Boolean
+        get() = filtrados.size > limiteVisible
 }

@@ -18,8 +18,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -56,11 +56,12 @@ fun PantallaSustituciones(
     val estado by viewModel.estado.collectAsStateWithLifecycle()
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    DisposableEffect(lifecycleOwner, estado.pendientes) {
+    DisposableEffect(lifecycleOwner) {
         val observador = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> {
-                    if (estado.pendientes > 0) viewModel.iniciarSeguimiento()
+                    viewModel.cargar()
+                    viewModel.iniciarSeguimiento()
                 }
                 Lifecycle.Event.ON_STOP -> viewModel.detenerSeguimiento()
                 else -> Unit
@@ -138,16 +139,11 @@ fun PantallaSustituciones(
                     contentPadding = PaddingValues(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    if (estado.actualizando) {
-                        item {
-                            LinearProgressIndicator(Modifier.fillMaxWidth())
-                        }
-                    }
                     if (estado.pendientes > 0) {
                         item {
                             Text(
                                 text = stringResource(
-                                    R.string.sustituciones_pendientes_count,
+                                    R.string.sustituciones_atencion_count,
                                     estado.pendientes
                                 ),
                                 style = MaterialTheme.typography.titleMedium,
@@ -169,6 +165,25 @@ fun PantallaSustituciones(
                             alAbrir = { alAbrirDetalle(propuesta.id) }
                         )
                         HorizontalDivider()
+                    }
+                    if (estado.hayMas) {
+                        item {
+                            if (estado.cargandoMas) {
+                                Row(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(12.dp),
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    CircularProgressIndicator()
+                                }
+                            } else {
+                                OutlinedButton(
+                                    onClick = viewModel::cargarMas,
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text("Cargar más") }
+                            }
+                        }
                     }
                 }
             }
@@ -197,28 +212,38 @@ private fun TarjetaPropuestaLista(
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = textoEstadoSustitucion(propuesta.estado),
-                color = if (EstadoSustitucion.esPendiente(propuesta.estado)) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.onSurfaceVariant
+                color = when {
+                    propuesta.esAvisoSinStock -> MaterialTheme.colorScheme.error
+                    EstadoSustitucion.esPendiente(propuesta.estado) ->
+                        MaterialTheme.colorScheme.primary
+                    else -> MaterialTheme.colorScheme.onSurfaceVariant
                 },
                 fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = stringResource(
-                    R.string.sustitucion_resumen,
-                    propuesta.nombreOriginal,
-                    propuesta.nombreSustituto
-                ),
+                text = if (propuesta.esAvisoSinStock) {
+                    stringResource(
+                        R.string.sustitucion_sin_stock_resumen,
+                        propuesta.nombreOriginal
+                    )
+                } else {
+                    stringResource(
+                        R.string.sustitucion_resumen,
+                        propuesta.nombreOriginal,
+                        propuesta.nombreSustituto
+                    )
+                },
                 style = MaterialTheme.typography.bodyMedium
             )
-            Text(
-                text = stringResource(
-                    R.string.sustitucion_importe_pagaras,
-                    propuesta.importeClienteCentimos.formatearSoles()
-                ),
-                style = MaterialTheme.typography.bodySmall
-            )
+            if (!propuesta.esAvisoSinStock) {
+                Text(
+                    text = stringResource(
+                        R.string.sustitucion_importe_pagaras,
+                        propuesta.importeClienteCentimos.formatearSoles()
+                    ),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
             propuesta.pedidoId?.let {
                 Text(
                     text = stringResource(R.string.sustitucion_pedido_remoto, it.take(8)),

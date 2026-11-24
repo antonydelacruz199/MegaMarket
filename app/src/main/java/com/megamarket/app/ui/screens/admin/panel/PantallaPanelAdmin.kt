@@ -1,6 +1,7 @@
 package com.megamarket.app.ui.screens.admin.panel
 
 import android.graphics.Bitmap
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -18,11 +19,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.RemoveShoppingCart
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -50,21 +51,17 @@ import com.megamarket.modelo.SolicitudImagenProducto
 import com.megamarket.app.ui.theme.MegaContenedorAdvertencia
 import com.megamarket.app.ui.theme.MegaContenedorError
 import com.megamarket.app.ui.theme.MegaError
-import com.megamarket.app.ui.components.PanelSincronizacion
 import com.megamarket.app.viewmodel.ProductoViewModel
-import com.megamarket.app.viewmodel.SincronizacionViewModel
 import com.megamarket.modelo.Producto
 import com.megamarket.modelo.formatearSoles
 
 @Composable
 fun PantallaPanelAdmin(
     viewModel: ProductoViewModel,
-    sincronizacionViewModel: SincronizacionViewModel,
     alNavegar: (String) -> Unit,
     alCerrarSesion: () -> Unit
 ) {
     val estado by viewModel.estado.collectAsStateWithLifecycle()
-    val syncEstado by sincronizacionViewModel.estado.collectAsStateWithLifecycle()
     LifecycleResumeEffect(Unit) {
         viewModel.cargarProductos()
         onPauseOrDispose { }
@@ -104,7 +101,7 @@ fun PantallaPanelAdmin(
                 TarjetaResumenAdmin(
                     titulo = "Productos",
                     valor = estado.totalProductos.toString(),
-                    icono = Icons.Default.List,
+                    icono = Icons.Default.Inventory2,
                     colorContenedor = MaterialTheme.colorScheme.primaryContainer,
                     colorAcento = MaterialTheme.colorScheme.primary,
                     modifier = Modifier.weight(1f)
@@ -112,7 +109,7 @@ fun PantallaPanelAdmin(
                 TarjetaResumenAdmin(
                     titulo = "Ofertas activas",
                     valor = estado.ofertasActivas.toString(),
-                    icono = Icons.Default.Star,
+                    icono = Icons.Default.LocalOffer,
                     colorContenedor = MaterialTheme.colorScheme.secondaryContainer,
                     colorAcento = MaterialTheme.colorScheme.secondary,
                     modifier = Modifier.weight(1f)
@@ -134,17 +131,12 @@ fun PantallaPanelAdmin(
                 TarjetaResumenAdmin(
                     titulo = "Agotados",
                     valor = estado.agotados.toString(),
-                    icono = Icons.Default.Delete,
+                    icono = Icons.Default.RemoveShoppingCart,
                     colorContenedor = MegaContenedorError,
                     colorAcento = MegaError,
                     modifier = Modifier.weight(1f)
                 )
             }
-            Spacer(modifier = Modifier.height(16.dp))
-            PanelSincronizacion(
-                estado = syncEstado,
-                alSincronizar = sincronizacionViewModel::sincronizarPendientes
-            )
             Spacer(modifier = Modifier.height(20.dp))
             EncabezadoSeccion(
                 titulo = "Productos con stock bajo",
@@ -186,9 +178,10 @@ private fun TarjetaStockBajo(
     Card(
         onClick = alPulsar,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Row(
             modifier = Modifier
@@ -258,7 +251,7 @@ private fun TarjetaStockBajo(
 private fun TarjetaInventarioEstable() {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer
         ),
@@ -300,7 +293,7 @@ private fun TarjetaAccionRapida(
     Card(
         onClick = alPulsar,
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = MaterialTheme.shapes.medium,
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
@@ -325,7 +318,7 @@ private fun TarjetaAccionRapida(
                 )
             }
             Icon(
-                imageVector = Icons.Default.ArrowForward,
+                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onPrimary
             )

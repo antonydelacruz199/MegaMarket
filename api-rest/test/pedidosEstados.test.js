@@ -105,7 +105,7 @@ test('ONLINE CONFIRMADO no pasa a LISTO sin cobro', () => {
   assert.equal(r.codigo, 'LISTO_REQUIERE_PAGO');
 });
 
-test('cliente cancela RECIBIDO/EN_PICKING/CONFIRMADO; no en ruta', () => {
+test('cliente cancela RECIBIDO/EN_PICKING; no tras CONFIRMADO ni en ruta', () => {
   const okRecibido = evaluarTransicion({
     desde: 'RECIBIDO',
     hacia: 'CANCELADO',
@@ -116,6 +116,29 @@ test('cliente cancela RECIBIDO/EN_PICKING/CONFIRMADO; no en ruta', () => {
     origenInternoBancario: false
   });
   assert.equal(okRecibido.ok, true);
+
+  const okPicking = evaluarTransicion({
+    desde: 'EN_PICKING',
+    hacia: 'CANCELADO',
+    rol: 'CLIENTE',
+    usuarioId: 'cli',
+    pedido: { ...pedidoBase, estado: 'EN_PICKING' },
+    pago: { modalidad: 'ONLINE', estado: 'PENDIENTE' },
+    origenInternoBancario: false
+  });
+  assert.equal(okPicking.ok, true);
+
+  const confirmado = evaluarTransicion({
+    desde: 'CONFIRMADO',
+    hacia: 'CANCELADO',
+    rol: 'CLIENTE',
+    usuarioId: 'cli',
+    pedido: { ...pedidoBase, estado: 'CONFIRMADO' },
+    pago: { modalidad: 'ONLINE', estado: 'PENDIENTE' },
+    origenInternoBancario: false
+  });
+  assert.equal(confirmado.ok, false);
+  assert.equal(confirmado.codigo, 'CANCELACION_NO_PERMITIDA');
 
   const enCamino = evaluarTransicion({
     desde: 'EN_CAMINO',
@@ -148,7 +171,7 @@ test('pago confirmado bloquea cancelación sin devolución', () => {
   assert.equal(conPago.ok, false);
   assert.equal(conPago.codigo, 'CANCELACION_REQUIERE_DEVOLUCION');
 
-  const conDevolucion = evaluarTransicion({
+  const clientePagado = evaluarTransicion({
     desde: 'PAGADO',
     hacia: 'CANCELADO',
     rol: 'CLIENTE',
@@ -163,7 +186,25 @@ test('pago confirmado bloquea cancelación sin devolución', () => {
     origenInternoBancario: false,
     devolucionLiquidada: true
   });
-  assert.equal(conDevolucion.ok, true);
+  assert.equal(clientePagado.ok, false);
+  assert.equal(clientePagado.codigo, 'CANCELACION_NO_PERMITIDA');
+
+  const adminConDevolucion = evaluarTransicion({
+    desde: 'PAGADO',
+    hacia: 'CANCELADO',
+    rol: 'ADMINISTRADOR',
+    usuarioId: 'adm',
+    pedido: { ...pedidoBase, estado: 'PAGADO' },
+    pago: {
+      modalidad: 'ONLINE',
+      estado: 'CONFIRMADO',
+      numero_operacion_banco: 'OP-9',
+      fecha_confirmacion: new Date().toISOString()
+    },
+    origenInternoBancario: false,
+    devolucionLiquidada: true
+  });
+  assert.equal(adminConDevolucion.ok, true);
 });
 
 test('confirmar cobro no puede retroceder EN_CAMINO/LISTO a PAGADO', () => {

@@ -47,33 +47,110 @@ class PedidosPickerRepository(
     private val gson = Gson()
 
     suspend fun cargarTablero(): ResultadoOperacion<TableroPicker> = withContext(io) {
-        val owner = almacen.usuarioActivoId()
-            ?: return@withContext sesionVencida()
-        try {
-            val recibidos = listarEstado("RECIBIDO", owner)
-            if (recibidos is ResultadoOperacion.Error) return@withContext recibidos
-            // Legado: pedidos creados como CONFIRMADO/PAGADO antes del flujo RECIBIDO.
-            val confirmados = listarEstado("CONFIRMADO", owner)
-            if (confirmados is ResultadoOperacion.Error) return@withContext confirmados
-            val pagados = listarEstado("PAGADO", owner)
-            if (pagados is ResultadoOperacion.Error) return@withContext pagados
-            val picking = listarAsignados(owner)
-            if (picking is ResultadoOperacion.Error) return@withContext picking
+        val disponibles = cargarDisponibles(page = 1, limit = 100)
+        if (disponibles is ResultadoOperacion.Error) return@withContext disponibles
+        val asignados = cargarAsignados(page = 1, limit = 100)
+        if (asignados is ResultadoOperacion.Error) return@withContext asignados
+        val despachables = cargarDespachables(page = 1, limit = 100)
+        if (despachables is ResultadoOperacion.Error) return@withContext despachables
+        ResultadoOperacion.Exito(
+            TableroPicker(
+                disponibles = (disponibles as ResultadoOperacion.Exito).valor.items,
+                asignados = (asignados as ResultadoOperacion.Exito).valor.items,
+                despachables = (despachables as ResultadoOperacion.Exito).valor.items
+            )
+        )
+    }
 
+    data class PaginaDisponibles(
+        val items: List<PedidoDisponible>,
+        val pagina: Int,
+        val hayMas: Boolean
+    )
+
+    data class PaginaAsignados(
+        val items: List<PedidoAsignado>,
+        val pagina: Int,
+        val hayMas: Boolean
+    )
+
+    data class PaginaDespacho(
+        val items: List<PedidoDespacho>,
+        val pagina: Int,
+        val hayMas: Boolean
+    )
+
+    /** Solo pedidos que se pueden tomar (sin consulta de picking ni despacho). */
+    suspend fun cargarDisponibles(
+        page: Int = 1,
+        limit: Int = 20
+    ): ResultadoOperacion<PaginaDisponibles> = withContext(io) {
+        val owner = almacen.usuarioActivoId() ?: return@withContext sesionVencida()
+        try {
+            val recibidos = listarEstado("RECIBIDO", owner, page, limit)
+            if (recibidos is ResultadoOperacion.Error) return@withContext recibidos
+            val confirmados = listarEstado("CONFIRMADO", owner, page, limit)
+            if (confirmados is ResultadoOperacion.Error) return@withContext confirmados
             val candidatos = ((recibidos as ResultadoOperacion.Exito).valor +
-                (confirmados as ResultadoOperacion.Exito).valor +
+                (confirmados as ResultadoOperacion.Exito).valor)
+                .filter { perteneceAlPicker(it.pickerId, owner) }
+                .distinctBy { it.id }
+            val clasificados = clasificarCandidatos(candidatos, owner)
+            if (clasificados is ResultadoOperacion.Error) return@withContext clasificados
+            val items = (clasificados as ResultadoOperacion.Exito).valor.disponibles
+                .sortedWith(compareBy(nullsLast()) { it.fecha })
+            ResultadoOperacion.Exito(
+                PaginaDisponibles(
+                    items = items,
+                    pagina = page,
+                    hayMas = (recibidos.valor.size + confirmados.valor.size) >= limit
+                )
+            )
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: IOException) {
+            falloRed(error)
+        }
+    }
+
+    suspend fun cargarAsignados(
+        page: Int = 1,
+        limit: Int = 20
+    ): ResultadoOperacion<PaginaAsignados> = withContext(io) {
+        val owner = almacen.usuarioActivoId() ?: return@withContext sesionVencida()
+        try {
+            listarAsignados(owner, page, limit)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: IOException) {
+            falloRed(error)
+        }
+    }
+
+    /** Solo pedidos listos para mandar a delivery. */
+    suspend fun cargarDespachables(
+        page: Int = 1,
+        limit: Int = 20
+    ): ResultadoOperacion<PaginaDespacho> = withContext(io) {
+        val owner = almacen.usuarioActivoId() ?: return@withContext sesionVencida()
+        try {
+            val confirmados = listarEstado("CONFIRMADO", owner, page, limit)
+            if (confirmados is ResultadoOperacion.Error) return@withContext confirmados
+            val pagados = listarEstado("PAGADO", owner, page, limit)
+            if (pagados is ResultadoOperacion.Error) return@withContext pagados
+            val candidatos = ((confirmados as ResultadoOperacion.Exito).valor +
                 (pagados as ResultadoOperacion.Exito).valor)
                 .filter { perteneceAlPicker(it.pickerId, owner) }
                 .distinctBy { it.id }
-
-            val disponibles = evaluarDisponibles(candidatos, owner)
-            if (disponibles is ResultadoOperacion.Error) return@withContext disponibles
-
+            val clasificados = clasificarCandidatos(candidatos, owner)
+            if (clasificados is ResultadoOperacion.Error) return@withContext clasificados
+            val items = (clasificados as ResultadoOperacion.Exito).valor.despachables
+                .sortedWith(compareBy(nullsLast()) { it.fecha })
             ResultadoOperacion.Exito(
-                TableroPicker(
-                    disponibles = (disponibles as ResultadoOperacion.Exito).valor
-                        .sortedWith(compareBy(nullsLast()) { it.fecha }),
-                    asignados = (picking as ResultadoOperacion.Exito).valor
+                PaginaDespacho(
+                    items = items,
+                    pagina = page,
+                    hayMas = (confirmados.valor.size + pagados.valor.size) >= limit
                 )
             )
         } catch (error: CancellationException) {
@@ -144,6 +221,33 @@ class PedidosPickerRepository(
             // Solo tras confirmación del servidor: retirar de la cola local activa.
             lineaDao.eliminarDePedido(pedidoId, owner)
             pedidoDao.eliminar(pedidoId, owner)
+            ResultadoOperacion.Exito(pedidoId)
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: IOException) {
+            falloRed(error)
+        }
+    }
+
+    /** Pasa CONFIRMADO/PAGADO → LISTO (Mandar a Delivery). */
+    suspend fun mandarADelivery(pedidoId: String): ResultadoOperacion<String> = withContext(io) {
+        val owner = almacen.usuarioActivoId()
+            ?: return@withContext sesionVencida()
+        try {
+            val respuesta = api.transicionarPedido(
+                id = pedidoId,
+                body = TransicionPedidoRequest(estado = "LISTO"),
+                owner = owner
+            )
+            if (!respuesta.isSuccessful) return@withContext fallo(respuesta)
+            val estado = respuesta.body()?.pedido?.estado?.trim().orEmpty()
+            if (!estado.equals("LISTO", ignoreCase = true)) {
+                return@withContext ResultadoOperacion.Error(
+                    TipoErrorPedido.SERVIDOR,
+                    "El servidor no confirmó el despacho a LISTO",
+                    "ESTADO_NO_LISTO"
+                )
+            }
             ResultadoOperacion.Exito(pedidoId)
         } catch (error: CancellationException) {
             throw error
@@ -558,58 +662,117 @@ class PedidosPickerRepository(
         )
     }
 
-    private suspend fun evaluarDisponibles(
+    private data class CandidatosClasificados(
+        val disponibles: List<PedidoDisponible>,
+        val despachables: List<PedidoDespacho>
+    )
+
+    private suspend fun clasificarCandidatos(
         candidatos: List<PedidoListaDto>,
         owner: String
-    ): ResultadoOperacion<List<PedidoDisponible>> = coroutineScope {
+    ): ResultadoOperacion<CandidatosClasificados> = coroutineScope {
         val resultados = candidatos.map { pedido ->
-            async {
-                when (pedido.estado) {
-                    "RECIBIDO" -> ResultadoOperacion.Exito(pedido.aDisponible(modalidad = null))
-                    "PAGADO" -> ResultadoOperacion.Exito(pedido.aDisponible(modalidad = null))
-                    "CONFIRMADO" -> consultarConfirmado(pedido, owner)
-                    else -> ResultadoOperacion.Exito(null)
-                }
-            }
+            async { clasificarCandidato(pedido, owner) }
         }.awaitAll()
         val error = resultados.firstOrNull { it is ResultadoOperacion.Error } as? ResultadoOperacion.Error
         if (error != null) return@coroutineScope error
+        val ok = resultados.mapNotNull { (it as ResultadoOperacion.Exito).valor }
         ResultadoOperacion.Exito(
-            resultados.mapNotNull { (it as ResultadoOperacion.Exito).valor }
+            CandidatosClasificados(
+                disponibles = ok.mapNotNull { it.disponible },
+                despachables = ok.mapNotNull { it.despacho }
+            )
         )
     }
 
-    private suspend fun consultarConfirmado(
+    private data class ClasificacionPedido(
+        val disponible: PedidoDisponible? = null,
+        val despacho: PedidoDespacho? = null
+    )
+
+    private suspend fun clasificarCandidato(
         pedido: PedidoListaDto,
         owner: String
-    ): ResultadoOperacion<PedidoDisponible?> {
-        val id = pedido.id ?: return ResultadoOperacion.Exito(null)
+    ): ResultadoOperacion<ClasificacionPedido> {
+        when (pedido.estado) {
+            "RECIBIDO" -> return ResultadoOperacion.Exito(
+                ClasificacionPedido(disponible = pedido.aDisponible(modalidad = null))
+            )
+            "PAGADO" -> {
+                val disp = pedido.aDisponible(modalidad = "ONLINE") ?: return ResultadoOperacion.Exito(
+                    ClasificacionPedido()
+                )
+                return ResultadoOperacion.Exito(
+                    ClasificacionPedido(
+                        despacho = PedidoDespacho(
+                            id = disp.id,
+                            estado = disp.estado,
+                            totalCentimos = disp.totalCentimos,
+                            fecha = disp.fecha,
+                            modalidad = disp.modalidad
+                        )
+                    )
+                )
+            }
+            "CONFIRMADO" -> return consultarConfirmadoClasificado(pedido, owner)
+            else -> return ResultadoOperacion.Exito(ClasificacionPedido())
+        }
+    }
+
+    private suspend fun consultarConfirmadoClasificado(
+        pedido: PedidoListaDto,
+        owner: String
+    ): ResultadoOperacion<ClasificacionPedido> {
+        val id = pedido.id ?: return ResultadoOperacion.Exito(ClasificacionPedido())
         val respuesta = api.obtenerPedido(id, owner)
         if (respuesta.code() == 403 || respuesta.code() == 404) {
-            return ResultadoOperacion.Exito(null)
+            return ResultadoOperacion.Exito(ClasificacionPedido())
         }
         if (!respuesta.isSuccessful) return fallo(respuesta)
         val pago = respuesta.body()?.pago
         val consulta = if (pago == null) null else PagoDtoConsulta(pago.modalidad)
-        if (!puedePasarAEnPicking("CONFIRMADO", consulta)) {
-            return ResultadoOperacion.Exito(null)
+        val disp = pedido.aDisponible(consulta?.modalidad) ?: return ResultadoOperacion.Exito(
+            ClasificacionPedido()
+        )
+        return when {
+            puedeMandarADelivery("CONFIRMADO", consulta) -> ResultadoOperacion.Exito(
+                ClasificacionPedido(
+                    despacho = PedidoDespacho(
+                        id = disp.id,
+                        estado = disp.estado,
+                        totalCentimos = disp.totalCentimos,
+                        fecha = disp.fecha,
+                        modalidad = disp.modalidad
+                    )
+                )
+            )
+            puedePasarAEnPicking("CONFIRMADO", consulta) -> ResultadoOperacion.Exito(
+                ClasificacionPedido(disponible = disp)
+            )
+            else -> ResultadoOperacion.Exito(ClasificacionPedido())
         }
-        return ResultadoOperacion.Exito(pedido.aDisponible(consulta?.modalidad))
     }
 
     private suspend fun listarEstado(
         estado: String,
-        owner: String
+        owner: String,
+        page: Int = 1,
+        limit: Int = 20
     ): ResultadoOperacion<List<PedidoListaDto>> {
-        val respuesta = api.listarPedidos(estado, owner)
+        val respuesta = api.listarPedidos(estado, owner, page = page, limit = limit)
         if (!respuesta.isSuccessful) return fallo(respuesta)
         return ResultadoOperacion.Exito(respuesta.body()?.pedidos.orEmpty())
     }
 
-    private suspend fun listarAsignados(owner: String): ResultadoOperacion<List<PedidoAsignado>> {
-        val respuesta = api.listarPicking(owner)
+    private suspend fun listarAsignados(
+        owner: String,
+        page: Int = 1,
+        limit: Int = 20
+    ): ResultadoOperacion<PaginaAsignados> {
+        val respuesta = api.listarPicking(owner, page = page, limit = limit)
         if (!respuesta.isSuccessful) return fallo(respuesta)
-        val asignados = respuesta.body()?.pedidos.orEmpty().mapNotNull { item ->
+        val cuerpo = respuesta.body()
+        val asignados = cuerpo?.pedidos.orEmpty().mapNotNull { item ->
             val pedido = item.pedido ?: return@mapNotNull null
             val id = pedido.id?.trim().orEmpty()
             if (id.isEmpty()) return@mapNotNull null
@@ -620,7 +783,13 @@ class PedidosPickerRepository(
                 cantidadLineas = item.detalles?.size ?: 0
             )
         }
-        return ResultadoOperacion.Exito(asignados)
+        return ResultadoOperacion.Exito(
+            PaginaAsignados(
+                items = asignados,
+                pagina = cuerpo?.pagina ?: page,
+                hayMas = cuerpo?.hayMas == true
+            )
+        )
     }
 
     private fun <T> fallo(response: Response<*>): ResultadoOperacion<T> {

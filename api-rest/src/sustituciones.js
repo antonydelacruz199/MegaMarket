@@ -29,6 +29,18 @@ function diferenciaPrecioDentroDeTolerancia(precioOriginal, precioSustituto) {
   return Math.abs(sust - orig) / orig <= TOLERANCIA_PRECIO + Number.EPSILON;
 }
 
+/**
+ * Unidades aún no armadas de la línea (lo que falta sustituir o informar).
+ * No incluye escaneos ya confirmados del producto original.
+ */
+function cantidadFaltanteDetalle(detalle) {
+  const solicitada = Number(detalle?.cantidad);
+  const armada = Number(detalle?.cantidad_armada || 0);
+  if (!Number.isFinite(solicitada) || solicitada <= 0) return 0;
+  const armadaSegura = Number.isFinite(armada) && armada > 0 ? armada : 0;
+  return Math.max(0, solicitada - armadaSegura);
+}
+
 function montoAjusteCentimos(precioOriginal, precioSustituto, cantidad) {
   const diffUnit = Number(precioSustituto) - Number(precioOriginal);
   const monto = Math.abs(diffUnit) * Number(cantidad);
@@ -214,6 +226,7 @@ module.exports = {
   TOLERANCIA_PRECIO,
   precioVigente,
   diferenciaPrecioDentroDeTolerancia,
+  cantidadFaltanteDetalle,
   montoAjusteCentimos,
   mapearSustitucion,
   mapearCandidato,

@@ -30,7 +30,7 @@ class CheckoutViewModelTest {
             franjas = listOf(
                 com.megamarket.cliente.model.FranjaEntrega(
                     id = "f1",
-                    fechaIso = "2026-11-18",
+                    fechaIso = "2099-06-15",
                     horaInicio = "10:00:00",
                     horaFin = "12:00:00",
                     capacidad = 20,

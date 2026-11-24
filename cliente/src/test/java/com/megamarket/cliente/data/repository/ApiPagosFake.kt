@@ -128,20 +128,27 @@ internal class ApiPagosFake : ApiService {
 
     override suspend fun obtenerSaldoBilletera(owner: String): Response<BilleteraSaldoResponse> = saldo
 
-    override suspend fun listarMovimientosBilletera(owner: String): Response<BilleteraMovimientosResponse> =
+    override suspend fun listarMovimientosBilletera(owner: String, page: Int?, limit: Int?): Response<BilleteraMovimientosResponse> =
         movimientos
 
     override suspend fun reservarCarrito(id: String, body: ReservaRequest, owner: String): Response<ReservaResponse> =
         error("n/a")
     override suspend fun login(body: LoginRequest): Response<LoginResponse> = error("n/a")
     override suspend fun listarCategorias(owner: String?): Response<CategoriasResponse> = error("n/a")
-    override suspend fun listarProductos(owner: String?): Response<ProductosResponse> = error("n/a")
+    override suspend fun listarProductos(owner: String?, page: Int?, limit: Int?, q: String?): Response<ProductosResponse> = error("n/a")
     override suspend fun listarFranjas(owner: String?) = error("n/a")
     override suspend fun obtenerFranja(id: String, owner: String?) = error("n/a")
     override suspend fun crearPedido(body: CrearPedidoRequest, owner: String?): Response<CrearPedidoResponse> =
         error("n/a")
-    override suspend fun listarPedidos(estado: String?, owner: String): Response<ListaPedidosResponse> =
-        error("n/a")
+    override suspend fun listarPedidos(
+        estado: String?,
+        owner: String,
+        page: Int?,
+        limit: Int?,
+        q: String?,
+        filtro: String?,
+        estados: String?
+    ): Response<ListaPedidosResponse> = error("n/a")
     override suspend fun obtenerPedido(id: String, owner: String): Response<PedidoCompletoResponse> =
         error("n/a")
     override suspend fun transicionarPedido(
@@ -149,7 +156,7 @@ internal class ApiPagosFake : ApiService {
         body: com.megamarket.cliente.data.remote.TransicionPedidoRequest,
         owner: String
     ): Response<PedidoCompletoResponse> = error("n/a")
-    override suspend fun listarSustituciones(estado: String?, owner: String): Response<ListaSustitucionesResponse> =
+    override suspend fun listarSustituciones(estado: String?, owner: String, page: Int?, limit: Int?): Response<ListaSustitucionesResponse> =
         error("n/a")
     override suspend fun obtenerSustitucion(id: String, owner: String): Response<SustitucionDecisionResponse> =
         error("n/a")

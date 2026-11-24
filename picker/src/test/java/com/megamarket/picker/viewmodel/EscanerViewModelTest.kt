@@ -327,14 +327,14 @@ class EscanerViewModelTest {
 
         override suspend fun login(body: LoginRequest): Response<LoginResponse> = error()
         override suspend fun me(owner: String?): Response<MeResponse> = error()
-        override suspend fun listarPedidos(estado: String, owner: String): Response<PedidosResponse> = error()
+        override suspend fun listarPedidos(estado: String, owner: String, page: Int?, limit: Int?): Response<PedidosResponse> = error()
         override suspend fun obtenerPedido(id: String, owner: String): Response<PedidoCompletoResponse> = error()
         override suspend fun transicionarPedido(
             id: String,
             body: TransicionPedidoRequest,
             owner: String
         ): Response<PedidoCompletoResponse> = error()
-        override suspend fun listarPicking(owner: String): Response<PickingListaResponse> = error()
+        override suspend fun listarPicking(owner: String, page: Int?, limit: Int?): Response<PickingListaResponse> = error()
         override suspend fun listarSustitutos(
             id: String,
             detalleId: String,
@@ -346,7 +346,14 @@ class EscanerViewModelTest {
             body: com.megamarket.picker.data.remote.PropuestaSustitucionRequest,
             owner: String
         ) = error<com.megamarket.picker.data.remote.SustitucionResponse>()
-        override suspend fun listarEntregas(owner: String) =
+
+        override suspend fun avisarSinStock(
+            id: String,
+            detalleId: String,
+            owner: String
+        ) = error<com.megamarket.picker.data.remote.SustitucionResponse>()
+
+        override suspend fun listarEntregas(owner: String, estado: String?, page: Int?, limit: Int?) =
             throw UnsupportedOperationException("no usado")
 
         override suspend fun obtenerEntrega(

@@ -21,7 +21,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -117,18 +116,14 @@ private fun ContenidoPago(
 ) {
     val pago = checkNotNull(estado.pago)
     val qr = estado.qr
-    Column(modifier = modifier.fillMaxSize()) {
-        if (estado.cargando || estado.confirmando || estado.consultandoEstado || estado.generandoQr) {
-            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-        }
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
             Text(
                 text = pago.montoCentimos.formatearSoles(),
                 style = MaterialTheme.typography.headlineMedium,
@@ -176,14 +171,13 @@ private fun ContenidoPago(
                 )
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
-            Button(
-                onClick = alPagar,
-                enabled = !estado.confirmando && !estado.cargando && !estado.confirmado,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(if (estado.confirmando) "Confirmando…" else "Realizar pago")
-            }
+        Spacer(modifier = Modifier.height(8.dp))
+        Button(
+            onClick = alPagar,
+            enabled = !estado.confirmando && !estado.cargando && !estado.confirmado,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(if (estado.confirmando) "Confirmando…" else "Realizar pago")
         }
     }
 }

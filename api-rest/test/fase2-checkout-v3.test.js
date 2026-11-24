@@ -83,7 +83,7 @@ async function semillaBasica(pool) {
   );
   const { rows: [franja] } = await pool.query(
     `INSERT INTO franjas_entrega(fecha, hora_inicio, hora_fin, capacidad, activo)
-     VALUES (CURRENT_DATE, '10:00', '12:00', 2, true) RETURNING id`
+     VALUES (CURRENT_DATE + 1, '10:00', '12:00', 2, true) RETURNING id`
   );
   return { cliente, producto, franja };
 }
@@ -197,7 +197,7 @@ test('PostgreSQL v3 franja llena, modalidad inválida, precio y stock', { skip }
 
     const { rows: [franja2] } = await pool.query(
       `INSERT INTO franjas_entrega(fecha, hora_inicio, hora_fin, capacidad, activo)
-       VALUES (CURRENT_DATE, '16:00', '18:00', 5, true) RETURNING id`
+       VALUES (CURRENT_DATE + 1, '16:00', '18:00', 5, true) RETURNING id`
     );
     const cart2 = crypto.randomUUID();
     await pool.query(`INSERT INTO carritos(id,usuario_id) VALUES($1,$2)`, [cart2, cliente.id]);
@@ -268,7 +268,7 @@ test('PostgreSQL v3 idempotencia y concurrencia del último cupo', { skip }, asy
     // Liberar cupo cancelando el primero para probar concurrencia limpia en franja nueva
     const { rows: [franja2] } = await pool.query(
       `INSERT INTO franjas_entrega(fecha, hora_inicio, hora_fin, capacidad, activo)
-       VALUES (CURRENT_DATE, '18:00', '20:00', 1, true) RETURNING id`
+       VALUES (CURRENT_DATE + 1, '18:00', '20:00', 1, true) RETURNING id`
     );
     await pool.query(`UPDATE productos SET stock=5 WHERE id=$1`, [producto.id]);
 

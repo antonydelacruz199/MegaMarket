@@ -1,4 +1,5 @@
 const pool = require('../database');
+const { paginar, metaPaginacion } = require('../paginacion');
 const { esClaveLocal, imagenKeyProductoAceptable } = require('../storage/keys');
 const {
   textoAlmacenado,
@@ -137,14 +138,49 @@ function validarCamposCreacion(body) {
 }
 
 async function listar(req, res) {
- try {
- const result = await pool.query(`SELECT p.*,
- p.stock - COALESCE((SELECT SUM(r.cantidad) FROM reservas_carrito r WHERE r.producto_id=p.id),0) AS disponible,
- COALESCE((SELECT json_agg(json_build_object('carritoId',r.carrito_id,'cantidad',r.cantidad))
- FROM reservas_carrito r JOIN carritos c ON c.id=r.carrito_id WHERE r.producto_id=p.id AND c.usuario_id=$1),'[]'::json) AS reservas
- FROM productos p WHERE p.deleted_at IS NULL AND ($2::boolean OR p.activo=true) ORDER BY p.nombre`,[req.usuario.id,req.usuario.rol==='ADMINISTRADOR']);
- return res.json({productos:result.rows.map(row=>mapearProducto(req.usuario.rol==='ADMINISTRADOR'?{...row,disponible:row.stock}:row))});
- }catch(e){console.error(e.message);return res.status(500).json({error:'No se pudieron obtener los productos'});}
+  try {
+    const { page, limit, offset } = paginar(req);
+    const esAdmin = req.usuario.rol === 'ADMINISTRADOR';
+    const params = [req.usuario.id, esAdmin];
+    let where = 'p.deleted_at IS NULL AND ($2::boolean OR p.activo = true)';
+    const q = String(req.query.q || '').trim();
+    if (q) {
+      params.push(`%${q}%`);
+      where += ` AND (p.nombre ILIKE $${params.length} OR COALESCE(p.marca, '') ILIKE $${params.length})`;
+    }
+
+    const { rows: countRows } = await pool.query(
+      `SELECT COUNT(*)::int AS total FROM productos p WHERE ${where}`,
+      params
+    );
+    const total = countRows[0]?.total ?? 0;
+
+    const listParams = [...params, limit, offset];
+    const result = await pool.query(
+      `SELECT p.*,
+              p.stock - COALESCE((SELECT SUM(r.cantidad) FROM reservas_carrito r WHERE r.producto_id = p.id), 0) AS disponible,
+              COALESCE((
+                SELECT json_agg(json_build_object('carritoId', r.carrito_id, 'cantidad', r.cantidad))
+                FROM reservas_carrito r
+                JOIN carritos c ON c.id = r.carrito_id
+                WHERE r.producto_id = p.id AND c.usuario_id = $1
+              ), '[]'::json) AS reservas
+       FROM productos p
+       WHERE ${where}
+       ORDER BY p.nombre
+       LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
+      listParams
+    );
+    return res.json({
+      productos: result.rows.map((row) =>
+        mapearProducto(esAdmin ? { ...row, disponible: row.stock } : row)
+      ),
+      ...metaPaginacion(total, { page, limit })
+    });
+  } catch (e) {
+    console.error(e.message);
+    return res.status(500).json({ error: 'No se pudieron obtener los productos' });
+  }
 }
 
 async function obtenerPorId(req, res) {

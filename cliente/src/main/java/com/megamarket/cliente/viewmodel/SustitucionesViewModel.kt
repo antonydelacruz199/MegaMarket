@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.megamarket.cliente.data.repository.EstadoSustitucion
 import com.megamarket.cliente.data.repository.MensajesSustitucionCliente
+import com.megamarket.cliente.data.repository.PropuestaSustitucionCliente
 import com.megamarket.cliente.data.repository.ResultadoSustitucion
 import com.megamarket.cliente.data.repository.SustitucionesRepository
 import com.megamarket.cliente.data.repository.TipoErrorSustitucion
@@ -40,47 +41,18 @@ class SustitucionesViewModel(
             _estado.update {
                 it.copy(cargando = it.propuestas.isEmpty(), error = null, sesionVencida = false)
             }
-            val resultado = try {
-                sustituciones.listar()
-            } catch (error: CancellationException) {
-                throw error
-            } catch (_: Exception) {
-                ResultadoSustitucion.Error(TipoErrorSustitucion.RED, MensajesSustitucionCliente.SIN_CONEXION)
-            }
-            when (resultado) {
-                is ResultadoSustitucion.Exito -> {
-                    val lista = resultado.valor
-                    val pendientes = lista.count { EstadoSustitucion.esPendiente(it.estado) }
-                    _estado.update {
-                        it.copy(
-                            cargando = false,
-                            actualizando = false,
-                            propuestas = lista,
-                            pendientes = pendientes,
-                            error = null,
-                            codigoError = null
-                        )
-                    }
-                }
-                is ResultadoSustitucion.Error -> {
-                    _estado.update {
-                        it.copy(
-                            cargando = false,
-                            actualizando = false,
-                            error = resultado.mensaje,
-                            codigoError = resultado.codigo,
-                            sesionVencida = resultado.tipo == TipoErrorSustitucion.SESION ||
-                                resultado.tipo == TipoErrorSustitucion.CUENTA
-                        )
-                    }
-                    if (resultado.tipo == TipoErrorSustitucion.SESION ||
-                        resultado.tipo == TipoErrorSustitucion.CUENTA
-                    ) {
-                        detenerSeguimiento()
-                    }
-                }
-            }
+            aplicarPagina(listarPagina(1), anexar = false, silencioso = false)
             cargaEnCurso = false
+            if (_estado.value.pendientes > 0) iniciarSeguimiento()
+        }
+    }
+
+    fun cargarMas() {
+        val actual = _estado.value
+        if (!actual.hayMas || actual.cargandoMas || cargaEnCurso) return
+        viewModelScope.launch {
+            _estado.update { it.copy(cargandoMas = true, error = null) }
+            aplicarPagina(listarPagina(actual.pagina + 1), anexar = true, silencioso = false)
         }
     }
 
@@ -103,32 +75,66 @@ class SustitucionesViewModel(
 
     private suspend fun refrescarSilencioso() {
         _estado.update { it.copy(actualizando = true) }
-        val resultado = try {
-            sustituciones.listar()
+        // Refresco silencioso: solo la primera página para detectar pendientes.
+        aplicarPagina(listarPagina(1), anexar = false, silencioso = true)
+        if (_estado.value.pendientes <= 0) detenerSeguimiento()
+    }
+
+    private suspend fun listarPagina(
+        page: Int
+    ): ResultadoSustitucion<SustitucionesRepository.PaginaSustituciones> =
+        try {
+            sustituciones.listar(page = page)
         } catch (error: CancellationException) {
             throw error
         } catch (_: Exception) {
             ResultadoSustitucion.Error(TipoErrorSustitucion.RED, MensajesSustitucionCliente.SIN_CONEXION)
         }
+
+    private fun aplicarPagina(
+        resultado: ResultadoSustitucion<SustitucionesRepository.PaginaSustituciones>,
+        anexar: Boolean,
+        silencioso: Boolean
+    ) {
         when (resultado) {
             is ResultadoSustitucion.Exito -> {
-                val lista = resultado.valor
-                val pendientes = lista.count { EstadoSustitucion.esPendiente(it.estado) }
+                val lista = resultado.valor.propuestas
+                val base = if (anexar) {
+                    (_estado.value.propuestas + lista).distinctBy { it.id }
+                } else {
+                    lista
+                }
+                val ordenada = base.sortedWith(
+                    compareByDescending<PropuestaSustitucionCliente> {
+                        EstadoSustitucion.esRequiereAtencion(it.estado)
+                    }.thenByDescending { it.fechaPropuesta.orEmpty() }
+                )
+                val atencion = ordenada.count { EstadoSustitucion.esRequiereAtencion(it.estado) }
                 _estado.update {
                     it.copy(
+                        cargando = false,
+                        cargandoMas = false,
                         actualizando = false,
-                        propuestas = lista,
-                        pendientes = pendientes,
-                        error = if (resultado.valor.isEmpty()) it.error else null
+                        propuestas = ordenada,
+                        pagina = resultado.valor.pagina,
+                        hayMas = resultado.valor.hayMas,
+                        pendientes = atencion,
+                        error = if (silencioso && ordenada.isEmpty()) it.error else null,
+                        codigoError = null
                     )
                 }
-                if (pendientes <= 0) detenerSeguimiento()
             }
             is ResultadoSustitucion.Error -> {
                 _estado.update {
                     it.copy(
+                        cargando = false,
+                        cargandoMas = false,
                         actualizando = false,
-                        error = if (resultado.tipo == TipoErrorSustitucion.RED) it.error else resultado.mensaje,
+                        error = if (silencioso && resultado.tipo == TipoErrorSustitucion.RED) {
+                            it.error
+                        } else {
+                            resultado.mensaje
+                        },
                         codigoError = resultado.codigo,
                         sesionVencida = resultado.tipo == TipoErrorSustitucion.SESION ||
                             resultado.tipo == TipoErrorSustitucion.CUENTA

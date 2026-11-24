@@ -10,6 +10,7 @@ import com.megamarket.cliente.data.repository.ResultadoFranjas
 import com.megamarket.cliente.data.repository.SesionRepository
 import com.megamarket.cliente.model.CheckoutException
 import com.megamarket.cliente.model.Direccion
+import com.megamarket.cliente.model.FranjaEntrega
 import com.megamarket.cliente.model.ModalidadPagoCheckout
 import com.megamarket.cliente.state.CheckoutUiState
 import com.megamarket.cliente.state.PasoCheckout
@@ -56,9 +57,7 @@ class CheckoutViewModel(
     fun seleccionarFranja(franjaId: String) {
         val franja = _estado.value.franjas.firstOrNull { it.id == franjaId } ?: return
         if (!franja.disponible) {
-            _estado.update {
-                it.copy(error = "Esa franja está agotada. Elige otra con cupo disponible.")
-            }
+            _estado.update { it.copy(error = mensajeFranjaNoDisponible(franja)) }
             return
         }
         _estado.update {
@@ -143,7 +142,7 @@ class CheckoutViewModel(
                     return
                 }
                 if (actual.franjaSeleccionada == null || actual.franjaSeleccionada?.disponible != true) {
-                    _estado.update { it.copy(error = "Selecciona una franja con cupo disponible.") }
+                    _estado.update { it.copy(error = mensajeFranjaNoDisponible(actual.franjaSeleccionada)) }
                     return
                 }
                 _estado.update { it.copy(paso = paso, error = null) }
@@ -154,7 +153,7 @@ class CheckoutViewModel(
                     return
                 }
                 if (actual.franjaSeleccionada?.disponible != true) {
-                    _estado.update { it.copy(error = "Selecciona una franja con cupo disponible.") }
+                    _estado.update { it.copy(error = mensajeFranjaNoDisponible(actual.franjaSeleccionada)) }
                     return
                 }
                 if (actual.modalidadPago == null) {
@@ -190,7 +189,7 @@ class CheckoutViewModel(
         val franja = actual.franjaSeleccionada
         if (franja == null || !franja.disponible) {
             _estado.update {
-                it.copy(error = "Selecciona una franja con cupo disponible.", paso = PasoCheckout.FRANJA)
+                it.copy(error = mensajeFranjaNoDisponible(franja), paso = PasoCheckout.FRANJA)
             }
             return
         }
@@ -262,6 +261,14 @@ class CheckoutViewModel(
                     it.copy(error = error.message ?: "No se pudo actualizar el carrito")
                 }
             }
+        }
+    }
+
+    private fun mensajeFranjaNoDisponible(franja: FranjaEntrega?): String {
+        return if (franja?.horarioPasado == true) {
+            "Esa franja ya pasó. Elige un horario vigente."
+        } else {
+            "Selecciona una franja con cupo disponible."
         }
     }
 

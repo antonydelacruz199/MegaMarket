@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.megamarket.cliente.data.repository.CatalogoRepository
 import com.megamarket.cliente.data.repository.MediosImagenRepository
 import com.megamarket.cliente.state.CatalogoUiState
+import com.megamarket.cliente.state.TAMANO_PAGINA_LISTA
 import com.megamarket.modelo.Producto
 import com.megamarket.modelo.SolicitudImagenProducto
 import kotlinx.coroutines.CancellationException
@@ -39,6 +40,7 @@ class CatalogoViewModel(
             consulta = filtro.consulta,
             categoriaId = filtro.categoriaId,
             soloOfertas = filtro.soloOfertas,
+            limiteVisible = filtro.limiteVisible,
             error = null
         )
     }.stateIn(
@@ -65,15 +67,29 @@ class CatalogoViewModel(
     }
 
     fun actualizarConsulta(consulta: String) {
-        filtros.value = filtros.value.copy(consulta = consulta)
+        filtros.value = filtros.value.copy(consulta = consulta, limiteVisible = TAMANO_PAGINA_LISTA)
     }
 
     fun seleccionarCategoria(categoriaId: Long?) {
-        filtros.value = filtros.value.copy(categoriaId = categoriaId)
+        filtros.value = filtros.value.copy(
+            categoriaId = categoriaId,
+            limiteVisible = TAMANO_PAGINA_LISTA
+        )
     }
 
     fun limpiarFiltros() {
-        filtros.value = filtros.value.copy(consulta = "", categoriaId = null)
+        filtros.value = filtros.value.copy(
+            consulta = "",
+            categoriaId = null,
+            limiteVisible = TAMANO_PAGINA_LISTA
+        )
+    }
+
+    fun cargarMas() {
+        val actual = filtros.value
+        if (estado.value.hayMas) {
+            filtros.value = actual.copy(limiteVisible = actual.limiteVisible + TAMANO_PAGINA_LISTA)
+        }
     }
 
     fun solicitudImagen(producto: Producto): SolicitudImagenProducto? =
@@ -82,6 +98,7 @@ class CatalogoViewModel(
     private data class FiltrosCatalogo(
         val consulta: String = "",
         val categoriaId: Long? = null,
-        val soloOfertas: Boolean = false
+        val soloOfertas: Boolean = false,
+        val limiteVisible: Int = TAMANO_PAGINA_LISTA
     )
 }

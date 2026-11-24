@@ -1,15 +1,18 @@
 package com.megamarket.app.ui.components
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.AccountBalanceWallet
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -26,9 +29,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.megamarket.app.R
 import com.megamarket.app.ui.navigation.Ruta
+import com.megamarket.app.ui.theme.Espaciado
 import kotlinx.coroutines.launch
 
 private data class ItemMenuAdmin(
@@ -52,13 +57,13 @@ fun EstructuraAdmin(
     val alcance = rememberCoroutineScope()
 
     val itemsMenu = listOf(
-        ItemMenuAdmin("Panel", Ruta.PanelAdmin.ruta, Icons.Default.Home),
-        ItemMenuAdmin("Productos", Ruta.ProductosAdmin.ruta, Icons.Default.List),
-        ItemMenuAdmin("Billetera", Ruta.BilleteraAdmin.ruta, Icons.Default.ShoppingCart),
+        ItemMenuAdmin("Panel", Ruta.PanelAdmin.ruta, Icons.Default.Dashboard),
+        ItemMenuAdmin("Productos", Ruta.ProductosAdmin.ruta, Icons.Default.Inventory2),
+        ItemMenuAdmin("Billetera", Ruta.BilleteraAdmin.ruta, Icons.Default.AccountBalanceWallet),
         ItemMenuAdmin(
             etiqueta = stringResource(R.string.cerrar_sesion),
             ruta = null,
-            icono = Icons.Default.Close,
+            icono = Icons.AutoMirrored.Filled.Logout,
             esCerrarSesion = true
         )
     )
@@ -66,29 +71,42 @@ fun EstructuraAdmin(
     ModalNavigationDrawer(
         drawerState = estadoMenu,
         drawerContent = {
-            ModalDrawerSheet {
-                Spacer(modifier = Modifier.height(16.dp))
-                Text(
-                    text = stringResource(R.string.administracion_megamarket),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(horizontal = 28.dp, vertical = 8.dp)
-                )
-                Text(
-                    text = "Panel de administración",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 28.dp)
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-                HorizontalDivider()
-                Spacer(modifier = Modifier.height(8.dp))
+            ModalDrawerSheet(
+                drawerContainerColor = MaterialTheme.colorScheme.surface
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.primaryContainer)
+                        .padding(horizontal = 28.dp, vertical = Espaciado.xl)
+                ) {
+                    Text(
+                        text = "MegaMarket",
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Text(
+                        text = "Administración",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(
+                        text = "Catálogo, stock y cobros",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
+                        modifier = Modifier.padding(top = Espaciado.xs)
+                    )
+                }
+                Spacer(modifier = Modifier.height(Espaciado.sm))
                 itemsMenu.forEach { item ->
                     if (item.esCerrarSesion) {
-                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        HorizontalDivider(modifier = Modifier.padding(vertical = Espaciado.sm))
                     }
                     NavigationDrawerItem(
-                        label = { Text(item.etiqueta) },
+                        label = {
+                            Text(item.etiqueta, style = MaterialTheme.typography.labelLarge)
+                        },
                         selected = !item.esCerrarSesion && item.ruta == rutaActual,
                         onClick = {
                             alcance.launch { estadoMenu.close() }
@@ -105,7 +123,11 @@ fun EstructuraAdmin(
                         },
                         modifier = Modifier.padding(NavigationDrawerItemDefaults.ItemPadding),
                         colors = NavigationDrawerItemDefaults.colors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                            unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                            unselectedTextColor = MaterialTheme.colorScheme.onSurface
                         )
                     )
                 }
@@ -113,6 +135,7 @@ fun EstructuraAdmin(
         }
     ) {
         Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
             topBar = {
                 BarraSuperior(
                     titulo = titulo,

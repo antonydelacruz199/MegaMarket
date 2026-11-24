@@ -41,9 +41,9 @@ class SustitucionesRepositoryTest {
             ListaSustitucionesResponse(sustituciones = listOf(dto("PENDIENTE")))
         )
         val exito = repositorio(api).listar() as ResultadoSustitucion.Exito
-        assertEquals(1, exito.valor.size)
-        assertEquals("s1", exito.valor.single().id)
-        assertEquals(2000L, exito.valor.single().importeClienteCentimos)
+        assertEquals(1, exito.valor.propuestas.size)
+        assertEquals("s1", exito.valor.propuestas.single().id)
+        assertEquals(2000L, exito.valor.propuestas.single().importeClienteCentimos)
         assertEquals(1, api.listados)
     }
 
@@ -237,7 +237,7 @@ private class ApiFake : ApiService {
 
     override suspend fun login(body: LoginRequest): Response<LoginResponse> = error("n/a")
     override suspend fun listarCategorias(owner: String?): Response<CategoriasResponse> = error("n/a")
-    override suspend fun listarProductos(owner: String?): Response<ProductosResponse> = error("n/a")
+    override suspend fun listarProductos(owner: String?, page: Int?, limit: Int?, q: String?): Response<ProductosResponse> = error("n/a")
     override suspend fun listarFranjas(owner: String?) = error("n/a")
     override suspend fun obtenerFranja(id: String, owner: String?) = error("n/a")
 
@@ -246,7 +246,12 @@ private class ApiFake : ApiService {
 
     override suspend fun listarPedidos(
         estado: String?,
-        owner: String
+        owner: String,
+        page: Int?,
+        limit: Int?,
+        q: String?,
+        filtro: String?,
+        estados: String?
     ): Response<com.megamarket.cliente.data.remote.ListaPedidosResponse> = error("n/a")
 
     override suspend fun obtenerPedido(id: String, owner: String): Response<PedidoCompletoResponse> {
@@ -260,7 +265,7 @@ private class ApiFake : ApiService {
         owner: String
     ): Response<PedidoCompletoResponse> = error("n/a")
 
-    override suspend fun listarSustituciones(estado: String?, owner: String): Response<ListaSustitucionesResponse> {
+    override suspend fun listarSustituciones(estado: String?, owner: String, page: Int?, limit: Int?): Response<ListaSustitucionesResponse> {
         fallarSiRed()
         listados++
         return lista
@@ -284,7 +289,7 @@ private class ApiFake : ApiService {
     }
 
     override suspend fun obtenerSaldoBilletera(owner: String) = error("n/a")
-    override suspend fun listarMovimientosBilletera(owner: String) = error("n/a")
+    override suspend fun listarMovimientosBilletera(owner: String, page: Int?, limit: Int?) = error("n/a")
     override suspend fun generarQrPago(body: GenerarQrRequest, owner: String) = error("n/a")
     override suspend fun obtenerPagoDelPedido(pedidoId: String, owner: String) = error("n/a")
     override suspend fun obtenerPago(id: String, owner: String) = error("n/a")

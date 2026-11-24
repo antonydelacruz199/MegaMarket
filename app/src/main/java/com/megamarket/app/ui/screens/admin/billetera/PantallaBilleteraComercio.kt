@@ -28,6 +28,7 @@ import com.megamarket.app.data.repository.MovimientoComercio
 import com.megamarket.app.ui.components.EstructuraAdmin
 import com.megamarket.app.ui.navigation.Ruta
 import com.megamarket.app.viewmodel.BilleteraComercioViewModel
+import com.megamarket.modelo.formatearFechaHoraPresentacion
 import com.megamarket.modelo.formatearSoles
 
 @Composable
@@ -91,11 +92,19 @@ fun PantallaBilleteraComercio(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold
             )
-            val movimientos = estado.billetera?.movimientos.orEmpty()
+            val movimientos = estado.movimientos
             if (estado.billetera != null && movimientos.isEmpty()) {
                 Text("Todavía no hay movimientos.", style = MaterialTheme.typography.bodyMedium)
             }
             movimientos.forEach { FilaMovimiento(it) }
+            if (estado.hayMas) {
+                TextButton(
+                    onClick = viewModel::cargarMas,
+                    enabled = !estado.cargandoMas
+                ) {
+                    Text(if (estado.cargandoMas) "Cargando…" else "Cargar más")
+                }
+            }
             Spacer(modifier = Modifier.height(8.dp))
         }
     }
@@ -121,7 +130,7 @@ private fun FilaMovimiento(movimiento: MovimientoComercio) {
                 }
                 movimiento.createdAt?.let {
                     Text(
-                        it.replace('T', ' ').take(16),
+                        formatearFechaHoraPresentacion(it),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

@@ -78,12 +78,11 @@ test('preparación completa: sustituto escaneado completamente', () => {
   assert.equal(r.ok, true);
 });
 
-test('preparación completa: ELIMINADO solo con RECHAZADA', () => {
-  const sin = evaluarPreparacionCompleta([
+test('preparación completa: ELIMINADO con rechazo o sin stock', () => {
+  const sinStock = evaluarPreparacionCompleta([
     { id: 'd1', estado_picking: 'ELIMINADO', cantidad: 1, cantidad_armada: 0 }
   ]);
-  assert.equal(sin.ok, false);
-  assert.equal(sin.codigo, 'ELIMINADO_SIN_RESOLUCION');
+  assert.equal(sinStock.ok, true);
 
   const ok = evaluarPreparacionCompleta([
     { id: 'd1', estado_picking: 'ELIMINADO', cantidad: 1, cantidad_armada: 0 }
@@ -110,11 +109,16 @@ test('preparación completa: ELIMINADO solo con RECHAZADA', () => {
   assert.equal(armada.codigo, 'ELIMINADO_SIN_RESOLUCION');
 });
 
-test('eliminación: solo FALTANTE con rechazo y sin aceptación', () => {
+test('eliminación: FALTANTE con rechazo, sin stock o sin aceptación', () => {
   const base = { id: 'd1', estado_picking: 'FALTANTE', cantidad: 1, cantidad_armada: 0 };
   const sin = evaluarEliminacionLinea(base, []);
   assert.equal(sin.ok, false);
   assert.equal(sin.codigo, 'ELIMINADO_SIN_RESOLUCION');
+
+  const sinStock = evaluarEliminacionLinea(base, [], { sinCandidatos: true });
+  assert.equal(sinStock.ok, true);
+  assert.equal(sinStock.sinStock, true);
+  assert.equal(sinStock.sustitucionId, null);
 
   const pendiente = evaluarEliminacionLinea(base, [
     { id: 's1', estado: 'RECHAZADA', fecha_respuesta: '2026-11-17T10:00:00Z' },

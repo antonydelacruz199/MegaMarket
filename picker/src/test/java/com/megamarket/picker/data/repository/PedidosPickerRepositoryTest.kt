@@ -525,7 +525,7 @@ class PedidosPickerRepositoryTest {
         override suspend fun login(body: LoginRequest): Response<LoginResponse> = httpError(500, "{}")
         override suspend fun me(owner: String?): Response<MeResponse> = httpError(500, "{}")
 
-        override suspend fun listarPedidos(estado: String, owner: String): Response<PedidosResponse> {
+        override suspend fun listarPedidos(estado: String, owner: String, page: Int?, limit: Int?): Response<PedidosResponse> {
             falloRed?.let { throw it }
             listasConsultadas++
             return listas.getValue(estado)
@@ -546,7 +546,7 @@ class PedidosPickerRepositoryTest {
             return transicion
         }
 
-        override suspend fun listarPicking(owner: String): Response<PickingListaResponse> {
+        override suspend fun listarPicking(owner: String, page: Int?, limit: Int?): Response<PickingListaResponse> {
             falloRed?.let { throw it }
             return picking
         }
@@ -593,7 +593,14 @@ class PedidosPickerRepositoryTest {
             body: com.megamarket.picker.data.remote.PropuestaSustitucionRequest,
             owner: String
         ) = httpError<com.megamarket.picker.data.remote.SustitucionResponse>(500, "{}")
-        override suspend fun listarEntregas(owner: String) =
+
+        override suspend fun avisarSinStock(
+            id: String,
+            detalleId: String,
+            owner: String
+        ) = httpError<com.megamarket.picker.data.remote.SustitucionResponse>(500, "{}")
+
+        override suspend fun listarEntregas(owner: String, estado: String?, page: Int?, limit: Int?) =
             throw UnsupportedOperationException("no usado")
 
         override suspend fun obtenerEntrega(

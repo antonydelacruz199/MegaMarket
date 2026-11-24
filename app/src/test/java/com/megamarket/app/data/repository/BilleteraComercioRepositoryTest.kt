@@ -120,14 +120,21 @@ class BilleteraComercioRepositoryTest {
             return saldo
         }
 
-        override suspend fun listarMovimientosBilletera(): Response<BilleteraMovimientosResponse> {
+        override suspend fun listarMovimientosBilletera(
+            page: Int?,
+            limit: Int?
+        ): Response<BilleteraMovimientosResponse> {
             llamadasMovimientos++
             return movimientos
         }
 
         override suspend fun login(body: LoginRequest): Response<LoginResponse> = throw UnsupportedOperationException()
         override suspend fun listarCategorias(): Response<CategoriasResponse> = throw UnsupportedOperationException()
-        override suspend fun listarProductos(): Response<ProductosResponse> = throw UnsupportedOperationException()
+        override suspend fun listarProductos(
+            page: Int?,
+            limit: Int?,
+            q: String?
+        ): Response<ProductosResponse> = throw UnsupportedOperationException()
         override suspend fun obtenerProducto(id: String): Response<ProductoResponse> =
             throw UnsupportedOperationException()
         override suspend fun crearProducto(body: CrearProductoRequest): Response<ProductoResponse> =

@@ -24,10 +24,14 @@ private val EsquemaColorClaro = lightColorScheme(
     onBackground = MegaSobreSuperficie,
     surface = MegaSuperficie,
     onSurface = MegaSobreSuperficie,
+    surfaceVariant = MegaSuperficieVariante,
     onSurfaceVariant = MegaSobreSuperficieVariante,
     error = MegaError,
     onError = MegaSobrePrimario,
-    outline = MegaSobreSuperficieVariante.copy(alpha = 0.4f)
+    errorContainer = MegaContenedorError,
+    onErrorContainer = MegaError,
+    outline = MegaOutline,
+    outlineVariant = MegaOutline.copy(alpha = 0.55f)
 )
 
 @Composable
@@ -39,13 +43,14 @@ fun TemaMegaMarket(
     if (!vista.isInEditMode) {
         SideEffect {
             val ventana = (vista.context as Activity).window
-            WindowCompat.getInsetsController(ventana, vista).isAppearanceLightStatusBars = false
+            WindowCompat.getInsetsController(ventana, vista).isAppearanceLightStatusBars = true
         }
     }
 
     MaterialTheme(
         colorScheme = EsquemaColorClaro,
         typography = Tipografia,
+        shapes = FormasMega,
         content = contenido
     )
 }

@@ -15,6 +15,15 @@ data class PedidoAsignado(
     val cantidadLineas: Int
 )
 
+/** Pedido ya preparado que el picker puede despachar a LISTO. */
+data class PedidoDespacho(
+    val id: String,
+    val estado: String,
+    val totalCentimos: Long,
+    val fecha: String?,
+    val modalidad: String?
+)
+
 data class LineaPreparacion(
     val id: String,
     val productoId: String,
@@ -98,7 +107,8 @@ fun PreparacionPedido.resumenCierre(): String {
 
 data class TableroPicker(
     val disponibles: List<PedidoDisponible>,
-    val asignados: List<PedidoAsignado>
+    val asignados: List<PedidoAsignado>,
+    val despachables: List<PedidoDespacho> = emptyList()
 )
 
 enum class TipoErrorPedido {

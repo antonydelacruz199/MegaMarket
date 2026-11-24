@@ -6,13 +6,16 @@ import androidx.lifecycle.viewModelScope
 import com.megamarket.picker.data.repository.LineaPreparacion
 import com.megamarket.picker.data.repository.MensajesSesion
 import com.megamarket.picker.data.repository.PedidosPickerRepository
+import com.megamarket.picker.data.repository.PreparacionPedido
 import com.megamarket.picker.data.repository.ResultadoEscaneo
 import com.megamarket.picker.data.repository.ResultadoOperacion
 import com.megamarket.picker.data.repository.TipoErrorPedido
 import com.megamarket.picker.data.repository.TipoResultadoEscaneo
+import com.megamarket.picker.data.repository.listoParaSalida
 import com.megamarket.picker.escaneo.GestorEscaneo
 import com.megamarket.picker.escaneo.SolicitudEscaneo
 import com.megamarket.picker.state.EscanerUiState
+import com.megamarket.picker.state.ResumenProgresoLinea
 import com.megamarket.picker.ui.navigation.Ruta
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -36,6 +39,7 @@ class EscanerViewModel(
     private var lineaConfirmada = false
     private var observacion: Job? = null
     private var uuidFaltante: String? = null
+    private var esperandoNavegarSustitucion = false
 
     init {
         if (pedidoId.isBlank() || detalleId.isBlank()) {
@@ -47,11 +51,13 @@ class EscanerViewModel(
     }
 
     fun codigoDetectado(codigo: String?) {
+        if (_estado.value.lineaCompleta || _estado.value.pedidoConfirmado) return
         val solicitud = gestor.frame(codigo) ?: return
         enviar(solicitud)
     }
 
     fun enviarManual(codigo: String) {
+        if (_estado.value.lineaCompleta || _estado.value.pedidoConfirmado) return
         val solicitud = gestor.manual(codigo) ?: return
         enviar(solicitud)
     }
@@ -62,6 +68,13 @@ class EscanerViewModel(
     }
 
     fun marcarFaltante() {
+        if (_estado.value.lineaCompleta &&
+            !_estado.value.estadoLinea.equals("FALTANTE", true)
+        ) {
+            return
+        }
+        if (_estado.value.enviando || _estado.value.faltantePendiente) return
+        esperandoNavegarSustitucion = true
         val uuid = uuidFaltante ?: UUID.randomUUID().toString().also { uuidFaltante = it }
         viewModelScope.launch {
             _estado.update { it.copy(enviando = true, mensaje = null, puedeReintentar = false) }
@@ -84,6 +97,7 @@ class EscanerViewModel(
             ) {
                 uuidFaltante = null
             }
+            intentarNavegarSustitucion()
         }
     }
 
@@ -99,6 +113,46 @@ class EscanerViewModel(
         }
     }
 
+    fun confirmarPedido() {
+        if (!_estado.value.pedidoListoParaConfirmar ||
+            _estado.value.confirmandoPedido ||
+            _estado.value.pedidoConfirmado
+        ) {
+            return
+        }
+        viewModelScope.launch {
+            _estado.update { it.copy(confirmandoPedido = true, mensaje = null) }
+            val resultado = try {
+                repositorio.marcarListo(pedidoId)
+            } catch (error: CancellationException) {
+                throw error
+            } catch (_: Exception) {
+                ResultadoOperacion.Error(TipoErrorPedido.RED, MensajesSesion.SIN_CONEXION)
+            }
+            when (resultado) {
+                is ResultadoOperacion.Exito -> _estado.update {
+                    it.copy(
+                        confirmandoPedido = false,
+                        pedidoConfirmado = true,
+                        mensaje = null
+                    )
+                }
+                is ResultadoOperacion.Error -> _estado.update {
+                    it.copy(
+                        confirmandoPedido = false,
+                        mensaje = resultado.mensaje,
+                        sesionVencida = resultado.tipo == TipoErrorPedido.SESION ||
+                            resultado.tipo == TipoErrorPedido.CUENTA
+                    )
+                }
+            }
+        }
+    }
+
+    fun consumirNavegacionSustitucion() {
+        _estado.update { it.copy(navegarASustitucion = false) }
+    }
+
     private fun observarOperaciones() {
         observacion?.cancel()
         observacion = viewModelScope.launch {
@@ -112,12 +166,18 @@ class EscanerViewModel(
                         it.operacion == "MARCAR_FALTANTE" &&
                             it.estado in setOf("PENDIENTE", "ENVIANDO")
                     }
-                    actual.copy(
+                    val actualizado = actual.copy(
                         operaciones = ops,
                         cantidadPendienteLocal = pendiente,
-                        faltantePendiente = faltante
+                        faltantePendiente = faltante,
+                        lineaCompleta = actual.copy(
+                            cantidadPendienteLocal = pendiente,
+                            faltantePendiente = faltante
+                        ).recalcularLineaCompleta()
                     )
+                    actualizado
                 }
+                intentarNavegarSustitucion()
             }
         }
     }
@@ -134,13 +194,22 @@ class EscanerViewModel(
             _estado.update { actual ->
                 when (resultado) {
                     is ResultadoOperacion.Exito -> {
-                        val linea = resultado.valor.grupos
+                        val prep = resultado.valor
+                        val linea = prep.grupos
                             .flatMap { it.lineas }
                             .firstOrNull { it.id == detalleId }
+                        val progreso = progresoDesde(prep)
                         if (linea == null || lineaConfirmada) {
-                            actual.copy(cargando = false)
-                        } else {
                             actual.copy(
+                                cargando = false,
+                                pedidoListoParaConfirmar = prep.listoParaSalida(),
+                                lineaCompleta = actual.recalcularLineaCompleta() ||
+                                    (linea != null && lineaCompletaDesde(linea)),
+                                lineasEscaneadas = progreso.first,
+                                lineasPendientes = progreso.second
+                            )
+                        } else {
+                            val base = actual.copy(
                                 cargando = false,
                                 nombreProducto = linea.nombre,
                                 cantidadSolicitada = linea.cantidad,
@@ -149,8 +218,12 @@ class EscanerViewModel(
                                 estadoLinea = linea.estadoPicking,
                                 faltantePendiente = linea.faltantePendiente,
                                 imagenUrl = linea.imagenUrl,
-                                operaciones = linea.operacionesLocales
+                                operaciones = linea.operacionesLocales,
+                                pedidoListoParaConfirmar = prep.listoParaSalida(),
+                                lineasEscaneadas = progreso.first,
+                                lineasPendientes = progreso.second
                             )
+                            base.copy(lineaCompleta = base.recalcularLineaCompleta())
                         }
                     }
                     is ResultadoOperacion.Error -> actual.copy(
@@ -160,6 +233,31 @@ class EscanerViewModel(
                     )
                 }
             }
+            intentarNavegarSustitucion()
+        }
+    }
+
+    private fun refrescarEstadoPedido() {
+        viewModelScope.launch {
+            val resultado = try {
+                repositorio.obtenerPreparacion(pedidoId)
+            } catch (_: Exception) {
+                return@launch
+            }
+            if (resultado !is ResultadoOperacion.Exito) return@launch
+            val prep = resultado.valor
+            val linea = prep.grupos.flatMap { it.lineas }.firstOrNull { it.id == detalleId }
+            val progreso = progresoDesde(prep)
+            _estado.update { actual ->
+                val conLinea = if (linea != null) actual.conLinea(linea) else actual
+                conLinea.copy(
+                    pedidoListoParaConfirmar = prep.listoParaSalida(),
+                    lineaCompleta = conLinea.recalcularLineaCompleta(),
+                    lineasEscaneadas = progreso.first,
+                    lineasPendientes = progreso.second
+                )
+            }
+            intentarNavegarSustitucion()
         }
     }
 
@@ -195,7 +293,7 @@ class EscanerViewModel(
             is ResultadoEscaneo.PendienteLocal -> {
                 gestor.resultadoListo()
                 _estado.update {
-                    it.copy(
+                    val actualizado = it.copy(
                         enviando = false,
                         resultado = TipoResultadoEscaneo.PENDIENTE_LOCAL,
                         mensaje = resultado.mensaje,
@@ -205,7 +303,10 @@ class EscanerViewModel(
                         puedeReintentar = false,
                         vibrar = false
                     )
+                    actualizado.copy(lineaCompleta = actualizado.recalcularLineaCompleta())
                 }
+                autoContinuarSiAplica()
+                refrescarEstadoPedido()
             }
             is ResultadoEscaneo.Fallo -> aplicarFallo(resultado)
         }
@@ -218,7 +319,7 @@ class EscanerViewModel(
             lineaConfirmada = true
         }
         _estado.update { actual ->
-            actual.conLinea(linea).copy(
+            val base = actual.conLinea(linea).copy(
                 enviando = false,
                 resultado = resultado.tipo,
                 mensaje = resultado.mensaje,
@@ -228,11 +329,20 @@ class EscanerViewModel(
                 cantidadPendienteLocal = resultado.cantidadPendienteLocal,
                 sesionVencida = resultado.tipo == TipoResultadoEscaneo.SESION_VENCIDA
             )
+            base.copy(lineaCompleta = base.recalcularLineaCompleta())
         }
+        if (resultado.tipo == TipoResultadoEscaneo.CORRECTO ||
+            resultado.tipo == TipoResultadoEscaneo.PENDIENTE_LOCAL
+        ) {
+            autoContinuarSiAplica()
+        }
+        refrescarEstadoPedido()
+        intentarNavegarSustitucion()
     }
 
     private fun aplicarFallo(resultado: ResultadoEscaneo.Fallo) {
         if (resultado.conservarOperacion) gestor.falloRecuperable() else gestor.resultadoListo()
+        esperandoNavegarSustitucion = false
         _estado.update {
             it.copy(
                 enviando = false,
@@ -245,6 +355,68 @@ class EscanerViewModel(
             )
         }
     }
+
+    private fun autoContinuarSiAplica() {
+        val actual = _estado.value
+        if (actual.lineaCompleta || actual.pedidoListoParaConfirmar) return
+        val tipo = actual.resultado
+        if (tipo != TipoResultadoEscaneo.CORRECTO &&
+            tipo != TipoResultadoEscaneo.PENDIENTE_LOCAL
+        ) {
+            return
+        }
+        gestor.continuar()
+        _estado.update {
+            it.copy(
+                resultado = null,
+                mensaje = null,
+                vibrar = false,
+                puedeReintentar = false
+            )
+        }
+    }
+
+    private fun intentarNavegarSustitucion() {
+        if (!esperandoNavegarSustitucion) return
+        val actual = _estado.value
+        if (actual.faltantePendiente || actual.enviando) return
+        if (!actual.estadoLinea.equals("FALTANTE", ignoreCase = true)) return
+        esperandoNavegarSustitucion = false
+        _estado.update { it.copy(navegarASustitucion = true) }
+    }
+}
+
+private fun lineaCompletaDesde(linea: LineaPreparacion): Boolean {
+    val estado = linea.estadoPicking.trim().uppercase()
+    if (estado == "FALTANTE" || estado == "ELIMINADO") return true
+    return linea.cantidadArmada + linea.cantidadPendienteLocal >= linea.cantidad
+}
+
+private fun progresoDesde(
+    prep: PreparacionPedido
+): Pair<List<ResumenProgresoLinea>, List<ResumenProgresoLinea>> {
+    val escaneadas = mutableListOf<ResumenProgresoLinea>()
+    val pendientes = mutableListOf<ResumenProgresoLinea>()
+    val vistos = mutableSetOf<String>()
+    prep.grupos.flatMap { it.lineas }.forEach { linea ->
+        if (!vistos.add(linea.id)) return@forEach
+        val resumen = ResumenProgresoLinea(
+            id = linea.id,
+            nombre = linea.nombreVigente(),
+            cantidadSolicitada = linea.cantidad,
+            cantidadArmada = linea.cantidadArmada + linea.cantidadPendienteLocal,
+            estadoLinea = linea.estadoPicking
+        )
+        val estado = linea.estadoPicking.trim().uppercase()
+        val completa = estado == "ARMADO" ||
+            estado == "SUSTITUIDO" ||
+            estado == "ELIMINADO" ||
+            (estado != "FALTANTE" &&
+                linea.cantidad > 0 &&
+                linea.cantidadArmada + linea.cantidadPendienteLocal >= linea.cantidad)
+        if (completa) escaneadas += resumen else pendientes += resumen
+    }
+    return escaneadas to pendientes
 }
 
 private fun EscanerUiState.conLinea(linea: LineaPreparacion?): EscanerUiState {

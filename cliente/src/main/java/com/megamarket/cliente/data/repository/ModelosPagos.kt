@@ -4,9 +4,7 @@ import com.megamarket.cliente.data.remote.CuentaBilleteraDto
 import com.megamarket.cliente.data.remote.MovimientoBilleteraDto
 import com.megamarket.cliente.data.remote.PagoPedidoRemotoDto
 import com.megamarket.cliente.data.remote.QrSimuladoDto
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import com.megamarket.modelo.formatearFechaHoraPresentacion
 
 const val MODALIDAD_ONLINE = "ONLINE"
 const val MODALIDAD_CONTRAENTREGA = "CONTRAENTREGA"
@@ -182,10 +180,5 @@ fun MovimientoBilleteraDto.aMovimientoCliente(): MovimientoBilleteraCliente? {
     )
 }
 
-/** Fecha/hora legible en la zona del dispositivo; si no se puede interpretar devuelve el texto original. */
-fun textoFechaHora(iso: String?): String {
-    val crudo = iso?.trim().orEmpty()
-    if (crudo.isEmpty()) return "—"
-    val millis = parsearIsoAMillis(crudo) ?: return crudo.replace('T', ' ').take(16)
-    return SimpleDateFormat("dd/MM/yyyy HH:mm", Locale.getDefault()).format(Date(millis))
-}
+/** Fecha/hora legible en zona Perú: `dd/MM/yyyy HH:mm`. */
+fun textoFechaHora(iso: String?): String = formatearFechaHoraPresentacion(iso)

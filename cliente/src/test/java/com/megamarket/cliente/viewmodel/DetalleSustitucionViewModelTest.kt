@@ -189,19 +189,27 @@ private class ApiVm : ApiService {
     override suspend fun reservarCarrito(id: String, body: ReservaRequest, owner: String) = error("n/a")
     override suspend fun login(body: LoginRequest): Response<LoginResponse> = error("n/a")
     override suspend fun listarCategorias(owner: String?): Response<CategoriasResponse> = error("n/a")
-    override suspend fun listarProductos(owner: String?): Response<ProductosResponse> = error("n/a")
+    override suspend fun listarProductos(owner: String?, page: Int?, limit: Int?, q: String?): Response<ProductosResponse> = error("n/a")
     override suspend fun listarFranjas(owner: String?) = error("n/a")
     override suspend fun obtenerFranja(id: String, owner: String?) = error("n/a")
     override suspend fun crearPedido(body: CrearPedidoRequest, owner: String?): Response<CrearPedidoResponse> =
         error("n/a")
-    override suspend fun listarPedidos(estado: String?, owner: String) = error("n/a")
+    override suspend fun listarPedidos(
+        estado: String?,
+        owner: String,
+        page: Int?,
+        limit: Int?,
+        q: String?,
+        filtro: String?,
+        estados: String?
+    ) = error("n/a")
     override suspend fun obtenerPedido(id: String, owner: String) = pedido
     override suspend fun transicionarPedido(
         id: String,
         body: com.megamarket.cliente.data.remote.TransicionPedidoRequest,
         owner: String
     ) = error("n/a")
-    override suspend fun listarSustituciones(estado: String?, owner: String) =
+    override suspend fun listarSustituciones(estado: String?, owner: String, page: Int?, limit: Int?) =
         Response.success(ListaSustitucionesResponse())
 
     override suspend fun obtenerSustitucion(id: String, owner: String) = detalle
@@ -221,7 +229,7 @@ private class ApiVm : ApiService {
     }
 
     override suspend fun obtenerSaldoBilletera(owner: String) = error("n/a")
-    override suspend fun listarMovimientosBilletera(owner: String) = error("n/a")
+    override suspend fun listarMovimientosBilletera(owner: String, page: Int?, limit: Int?) = error("n/a")
     override suspend fun generarQrPago(body: GenerarQrRequest, owner: String) = error("n/a")
     override suspend fun obtenerPagoDelPedido(pedidoId: String, owner: String) = error("n/a")
     override suspend fun obtenerPago(id: String, owner: String) = error("n/a")

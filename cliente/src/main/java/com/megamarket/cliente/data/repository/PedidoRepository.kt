@@ -61,7 +61,13 @@ class PedidoRepository(
             throw CheckoutException("Tus datos llevan más de una hora sin actualizarse. Sincroniza para realizar el pedido.")
         direccion.error()?.let { throw CheckoutException(it) }
         if (!franja.disponible) {
-            throw CheckoutException("La franja seleccionada ya no tiene cupo. Elige otra.")
+            throw CheckoutException(
+                if (franja.horarioPasado) {
+                    "La franja seleccionada ya pasó. Elige un horario vigente."
+                } else {
+                    "La franja seleccionada ya no tiene cupo. Elige otra."
+                }
+            )
         }
         if (franja.id.isBlank()) {
             throw CheckoutException("Selecciona una franja de entrega válida.")

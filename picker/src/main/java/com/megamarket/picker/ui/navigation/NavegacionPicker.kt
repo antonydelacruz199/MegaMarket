@@ -6,9 +6,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.LifecycleEventObserver
-import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
@@ -64,40 +61,34 @@ fun NavegacionPicker(
             )
         }
 
-        composable(Ruta.Picker.ruta) {
-            val listaViewModel: ListaPickerViewModel = viewModel(factory = fabrica)
-            val lista by listaViewModel.estado.collectAsStateWithLifecycle()
-            val cicloVida = LocalLifecycleOwner.current
-            DisposableEffect(cicloVida, listaViewModel) {
-                val observador = LifecycleEventObserver { _, evento ->
-                    if (evento == Lifecycle.Event.ON_RESUME) {
-                        listaViewModel.cargar()
-                    }
-                }
-                cicloVida.lifecycle.addObserver(observador)
-                onDispose { cicloVida.lifecycle.removeObserver(observador) }
-            }
-            LaunchedEffect(lista.pedidoTomadoId) {
-                val id = lista.pedidoTomadoId ?: return@LaunchedEffect
-                listaViewModel.consumirPedidoTomado()
-                controlador.navigate(Ruta.Preparacion.crear(id))
-            }
-            LaunchedEffect(lista.sesionVencida) {
-                if (lista.sesionVencida) {
-                    sesionViewModel.cerrarSesion()
-                    controlador.volverASesion()
-                }
-            }
-            PantallaInicioPicker(
+        composable(Ruta.PickerDisponibles.ruta) {
+            PantallaListaPicker(
+                rutaActual = Ruta.PickerDisponibles.ruta,
+                seccion = SeccionPicker.DISPONIBLES,
+                fabrica = fabrica,
                 nombre = estado.usuario?.nombre.orEmpty(),
-                estado = lista,
-                alCargar = listaViewModel::cargar,
-                alTomar = listaViewModel::tomar,
-                alAbrir = { id -> controlador.navigate(Ruta.Preparacion.crear(id)) },
-                alCerrarSesion = {
-                    sesionViewModel.cerrarSesion()
-                    controlador.volverASesion()
-                }
+                controlador = controlador,
+                sesionViewModel = sesionViewModel
+            )
+        }
+        composable(Ruta.PickerPreparacion.ruta) {
+            PantallaListaPicker(
+                rutaActual = Ruta.PickerPreparacion.ruta,
+                seccion = SeccionPicker.PREPARACION,
+                fabrica = fabrica,
+                nombre = estado.usuario?.nombre.orEmpty(),
+                controlador = controlador,
+                sesionViewModel = sesionViewModel
+            )
+        }
+        composable(Ruta.PickerDespacho.ruta) {
+            PantallaListaPicker(
+                rutaActual = Ruta.PickerDespacho.ruta,
+                seccion = SeccionPicker.DESPACHO,
+                fabrica = fabrica,
+                nombre = estado.usuario?.nombre.orEmpty(),
+                controlador = controlador,
+                sesionViewModel = sesionViewModel
             )
         }
 
@@ -124,7 +115,7 @@ fun NavegacionPicker(
             val pedidoId = entrada.arguments?.getString(Ruta.ARG_PEDIDO).orEmpty()
             LaunchedEffect(detalle.listoOk) {
                 if (detalle.listoOk) {
-                    controlador.popBackStack()
+                    controlador.navegarAInicioPicker()
                 }
             }
             PantallaDetallePreparacion(
@@ -168,6 +159,18 @@ fun NavegacionPicker(
                     controlador.volverASesion()
                 }
             }
+            LaunchedEffect(escaner.navegarASustitucion) {
+                if (!escaner.navegarASustitucion) return@LaunchedEffect
+                escanerViewModel.consumirNavegacionSustitucion()
+                controlador.navigate(Ruta.Sustitucion.crear(pedidoEscaneo, detalleEscaneo)) {
+                    popUpTo(Ruta.Escaner.crear(pedidoEscaneo, detalleEscaneo)) { inclusive = true }
+                }
+            }
+            LaunchedEffect(escaner.pedidoConfirmado) {
+                if (escaner.pedidoConfirmado) {
+                    controlador.navegarAInicioPicker()
+                }
+            }
             PantallaEscaner(
                 estado = escaner,
                 alVolver = { controlador.popBackStack() },
@@ -176,9 +179,7 @@ fun NavegacionPicker(
                 alReintentar = escanerViewModel::reintentar,
                 alContinuar = escanerViewModel::continuar,
                 alMarcarFaltante = escanerViewModel::marcarFaltante,
-                alSustituir = {
-                    controlador.navigate(Ruta.Sustitucion.crear(pedidoEscaneo, detalleEscaneo))
-                }
+                alConfirmarPedido = escanerViewModel::confirmarPedido
             )
         }
 
@@ -229,34 +230,39 @@ fun NavegacionPicker(
                 alIniciarSeguimiento = sustitucionViewModel::iniciarSeguimiento,
                 alDetenerSeguimiento = sustitucionViewModel::detenerSeguimiento,
                 alConsultarEstado = sustitucionViewModel::consultarEstado,
+                alInformarSinStock = sustitucionViewModel::informarSinStock,
                 alResolverSinProducto = sustitucionViewModel::resolverSinProducto
             )
         }
 
-        composable(Ruta.Repartidor.ruta) {
-            val listaRepartoViewModel: ListaRepartidorViewModel = viewModel(factory = fabrica)
-            val listaReparto by listaRepartoViewModel.estado.collectAsStateWithLifecycle()
-            LaunchedEffect(listaReparto.pedidoTomadoId) {
-                val id = listaReparto.pedidoTomadoId ?: return@LaunchedEffect
-                listaRepartoViewModel.consumirPedidoTomado()
-                controlador.navigate(Ruta.Entrega.crear(id))
-            }
-            LaunchedEffect(listaReparto.sesionVencida) {
-                if (listaReparto.sesionVencida) {
-                    sesionViewModel.cerrarSesion()
-                    controlador.volverASesion()
-                }
-            }
-            PantallaInicioRepartidor(
+        composable(Ruta.RepartidorEnCamino.ruta) {
+            PantallaListaReparto(
+                rutaActual = Ruta.RepartidorEnCamino.ruta,
+                seccion = SeccionReparto.EN_CAMINO,
+                fabrica = fabrica,
                 nombre = estado.usuario?.nombre.orEmpty(),
-                estado = listaReparto,
-                alCargar = listaRepartoViewModel::cargar,
-                alTomar = listaRepartoViewModel::tomar,
-                alAbrir = { id -> controlador.navigate(Ruta.Entrega.crear(id)) },
-                alCerrarSesion = {
-                    sesionViewModel.cerrarSesion()
-                    controlador.volverASesion()
-                }
+                controlador = controlador,
+                sesionViewModel = sesionViewModel
+            )
+        }
+        composable(Ruta.RepartidorListos.ruta) {
+            PantallaListaReparto(
+                rutaActual = Ruta.RepartidorListos.ruta,
+                seccion = SeccionReparto.LISTOS,
+                fabrica = fabrica,
+                nombre = estado.usuario?.nombre.orEmpty(),
+                controlador = controlador,
+                sesionViewModel = sesionViewModel
+            )
+        }
+        composable(Ruta.RepartidorEntregados.ruta) {
+            PantallaListaReparto(
+                rutaActual = Ruta.RepartidorEntregados.ruta,
+                seccion = SeccionReparto.ENTREGADOS,
+                fabrica = fabrica,
+                nombre = estado.usuario?.nombre.orEmpty(),
+                controlador = controlador,
+                sesionViewModel = sesionViewModel
             )
         }
 
@@ -293,9 +299,133 @@ fun NavegacionPicker(
     }
 }
 
+@Composable
+private fun PantallaListaPicker(
+    rutaActual: String,
+    seccion: SeccionPicker,
+    fabrica: ViewModelFactory,
+    nombre: String,
+    controlador: NavHostController,
+    sesionViewModel: SesionViewModel
+) {
+    val actividad = LocalContext.current as androidx.activity.ComponentActivity
+    val listaViewModel: ListaPickerViewModel = viewModel(
+        viewModelStoreOwner = actividad,
+        factory = fabrica
+    )
+    val lista by listaViewModel.estado.collectAsStateWithLifecycle()
+    LaunchedEffect(seccion) {
+        listaViewModel.mostrarSeccion(seccion)
+    }
+    LaunchedEffect(lista.pedidoTomadoId) {
+        val id = lista.pedidoTomadoId ?: return@LaunchedEffect
+        listaViewModel.consumirPedidoTomado()
+        controlador.navigate(Ruta.Preparacion.crear(id))
+    }
+    LaunchedEffect(lista.sesionVencida) {
+        if (lista.sesionVencida) {
+            sesionViewModel.cerrarSesion()
+            controlador.volverASesion()
+        }
+    }
+    PantallaInicioPicker(
+        nombre = nombre,
+        rutaActual = rutaActual,
+        seccion = seccion,
+        estado = lista,
+        alNavegarSeccion = { destino ->
+            controlador.navigate(destino) {
+                popUpTo(Ruta.PickerDisponibles.ruta) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+        },
+        alCargar = {
+            if (lista.seccion == seccion) {
+                listaViewModel.cargar(reiniciar = true)
+            } else {
+                listaViewModel.mostrarSeccion(seccion)
+            }
+        },
+        alCargarMas = listaViewModel::cargarMas,
+        alTomar = listaViewModel::tomar,
+        alMandarDelivery = listaViewModel::mandarADelivery,
+        alAbrir = { id -> controlador.navigate(Ruta.Preparacion.crear(id)) },
+        alCerrarSesion = {
+            sesionViewModel.cerrarSesion()
+            controlador.volverASesion()
+        }
+    )
+}
+
+@Composable
+private fun PantallaListaReparto(
+    rutaActual: String,
+    seccion: SeccionReparto,
+    fabrica: ViewModelFactory,
+    nombre: String,
+    controlador: NavHostController,
+    sesionViewModel: SesionViewModel
+) {
+    val actividad = LocalContext.current as androidx.activity.ComponentActivity
+    val listaRepartoViewModel: ListaRepartidorViewModel = viewModel(
+        viewModelStoreOwner = actividad,
+        factory = fabrica
+    )
+    val listaReparto by listaRepartoViewModel.estado.collectAsStateWithLifecycle()
+    LaunchedEffect(seccion) {
+        listaRepartoViewModel.mostrarSeccion(seccion)
+    }
+    LaunchedEffect(listaReparto.pedidoTomadoId) {
+        val id = listaReparto.pedidoTomadoId ?: return@LaunchedEffect
+        listaRepartoViewModel.consumirPedidoTomado()
+        controlador.navigate(Ruta.Entrega.crear(id))
+    }
+    LaunchedEffect(listaReparto.sesionVencida) {
+        if (listaReparto.sesionVencida) {
+            sesionViewModel.cerrarSesion()
+            controlador.volverASesion()
+        }
+    }
+    PantallaInicioRepartidor(
+        nombre = nombre,
+        rutaActual = rutaActual,
+        seccion = seccion,
+        estado = listaReparto,
+        alNavegarSeccion = { destino ->
+            controlador.navigate(destino) {
+                popUpTo(Ruta.RepartidorEnCamino.ruta) { saveState = true }
+                launchSingleTop = true
+                restoreState = true
+            }
+        },
+        alCargar = {
+            if (listaReparto.seccion == seccion) {
+                listaRepartoViewModel.cargar(reiniciar = true)
+            } else {
+                listaRepartoViewModel.mostrarSeccion(seccion)
+            }
+        },
+        alCargarMas = listaRepartoViewModel::cargarMas,
+        alTomar = listaRepartoViewModel::tomar,
+        alAbrir = { id -> controlador.navigate(Ruta.Entrega.crear(id)) },
+        alCerrarSesion = {
+            sesionViewModel.cerrarSesion()
+            controlador.volverASesion()
+        }
+    )
+}
+
 private fun NavHostController.volverASesion() {
     navigate(Ruta.Sesion.ruta) {
         popUpTo(graph.id) { inclusive = true }
+        launchSingleTop = true
+    }
+}
+
+private fun NavHostController.navegarAInicioPicker() {
+    navigate(Ruta.PickerDisponibles.ruta) {
+        popUpTo(Ruta.PickerDisponibles.ruta) { inclusive = false }
         launchSingleTop = true
     }
 }

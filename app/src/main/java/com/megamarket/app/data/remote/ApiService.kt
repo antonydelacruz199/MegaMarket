@@ -10,6 +10,7 @@ import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Part
 import retrofit2.http.Path
+import retrofit2.http.Query
 
 interface ApiService {
 
@@ -20,7 +21,11 @@ interface ApiService {
     suspend fun listarCategorias(): Response<CategoriasResponse>
 
     @GET("api/productos")
-    suspend fun listarProductos(): Response<ProductosResponse>
+    suspend fun listarProductos(
+        @Query("page") page: Int? = null,
+        @Query("limit") limit: Int? = null,
+        @Query("q") q: String? = null
+    ): Response<ProductosResponse>
 
     @GET("api/productos/{id}")
     suspend fun obtenerProducto(@Path("id") id: String): Response<ProductoResponse>
@@ -50,7 +55,10 @@ interface ApiService {
     suspend fun obtenerBilleteraComercio(): Response<BilleteraSaldoResponse>
 
     @GET("api/billetera/movimientos")
-    suspend fun listarMovimientosBilletera(): Response<BilleteraMovimientosResponse>
+    suspend fun listarMovimientosBilletera(
+        @Query("page") page: Int? = null,
+        @Query("limit") limit: Int? = null
+    ): Response<BilleteraMovimientosResponse>
 
     @Multipart
     @POST("api/medios/productos/{productoId}")

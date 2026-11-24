@@ -21,6 +21,15 @@ class MisPedidosModelosTest {
         assertTrue(FiltroMisPedidos.EN_CAMINO.coincide("EN_CAMINO", null))
         assertTrue(FiltroMisPedidos.ENTREGADOS.coincide("ENTREGADO", null))
         assertTrue(FiltroMisPedidos.CANCELADOS.coincide("CANCELADO", null))
+        assertEquals("LISTO", FiltroMisPedidos.LISTOS.estadoApi)
+        assertEquals("EN_CAMINO", FiltroMisPedidos.EN_CAMINO.estadoApi)
+        assertEquals(null, FiltroMisPedidos.TODOS.estadoApi)
+        assertEquals(null, FiltroMisPedidos.PENDIENTES_PAGO.estadoApi)
+        assertEquals(null, FiltroMisPedidos.TODOS.filtroApi)
+        assertEquals("PENDIENTES_PAGO", FiltroMisPedidos.PENDIENTES_PAGO.filtroApi)
+        assertEquals("EN_PREPARACION", FiltroMisPedidos.EN_PREPARACION.filtroApi)
+        assertEquals("LISTOS", FiltroMisPedidos.LISTOS.filtroApi)
+        assertEquals("ENTREGADOS", FiltroMisPedidos.ENTREGADOS.filtroApi)
     }
 
     @Test
@@ -52,6 +61,28 @@ class MisPedidosModelosTest {
         assertFalse(etapas.first { it.nombre == "CONFIRMADO" }.completada)
         assertFalse(etapas.first { it.nombre == "LISTO" }.completada)
         assertFalse(etapas.first { it.nombre == "LISTO" }.actual)
+    }
+
+    @Test
+    fun puedeCancelarSoloAntesDeConfirmado() {
+        fun detalle(estado: String) = PedidoDetalleCliente(
+            id = "p1",
+            fecha = null,
+            totalCentimos = 100,
+            estado = estado,
+            franjaEntregaId = null,
+            franjaEtiqueta = null,
+            version = 1,
+            lineas = emptyList(),
+            direccion = null,
+            pago = null,
+            sustituciones = emptyList()
+        )
+        assertTrue(detalle("RECIBIDO").puedeCancelar)
+        assertTrue(detalle("EN_PICKING").puedeCancelar)
+        assertFalse(detalle("CONFIRMADO").puedeCancelar)
+        assertFalse(detalle("PAGADO").puedeCancelar)
+        assertFalse(detalle("LISTO").puedeCancelar)
     }
 
     @Test

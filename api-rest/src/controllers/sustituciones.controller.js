@@ -3,6 +3,7 @@ const pool = require('../database');
 const {
   precioVigente,
   diferenciaPrecioDentroDeTolerancia,
+  cantidadFaltanteDetalle,
   montoAjusteCentimos,
   mapearSustitucion,
   mapearCandidato
@@ -50,12 +51,56 @@ async function cancelarSustitucionIncompatible(cliente, sustitucionId, pedidoId)
          fecha_respuesta = now(),
          respuesta_automatica = true,
          updated_at = now()
-     WHERE id = $1 AND estado = 'PENDIENTE'
+     WHERE id = $1 AND estado IN ('PENDIENTE', 'SIN_STOCK')
      RETURNING *`,
     [sustitucionId]
   );
   if (!upd) return null;
   return mapearSustitucion({ ...upd, pedido_id: pedidoId });
+}
+
+/**
+ * Cierra propuestas abiertas de un pedido (p. ej. al pasar a CANCELADO).
+ * Afecta PENDIENTE y avisos SIN_STOCK; no toca ACEPTADA/RECHAZADA.
+ */
+async function cancelarSustitucionesAbiertasDePedido(cliente, pedidoId) {
+  const { rows } = await cliente.query(
+    `UPDATE sustituciones_pedido s
+     SET estado = 'CANCELADA',
+         fecha_respuesta = now(),
+         respuesta_automatica = true,
+         updated_at = now()
+     FROM pedido_detalle d
+     WHERE s.pedido_detalle_id = d.id
+       AND d.pedido_id = $1
+       AND s.estado IN ('PENDIENTE', 'SIN_STOCK')
+     RETURNING s.*`,
+    [pedidoId]
+  );
+  return rows.map((r) => mapearSustitucion({ ...r, pedido_id: pedidoId }));
+}
+
+/** Cierra abiertas de pedidos ya incompatibles (CANCELADO, etc.) del cliente. */
+async function cancelarAbiertasPedidosIncompatibles(cliente, clienteId) {
+  const { rows } = await cliente.query(
+    `UPDATE sustituciones_pedido s
+     SET estado = 'CANCELADA',
+         fecha_respuesta = now(),
+         respuesta_automatica = true,
+         updated_at = now()
+     FROM pedido_detalle d
+     JOIN pedidos p ON p.id = d.pedido_id
+     WHERE s.pedido_detalle_id = d.id
+       AND p.cliente_id = $1
+       AND s.estado IN ('PENDIENTE', 'SIN_STOCK')
+       AND (
+         p.deleted_at IS NOT NULL
+         OR p.estado NOT IN ('EN_PICKING', 'LISTO')
+       )
+     RETURNING s.id`,
+    [clienteId]
+  );
+  return rows.length;
 }
 
 /**
@@ -129,7 +174,8 @@ async function decidirInterno(
   const { rows } = await cliente.query(
     `SELECT s.*, d.pedido_id, d.estado_picking, d.cantidad AS detalle_cantidad,
             d.producto_id AS detalle_producto_id, d.precio_unitario_centimos,
-            p.cliente_id, p.preferencia_sustitucion, p.picker_id, p.estado AS pedido_estado
+            p.cliente_id, p.preferencia_sustitucion, p.picker_id,
+            p.estado AS pedido_estado, p.deleted_at AS pedido_deleted_at
      FROM sustituciones_pedido s
      JOIN pedido_detalle d ON d.id = s.pedido_detalle_id
      JOIN pedidos p ON p.id = d.pedido_id
@@ -156,7 +202,16 @@ async function decidirInterno(
     };
   }
 
-  if (fila.estado === 'ACEPTADA' || fila.estado === 'RECHAZADA') {
+  if (fila.estado === 'ACEPTADA' || fila.estado === 'RECHAZADA' || fila.estado === 'CANCELADA') {
+    if (fila.estado === 'CANCELADA') {
+      return {
+        ok: false,
+        http: 409,
+        codigo: 'SUSTITUCION_CANCELADA',
+        error: 'La sustitución quedó cancelada porque el pedido ya no admite decisión',
+        sustitucion: mapearSustitucion(fila)
+      };
+    }
     const decisionEfectiva = fila.estado === 'ACEPTADA' ? 'ACEPTAR' : 'RECHAZAR';
     if (!automatica && decision && decision !== decisionEfectiva) {
       return {
@@ -171,6 +226,24 @@ async function decidirInterno(
       idempotente: true,
       sustitucion: mapearSustitucion(fila),
       http: 200
+    };
+  }
+
+  if (
+    fila.pedido_deleted_at ||
+    !ESTADOS_PEDIDO_COMPATIBLES.has(fila.pedido_estado)
+  ) {
+    const cancelada = await cancelarSustitucionIncompatible(
+      cliente,
+      sustitucionId,
+      fila.pedido_id
+    );
+    return {
+      ok: false,
+      http: 409,
+      codigo: 'PEDIDO_INCOMPATIBLE',
+      error: 'El pedido fue cancelado o ya no admite sustituciones',
+      sustitucion: cancelada || mapearSustitucion(fila)
     };
   }
 
@@ -241,11 +314,11 @@ async function decidirInterno(
     };
   }
 
-  // Conserva producto_id / importes históricos. Deja la línea escaneable (FALTANTE, armada 0).
+  // Conserva producto_id / importes históricos y las unidades ya armadas del original.
+  // Solo quedan por escanear las unidades faltantes (cantidad de la sustitución).
   await cliente.query(
     `UPDATE pedido_detalle
-     SET cantidad_armada = 0,
-         estado_picking = 'FALTANTE',
+     SET estado_picking = 'FALTANTE',
          fecha_escaneo = NULL,
          escaneado_por = NULL
      WHERE id = $1`,
@@ -355,7 +428,14 @@ async function listarCandidatos(req, res) {
     }
 
     const precioOriginal = Number(detalle.precio_unitario_centimos);
-    const cantidad = Number(detalle.cantidad);
+    const cantidadFaltante = cantidadFaltanteDetalle(detalle);
+    if (cantidadFaltante <= 0) {
+      await cliente.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'No hay unidades faltantes para sustituir',
+        codigo: 'SIN_FALTANTE'
+      });
+    }
 
     const { rows } = await cliente.query(
       `SELECT p.id, p.nombre, p.marca, p.categoria_id, p.precio_centimos, p.precio_oferta_centimos,
@@ -371,7 +451,7 @@ async function listarCandidatos(req, res) {
          AND (p.stock - COALESCE((
            SELECT SUM(r.cantidad)::int FROM reservas_carrito r WHERE r.producto_id = p.id
          ), 0)) >= $3`,
-      [detalle.categoria_id, detalle.producto_id, cantidad]
+      [detalle.categoria_id, detalle.producto_id, cantidadFaltante]
     );
 
     const candidatos = rows
@@ -382,6 +462,9 @@ async function listarCandidatos(req, res) {
     return res.status(200).json({
       detalleId: detalle.id,
       precioOriginalCentimos: precioOriginal,
+      cantidadSolicitada: Number(detalle.cantidad),
+      cantidadArmada: Number(detalle.cantidad_armada || 0),
+      cantidadFaltante,
       tolerancia: 0.2,
       candidatos
     });
@@ -488,12 +571,20 @@ async function proponer(req, res) {
       });
     }
 
+    const faltante = cantidadFaltanteDetalle(detalle);
+    if (faltante <= 0) {
+      await cliente.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'No hay unidades faltantes para sustituir',
+        codigo: 'SIN_FALTANTE'
+      });
+    }
     const cantidad =
-      cantidadBody == null ? Number(detalle.cantidad) : Number(cantidadBody);
-    if (!Number.isInteger(cantidad) || cantidad <= 0 || cantidad > Number(detalle.cantidad)) {
+      cantidadBody == null ? faltante : Number(cantidadBody);
+    if (!Number.isInteger(cantidad) || cantidad <= 0 || cantidad > faltante) {
       await cliente.query('ROLLBACK');
       return res.status(400).json({
-        error: 'cantidad inválida',
+        error: 'cantidad inválida: solo se sustituyen las unidades faltantes',
         codigo: 'CANTIDAD_INVALIDA'
       });
     }
@@ -585,6 +676,8 @@ async function listarCliente(req, res) {
   const cliente = await pool.connect();
   try {
     await cliente.query('BEGIN');
+    // Pedidos cancelados / incompatibles: cerrar propuestas abiertas de inmediato.
+    await cancelarAbiertasPedidosIncompatibles(cliente, req.usuario.id);
     // Resolver vencidas de este cliente antes de listar
     const { rows: pedidos } = await cliente.query(
       `SELECT id FROM pedidos WHERE cliente_id = $1 AND deleted_at IS NULL`,
@@ -594,24 +687,38 @@ async function listarCliente(req, res) {
       await resolverExpiradas(cliente, { pedidoId: p.id });
     }
 
+    const { paginar, metaPaginacion } = require('../paginacion');
+    const { page, limit, offset } = paginar(req);
     const estado = req.query.estado ? String(req.query.estado).toUpperCase() : null;
     const params = [req.usuario.id];
-    let sql = `
-      SELECT s.*, d.pedido_id
+    let where = `p.cliente_id = $1 AND p.deleted_at IS NULL`;
+    if (estado) {
+      params.push(estado);
+      where += ` AND s.estado = $${params.length}`;
+    }
+    const fromSql = `
       FROM sustituciones_pedido s
       JOIN pedido_detalle d ON d.id = s.pedido_detalle_id
       JOIN pedidos p ON p.id = d.pedido_id
-      WHERE p.cliente_id = $1 AND p.deleted_at IS NULL
+      WHERE ${where}
     `;
-    if (estado) {
-      params.push(estado);
-      sql += ` AND s.estado = $${params.length}`;
-    }
-    sql += ' ORDER BY s.fecha_propuesta DESC';
-    const { rows } = await cliente.query(sql, params);
+    const { rows: countRows } = await cliente.query(
+      `SELECT COUNT(*)::int AS total ${fromSql}`,
+      params
+    );
+    const total = countRows[0]?.total ?? 0;
+    const listParams = [...params, limit, offset];
+    const { rows } = await cliente.query(
+      `SELECT s.*, d.pedido_id
+       ${fromSql}
+       ORDER BY s.fecha_propuesta DESC
+       LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
+      listParams
+    );
     await cliente.query('COMMIT');
     return res.status(200).json({
-      sustituciones: rows.map((r) => mapearSustitucion(r))
+      sustituciones: rows.map((r) => mapearSustitucion(r)),
+      ...metaPaginacion(total, { page, limit })
     });
   } catch (error) {
     try {
@@ -633,7 +740,8 @@ async function obtenerPorId(req, res) {
     await resolverExpiradas(cliente, { sustitucionId: req.params.id });
 
     const { rows } = await cliente.query(
-      `SELECT s.*, d.pedido_id, p.cliente_id, p.picker_id
+      `SELECT s.*, d.pedido_id, p.cliente_id, p.picker_id,
+              p.estado AS pedido_estado, p.deleted_at AS pedido_deleted_at
        FROM sustituciones_pedido s
        JOIN pedido_detalle d ON d.id = s.pedido_detalle_id
        JOIN pedidos p ON p.id = d.pedido_id
@@ -655,8 +763,20 @@ async function obtenerPorId(req, res) {
       await cliente.query('ROLLBACK');
       return res.status(403).json({ error: 'No autorizado', codigo: 'PERMISO_DENEGADO' });
     }
+    let mapeada = mapearSustitucion(fila);
+    if (
+      (fila.estado === 'PENDIENTE' || fila.estado === 'SIN_STOCK') &&
+      (fila.pedido_deleted_at || !ESTADOS_PEDIDO_COMPATIBLES.has(fila.pedido_estado))
+    ) {
+      const cancelada = await cancelarSustitucionIncompatible(
+        cliente,
+        fila.id,
+        fila.pedido_id
+      );
+      if (cancelada) mapeada = cancelada;
+    }
     await cliente.query('COMMIT');
-    return res.status(200).json({ sustitucion: mapearSustitucion(fila) });
+    return res.status(200).json({ sustitucion: mapeada });
   } catch (error) {
     try {
       await cliente.query('ROLLBACK');
@@ -742,10 +862,15 @@ async function decidir(req, res, decisionFija = null) {
     });
 
     if (!resultado.ok) {
-      await cliente.query('ROLLBACK');
+      if (resultado.sustitucion && ['PEDIDO_INCOMPATIBLE', 'SUSTITUCION_CANCELADA'].includes(resultado.codigo)) {
+        await cliente.query('COMMIT');
+      } else {
+        await cliente.query('ROLLBACK');
+      }
       return res.status(resultado.http).json({
         error: resultado.error,
-        codigo: resultado.codigo
+        codigo: resultado.codigo,
+        sustitucion: resultado.sustitucion || undefined
       });
     }
 
@@ -799,15 +924,148 @@ async function resolverExpiradasHttp(req, res) {
   }
 }
 
+/**
+ * Avisa al cliente que no hay producto/sustituto en almacén (SIN_STOCK).
+ * No elimina la línea: el cliente puede cancelar el pedido desde Sustituciones.
+ */
+async function avisarSinStock(req, res) {
+  const cliente = await pool.connect();
+  try {
+    await cliente.query('BEGIN');
+    await resolverExpiradas(cliente, { pedidoId: req.params.id });
+
+    const { rows: pedidos } = await cliente.query(
+      `SELECT * FROM pedidos WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
+      [req.params.id]
+    );
+    const pedido = pedidos[0];
+    const asig = assertPickerAsignado(pedido, req.usuario.id);
+    if (!asig.ok) {
+      await cliente.query('ROLLBACK');
+      return res.status(asig.http).json({ error: asig.error, codigo: asig.codigo });
+    }
+    if (pedido.estado !== 'EN_PICKING') {
+      await cliente.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'Solo se informa sin stock en EN_PICKING',
+        codigo: 'PEDIDO_NO_EN_PICKING'
+      });
+    }
+
+    const { rows: detalles } = await cliente.query(
+      `SELECT d.*
+       FROM pedido_detalle d
+       WHERE d.id = $1 AND d.pedido_id = $2 AND d.deleted_at IS NULL
+       FOR UPDATE OF d`,
+      [req.params.detalleId, req.params.id]
+    );
+    const detalle = detalles[0];
+    if (!detalle) {
+      await cliente.query('ROLLBACK');
+      return res.status(404).json({
+        error: 'Línea no encontrada',
+        codigo: 'DETALLE_NO_ENCONTRADO'
+      });
+    }
+    if (detalle.estado_picking !== 'FALTANTE') {
+      await cliente.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'La línea debe estar FALTANTE',
+        codigo: 'ESTADO_PICKING_INVALIDO'
+      });
+    }
+
+    const pendiente = await cliente.query(
+      `SELECT id FROM sustituciones_pedido
+       WHERE pedido_detalle_id = $1 AND estado = 'PENDIENTE'
+       LIMIT 1`,
+      [detalle.id]
+    );
+    if (pendiente.rows[0]) {
+      await cliente.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'Hay una propuesta pendiente; no se puede avisar sin stock',
+        codigo: 'PROPUESTA_PENDIENTE',
+        sustitucionId: pendiente.rows[0].id
+      });
+    }
+
+    const existente = await cliente.query(
+      `SELECT * FROM sustituciones_pedido
+       WHERE pedido_detalle_id = $1 AND estado = 'SIN_STOCK'
+       LIMIT 1`,
+      [detalle.id]
+    );
+    if (existente.rows[0]) {
+      await cliente.query('COMMIT');
+      return res.status(200).json({
+        idempotente: true,
+        sustitucion: mapearSustitucion({ ...existente.rows[0], pedido_id: pedido.id })
+      });
+    }
+
+    const precioOriginal = Number(detalle.precio_unitario_centimos);
+    const cantidad = cantidadFaltanteDetalle(detalle);
+    if (cantidad <= 0) {
+      await cliente.query('ROLLBACK');
+      return res.status(409).json({
+        error: 'No hay unidades faltantes para informar',
+        codigo: 'SIN_FALTANTE'
+      });
+    }
+    const { rows: [creada] } = await cliente.query(
+      `INSERT INTO sustituciones_pedido (
+         pedido_detalle_id, producto_original_id, producto_sustituto_id, picker_id,
+         cantidad, precio_original_centimos, precio_sustituto_centimos, estado,
+         fecha_propuesta, fecha_limite, fecha_respuesta, respuesta_automatica
+       ) VALUES (
+         $1, $2, NULL, $3, $4, $5, 0, 'SIN_STOCK', now(), now(), now(), false
+       )
+       RETURNING *`,
+      [
+        detalle.id,
+        detalle.producto_id,
+        req.usuario.id,
+        cantidad,
+        precioOriginal
+      ]
+    );
+
+    await cliente.query('COMMIT');
+    return res.status(201).json({
+      idempotente: false,
+      sustitucion: mapearSustitucion({ ...creada, pedido_id: pedido.id })
+    });
+  } catch (error) {
+    try {
+      await cliente.query('ROLLBACK');
+    } catch (_e) {
+      // ignore
+    }
+    if (error && error.code === '23505') {
+      return res.status(409).json({
+        error: 'Ya se informó sin stock para esta línea',
+        codigo: 'AVISO_SIN_STOCK_DUPLICADO'
+      });
+    }
+    console.error('Error al avisar sin stock:', error.message);
+    return res.status(500).json({ error: 'No se pudo informar sin stock al cliente' });
+  } finally {
+    cliente.release();
+  }
+}
+
 module.exports = {
   listarCandidatos,
   proponer,
+  avisarSinStock,
   listarCliente,
   obtenerPorId,
   aceptar,
   rechazar,
   decidir,
   resolverExpiradasHttp,
+  cancelarSustitucionesAbiertasDePedido,
   // pruebas
   resolverExpiradas,
   decidirInterno

@@ -29,21 +29,44 @@ class MisPedidosRepository(
 ) {
     private val gson = Gson()
 
-    suspend fun listar(filtro: FiltroMisPedidos): ResultadoMisPedidos<List<PedidoResumenCliente>> =
+    suspend fun listar(
+        filtro: FiltroMisPedidos,
+        page: Int = 1,
+        limit: Int = 20,
+        q: String? = null
+    ): ResultadoMisPedidos<PaginaMisPedidos> =
         withContext(io) {
             val owner = usuarioRemotoId() ?: return@withContext sesionVencida()
             try {
-                val respuesta = api.listarPedidos(estado = null, owner = owner)
+                val consulta = q?.trim()?.takeIf { it.isNotEmpty() }
+                val respuesta = api.listarPedidos(
+                    estado = null,
+                    owner = owner,
+                    page = page,
+                    limit = limit,
+                    q = consulta,
+                    filtro = filtro.filtroApi
+                )
                 if (!respuesta.isSuccessful) return@withContext fallo(respuesta)
-                val pendientes = when (val s = sustituciones.listar(EstadoSustitucion.PENDIENTE)) {
-                    is ResultadoSustitucion.Exito -> s.valor.mapNotNull { it.pedidoId }.toSet()
+                val pendientes = when (val s = sustituciones.listar(page = 1, limit = 50)) {
+                    is ResultadoSustitucion.Exito -> s.valor.propuestas
+                        .filter { EstadoSustitucion.esRequiereAtencion(it.estado) }
+                        .mapNotNull { it.pedidoId }
+                        .toSet()
                     else -> emptySet()
                 }
                 val etiquetasFranja = cargarEtiquetasFranja()
-                val lista = respuesta.body()?.pedidos.orEmpty()
+                val cuerpo = respuesta.body()
+                val lista = cuerpo?.pedidos.orEmpty()
                     .mapNotNull { dto -> dto.aResumen(pendientes, etiquetasFranja) }
-                    .filter { filtro.coincide(it.estado, it.modalidadPago) }
-                ResultadoMisPedidos.Exito(lista)
+                ResultadoMisPedidos.Exito(
+                    PaginaMisPedidos(
+                        pedidos = lista,
+                        pagina = cuerpo?.pagina ?: page,
+                        hayMas = cuerpo?.hayMas == true,
+                        total = cuerpo?.total ?: lista.size
+                    )
+                )
             } catch (error: CancellationException) {
                 throw error
             } catch (error: IOException) {
@@ -77,8 +100,8 @@ class MisPedidosRepository(
                     )
                 }
                 sincronizarRoomSiMasNuevo(pedido)
-                val susts = when (val s = sustituciones.listar(null)) {
-                    is ResultadoSustitucion.Exito -> s.valor.filter { it.pedidoId == id }
+                val susts = when (val s = sustituciones.listar(page = 1, limit = 50)) {
+                    is ResultadoSustitucion.Exito -> s.valor.propuestas.filter { it.pedidoId == id }
                     else -> emptyList()
                 }
                 ResultadoMisPedidos.Exito(

@@ -1,10 +1,12 @@
 const pool = require('../database');
-const { mapearFranja } = require('../franjas');
+const { asegurarFranjasVentana, mapearFranja, sqlHorarioPasado } = require('../franjas');
 
 async function listar(req, res) {
   try {
+    await asegurarFranjasVentana(pool);
     const resultado = await pool.query(
       `SELECT f.id, f.fecha, f.hora_inicio, f.hora_fin, f.capacidad, f.activo, f.created_at,
+              ${sqlHorarioPasado('f')} AS horario_pasado,
               COALESCE((
                 SELECT COUNT(*)::int
                 FROM pedidos p
@@ -31,7 +33,8 @@ async function obtenerPorId(req, res) {
   try {
     await cliente.query('BEGIN');
     const { rows } = await cliente.query(
-      `SELECT f.id, f.fecha, f.hora_inicio, f.hora_fin, f.capacidad, f.activo, f.created_at
+      `SELECT f.id, f.fecha, f.hora_inicio, f.hora_fin, f.capacidad, f.activo, f.created_at,
+              ${sqlHorarioPasado('f')} AS horario_pasado
        FROM franjas_entrega f
        WHERE f.id = $1
        FOR UPDATE`,

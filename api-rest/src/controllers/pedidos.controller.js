@@ -5,6 +5,10 @@ const { asegurarCupoFranja } = require('../franjas');
 const { evaluarTransicion, puedeVerPedido } = require('../pedidosEstados');
 const { validarPreparacionCompleta } = require('../picking');
 const { liquidarDevolucionAjuste } = require('../billetera');
+const { paginar, metaPaginacion } = require('../paginacion');
+const {
+  cancelarSustitucionesAbiertasDePedido
+} = require('./sustituciones.controller');
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -567,16 +571,77 @@ function filtroVisibilidadSql(usuario, alias = 'p') {
   return { sql: 'FALSE', params: [] };
 }
 
+/**
+ * Filtros de Mis Pedidos (cliente). Compatibles con `estado` / `estados` del picker.
+ * @returns {{ tipo: 'ninguno'|'unico'|'varios'|'pendientes_pago', estados?: string[] }}
+ */
+function resolverFiltroListado(query) {
+  const nombrado = String(query.filtro || '').trim().toUpperCase();
+  if (nombrado === 'PENDIENTES_PAGO') {
+    return { tipo: 'pendientes_pago' };
+  }
+  if (nombrado === 'EN_PREPARACION') {
+    return { tipo: 'varios', estados: ['RECIBIDO', 'EN_PICKING', 'PAGADO'] };
+  }
+  if (nombrado === 'LISTOS') return { tipo: 'unico', estados: ['LISTO'] };
+  if (nombrado === 'EN_CAMINO') return { tipo: 'unico', estados: ['EN_CAMINO'] };
+  if (nombrado === 'ENTREGADOS') return { tipo: 'unico', estados: ['ENTREGADO'] };
+  if (nombrado === 'CANCELADOS') return { tipo: 'unico', estados: ['CANCELADO'] };
+  if (nombrado === 'TODOS' || nombrado === '') {
+    const estadosCsv = String(query.estados || '')
+      .split(',')
+      .map((s) => s.trim().toUpperCase())
+      .filter(Boolean);
+    if (estadosCsv.length > 1) return { tipo: 'varios', estados: estadosCsv };
+    if (estadosCsv.length === 1) return { tipo: 'unico', estados: estadosCsv };
+    const unico = String(query.estado || '').trim().toUpperCase();
+    if (unico) return { tipo: 'unico', estados: [unico] };
+    return { tipo: 'ninguno' };
+  }
+  return { tipo: 'ninguno' };
+}
+
 async function listar(req, res) {
   try {
+    const { page, limit, offset } = paginar(req);
     const filtro = filtroVisibilidadSql(req.usuario, 'p');
     const params = [...filtro.params];
-    let sql = `
-      SELECT p.*,
-             pg.id AS pago_id,
-             pg.modalidad AS pago_modalidad,
-             pg.estado AS pago_estado,
-             pg.monto_centimos AS pago_monto_centimos
+    let where = `p.deleted_at IS NULL AND (${filtro.sql})`;
+
+    const filtroListado = resolverFiltroListado(req.query);
+    if (filtroListado.tipo === 'pendientes_pago') {
+      // ONLINE tras CONFIRMADO; CONTRAENTREGA en entrega (LISTO/EN_CAMINO).
+      where += ` AND (
+        (p.estado = 'CONFIRMADO' AND pg.modalidad = 'ONLINE')
+        OR (p.estado IN ('LISTO', 'EN_CAMINO') AND pg.modalidad = 'CONTRAENTREGA')
+      )`;
+    } else if (filtroListado.tipo === 'varios' && filtroListado.estados?.length) {
+      const placeholders = filtroListado.estados.map((estado) => {
+        params.push(estado);
+        return `$${params.length}`;
+      });
+      where += ` AND p.estado IN (${placeholders.join(', ')})`;
+    } else if (filtroListado.tipo === 'unico' && filtroListado.estados?.[0]) {
+      params.push(filtroListado.estados[0]);
+      where += ` AND p.estado = $${params.length}`;
+    }
+
+    const q = String(req.query.q || '').trim();
+    if (q) {
+      params.push(`%${q}%`);
+      const idx = params.length;
+      where += ` AND (
+        p.id::text ILIKE $${idx}
+        OR EXISTS (
+          SELECT 1 FROM pedido_detalle pd
+          WHERE pd.pedido_id = p.id
+            AND pd.deleted_at IS NULL
+            AND pd.nombre_producto ILIKE $${idx}
+        )
+      )`;
+    }
+
+    const fromConPago = `
       FROM pedidos p
       LEFT JOIN LATERAL (
         SELECT id, modalidad, estado, monto_centimos
@@ -585,16 +650,28 @@ async function listar(req, res) {
         ORDER BY created_at DESC
         LIMIT 1
       ) pg ON true
-      WHERE p.deleted_at IS NULL AND (${filtro.sql})
     `;
-    if (req.query.estado) {
-      params.push(String(req.query.estado));
-      sql += ` AND p.estado = $${params.length}`;
-    }
-    sql += ' ORDER BY p.fecha DESC LIMIT 100';
-    const resultado = await pool.query(sql, params);
+
+    const countSql = `SELECT COUNT(*)::int AS total ${fromConPago} WHERE ${where}`;
+    const { rows: countRows } = await pool.query(countSql, params);
+    const total = countRows[0]?.total ?? 0;
+
+    const listParams = [...params, limit, offset];
+    const sql = `
+      SELECT p.*,
+             pg.id AS pago_id,
+             pg.modalidad AS pago_modalidad,
+             pg.estado AS pago_estado,
+             pg.monto_centimos AS pago_monto_centimos
+      ${fromConPago}
+      WHERE ${where}
+      ORDER BY p.fecha DESC
+      LIMIT $${listParams.length - 1} OFFSET $${listParams.length}
+    `;
+    const resultado = await pool.query(sql, listParams);
     return res.status(200).json({
-      pedidos: resultado.rows.map(mapearPedido)
+      pedidos: resultado.rows.map(mapearPedido),
+      ...metaPaginacion(total, { page, limit })
     });
   } catch (error) {
     console.error('Error al listar pedidos:', error.message);
@@ -952,6 +1029,7 @@ async function transicionar(req, res) {
 
     if (hacia === 'CANCELADO') {
       await restituirStockCancelacion(cliente, pedido.id, req.usuario.id);
+      await cancelarSustitucionesAbiertasDePedido(cliente, pedido.id);
       // Cupo de franja se libera al pasar a CANCELADO (ocupación = no CANCELADO).
       if (pago && !['CONFIRMADO', 'CANCELADO', 'EXPIRADO'].includes(pago.estado)) {
         await cliente.query(
@@ -1005,5 +1083,6 @@ module.exports = {
   cargarPedidoCompleto,
   restituirStockCancelacion,
   liquidarDevolucionCancelacion,
-  evaluarTransicionBancaria: evaluarTransicion
+  evaluarTransicionBancaria: evaluarTransicion,
+  resolverFiltroListado
 };

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.megamarket.cliente.data.repository.FavoritosRepository
 import com.megamarket.cliente.data.repository.MediosImagenRepository
 import com.megamarket.cliente.state.FavoritosUiState
+import com.megamarket.cliente.state.TAMANO_PAGINA_LISTA
 import com.megamarket.modelo.Producto
 import com.megamarket.modelo.SolicitudImagenProducto
 import kotlinx.coroutines.CancellationException
@@ -12,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class FavoritosViewModel(
@@ -32,8 +34,21 @@ class FavoritosViewModel(
                     )
                 }
                 .collect { productos ->
-                    _estado.value = FavoritosUiState(cargando = false, productos = productos)
+                    _estado.update {
+                        it.copy(
+                            cargando = false,
+                            productos = productos,
+                            error = null
+                        )
+                    }
                 }
+        }
+    }
+
+    fun cargarMas() {
+        _estado.update {
+            if (!it.hayMas) it
+            else it.copy(limiteVisible = it.limiteVisible + TAMANO_PAGINA_LISTA)
         }
     }
 
@@ -43,8 +58,8 @@ class FavoritosViewModel(
                 favoritos.alternarFavorito(productoId)
             } catch (error: CancellationException) {
                 throw error
-            } catch (error: Exception) {
-                _estado.value = _estado.value.copy(error = "No se pudo actualizar el favorito")
+            } catch (_: Exception) {
+                _estado.update { it.copy(error = "No se pudo actualizar el favorito") }
             }
         }
     }

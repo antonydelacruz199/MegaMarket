@@ -338,11 +338,37 @@ private fun PasoResumen(
 ) {
     Text(
         text = "Revisa tu pedido",
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.SemiBold
+        style = MaterialTheme.typography.titleLarge,
+        fontWeight = FontWeight.Bold
     )
-    Spacer(modifier = Modifier.height(8.dp))
-    BloqueResumen("Productos") {
+    Text(
+        text = "Confirma productos, dirección, horario y forma de pago antes de enviar.",
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Spacer(modifier = Modifier.height(12.dp))
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text("Total a pagar", style = MaterialTheme.typography.labelLarge)
+            Text(
+                text = estado.totalCarritoCentimos.formatearSoles(),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Text(
+                text = "${estado.lineasCarrito.size} producto(s)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+    Spacer(modifier = Modifier.height(12.dp))
+    BloqueResumen("Productos", accion = "Añadir", alAccion = alAnadirProductos) {
         if (estado.lineasCarrito.isEmpty()) {
             Text("No hay productos en el carrito.", color = MaterialTheme.colorScheme.error)
         } else {
@@ -353,40 +379,31 @@ private fun PasoResumen(
                     alDisminuir = { viewModel.disminuirCantidad(linea.producto.id, linea.cantidad) },
                     alQuitar = { viewModel.quitarProducto(linea.producto.id) }
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(10.dp))
             }
-            Text(
-                text = "Total ${estado.totalCarritoCentimos.formatearSoles()}",
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(top = 4.dp)
-            )
         }
-        TextButton(onClick = alAnadirProductos) { Text("Añadir productos") }
     }
-    BloqueResumen("Dirección") {
-        Text("${estado.direccion}, ${estado.distrito}")
+    BloqueResumen("Dirección", accion = "Editar", alAccion = { viewModel.irAPaso(PasoCheckout.DIRECCION) }) {
+        Text("${estado.direccion}, ${estado.distrito}", fontWeight = FontWeight.Medium)
         Text("${estado.provincia}, ${estado.departamento}")
-        Text("Tel. ${estado.telefono}")
-        TextButton(onClick = { viewModel.irAPaso(PasoCheckout.DIRECCION) }) { Text("Editar") }
+        Text("Tel. ${estado.telefono}", color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
-    BloqueResumen("Entrega") {
+    BloqueResumen("Entrega", accion = "Cambiar", alAccion = { viewModel.irAPaso(PasoCheckout.FRANJA) }) {
         val franja = estado.franjaSeleccionada
         if (franja != null) {
-            Text(franja.etiquetaCompleta, fontWeight = FontWeight.Medium)
+            Text(franja.etiquetaCompleta, fontWeight = FontWeight.SemiBold)
             Text(franja.etiquetaCupo, color = MaterialTheme.colorScheme.onSurfaceVariant)
         } else {
             Text("Sin franja seleccionada", color = MaterialTheme.colorScheme.error)
         }
-        TextButton(onClick = { viewModel.irAPaso(PasoCheckout.FRANJA) }) { Text("Cambiar franja") }
     }
-    BloqueResumen("Pago") {
-        Text(estado.modalidadPago?.titulo ?: "Sin modalidad", fontWeight = FontWeight.Medium)
+    BloqueResumen("Pago", accion = "Cambiar", alAccion = { viewModel.irAPaso(PasoCheckout.PAGO) }) {
+        Text(estado.modalidadPago?.titulo ?: "Sin modalidad", fontWeight = FontWeight.SemiBold)
         Text(
             text = estado.modalidadPago?.descripcion.orEmpty(),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        TextButton(onClick = { viewModel.irAPaso(PasoCheckout.PAGO) }) { Text("Cambiar") }
     }
 }
 
@@ -397,50 +414,86 @@ private fun LineaProductoResumen(
     alDisminuir: () -> Unit,
     alQuitar: () -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(linea.producto.nombre, fontWeight = FontWeight.SemiBold)
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(linea.producto.nombre, fontWeight = FontWeight.SemiBold)
+                    Text(
+                        text = linea.producto.precioVigenteCentimos.formatearSoles(),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                IconButton(onClick = alQuitar) {
+                    Icon(Icons.Default.Delete, contentDescription = "Quitar producto")
+                }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedButton(
+                        onClick = alDisminuir,
+                        enabled = linea.cantidad > 1,
+                        shape = RoundedCornerShape(8.dp)
+                    ) { Text("−") }
+                    Text(
+                        "${linea.cantidad}",
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        fontWeight = FontWeight.Bold
+                    )
+                    OutlinedButton(
+                        onClick = alAumentar,
+                        enabled = linea.cantidad < linea.producto.stock,
+                        shape = RoundedCornerShape(8.dp)
+                    ) { Text("+") }
+                }
                 Text(
-                    text = linea.producto.precioVigenteCentimos.formatearSoles(),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = linea.subtotalCentimos.formatearSoles(),
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
                 )
             }
-            IconButton(onClick = alQuitar) {
-                Icon(Icons.Default.Delete, contentDescription = "Quitar producto")
-            }
-        }
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = alDisminuir, enabled = linea.cantidad > 1) { Text("−") }
-            Text("${linea.cantidad}", fontWeight = FontWeight.Medium)
-            IconButton(
-                onClick = alAumentar,
-                enabled = linea.cantidad < linea.producto.stock
-            ) { Text("+") }
-            Text(
-                text = linea.subtotalCentimos.formatearSoles(),
-                modifier = Modifier.padding(start = 12.dp),
-                fontWeight = FontWeight.SemiBold
-            )
         }
     }
 }
 
 @Composable
-private fun BloqueResumen(titulo: String, contenido: @Composable () -> Unit) {
+private fun BloqueResumen(
+    titulo: String,
+    accion: String? = null,
+    alAccion: (() -> Unit)? = null,
+    contenido: @Composable () -> Unit
+) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
             .padding(bottom = 10.dp),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
     ) {
         Column(modifier = Modifier.padding(14.dp)) {
-            Text(titulo, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(titulo, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                if (accion != null && alAccion != null) {
+                    TextButton(onClick = alAccion) { Text(accion) }
+                }
+            }
             Spacer(modifier = Modifier.height(4.dp))
             contenido()
         }

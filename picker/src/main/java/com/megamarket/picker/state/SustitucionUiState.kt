@@ -21,5 +21,7 @@ data class SustitucionUiState(
     val codigoError: String? = null,
     val detalleActualizado: Boolean = false,
     val lineaResuelta: Boolean = false,
-    val sesionVencida: Boolean = false
+    val sesionVencida: Boolean = false,
+    val sinStockAlmacen: Boolean = false,
+    val avisoSinStockEnviado: Boolean = false
 )

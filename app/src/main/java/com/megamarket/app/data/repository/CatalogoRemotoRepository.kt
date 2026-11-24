@@ -34,13 +34,22 @@ class CatalogoRemotoRepository(
             val categorias = catsResp.body()?.categorias.orEmpty()
             upsertCategorias(categorias)
 
-            val prodResp = api.listarProductos()
-            if (!prodResp.isSuccessful) {
-                return@withContext ResultadoDescargaCatalogo.Error(
-                    "No se pudieron descargar los productos (${prodResp.code()})"
-                )
+            val productos = mutableListOf<ProductoApiDto>()
+            var pagina = 1
+            var hayMas = true
+            while (hayMas) {
+                val prodResp = api.listarProductos(page = pagina, limit = 50)
+                if (!prodResp.isSuccessful) {
+                    return@withContext ResultadoDescargaCatalogo.Error(
+                        "No se pudieron descargar los productos (${prodResp.code()})"
+                    )
+                }
+                val cuerpo = prodResp.body()
+                productos += cuerpo?.productos.orEmpty()
+                hayMas = cuerpo?.hayMas == true
+                pagina++
+                if (pagina > 200) break
             }
-            val productos = prodResp.body()?.productos.orEmpty()
             upsertProductos(productos)
 
             val ahora = System.currentTimeMillis()

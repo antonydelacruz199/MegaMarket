@@ -1,10 +1,14 @@
 package com.megamarket.cliente.model
 
 import com.megamarket.cliente.data.remote.FranjaApiDto
-import java.text.ParseException
-import java.text.SimpleDateFormat
+import com.megamarket.modelo.formatearFechaPresentacion
+import com.megamarket.modelo.normalizarFechaIso
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.format.DateTimeParseException
 import java.util.Locale
-import java.util.TimeZone
 
 enum class ModalidadPagoCheckout(
     val valorApi: String,
@@ -36,10 +40,14 @@ data class FranjaEntrega(
     val capacidad: Int,
     val ocupados: Int,
     val cupoRestante: Int,
-    val activa: Boolean
+    val activa: Boolean,
+    val horarioPasadoRemoto: Boolean = false
 ) {
+    val horarioPasado: Boolean
+        get() = horarioPasadoRemoto || horarioYaTermino(fechaIso, horaFin)
+
     val disponible: Boolean
-        get() = activa && cupoRestante > 0
+        get() = activa && cupoRestante > 0 && !horarioPasado
 
     val etiquetaFecha: String
         get() = formatearFecha(fechaIso)
@@ -52,6 +60,7 @@ data class FranjaEntrega(
 
     val etiquetaCupo: String
         get() = when {
+            horarioPasado -> "Horario pasado"
             !activa -> "No disponible"
             cupoRestante <= 0 -> "Agotada"
             else -> "$cupoRestante de $capacidad cupos"
@@ -59,6 +68,7 @@ data class FranjaEntrega(
 
     companion object {
         private val localeEs = Locale.Builder().setLanguage("es").setRegion("PE").build()
+        private val ZONA_TIENDA: ZoneId = ZoneId.of("America/Lima")
 
         fun desdeDto(dto: FranjaApiDto): FranjaEntrega? {
             val id = dto.id?.trim().orEmpty()
@@ -78,8 +88,36 @@ data class FranjaEntrega(
                 capacidad = capacidad,
                 ocupados = ocupados,
                 cupoRestante = restante,
-                activa = dto.activa != false
+                activa = dto.activa != false,
+                horarioPasadoRemoto = dto.horarioPasado == true
             )
+        }
+
+        /**
+         * La franja queda bloqueada cuando la hora de la tienda (Lima) ya alcanzó su fin.
+         * Una franja de mañana sigue vigente aunque su hora de fin sea más temprana que el reloj de hoy.
+         */
+        fun horarioYaTermino(
+            fechaIso: String,
+            horaFin: String,
+            ahora: ZonedDateTime = ZonedDateTime.now(ZONA_TIENDA)
+        ): Boolean {
+            val dia = normalizarFecha(fechaIso)?.let {
+                try {
+                    LocalDate.parse(it)
+                } catch (_: DateTimeParseException) {
+                    null
+                }
+            } ?: return false
+            val fin = normalizarHora(horaFin)?.let {
+                try {
+                    LocalTime.parse(it)
+                } catch (_: DateTimeParseException) {
+                    null
+                }
+            } ?: return false
+            val termino = ZonedDateTime.of(dia, fin, ZONA_TIENDA)
+            return !ahora.isBefore(termino)
         }
 
         fun etiquetaDesdeCampos(fechaIso: String?, horaInicio: String?, horaFin: String?): String? {
@@ -90,24 +128,8 @@ data class FranjaEntrega(
             return "${formatearFecha(fecha)} · ${formatearHora(inicio)} – ${formatearHora(fin)}"
         }
 
-        fun formatearFecha(crudo: String): String {
-            val iso = normalizarFecha(crudo) ?: return crudo.take(10)
-            val parser = SimpleDateFormat("yyyy-MM-dd", localeEs).apply {
-                isLenient = false
-                timeZone = TimeZone.getTimeZone("UTC")
-            }
-            val salida = SimpleDateFormat("EEE d MMM", localeEs).apply {
-                timeZone = TimeZone.getTimeZone("UTC")
-            }
-            return try {
-                val fecha = parser.parse(iso) ?: return iso
-                salida.format(fecha).replaceFirstChar {
-                    if (it.isLowerCase()) it.titlecase(localeEs) else it.toString()
-                }
-            } catch (_: ParseException) {
-                iso
-            }
-        }
+        fun formatearFecha(crudo: String): String =
+            formatearFechaPresentacion(crudo).ifBlank { crudo.take(10) }
 
         fun formatearHora(crudo: String): String {
             val normalizada = normalizarHora(crudo) ?: return crudo.take(5)
@@ -123,12 +145,8 @@ data class FranjaEntrega(
             return "$hora12:$minuto $periodo"
         }
 
-        fun normalizarFecha(crudo: String?): String? {
-            val texto = crudo?.trim().orEmpty()
-            if (texto.isEmpty()) return null
-            val base = texto.substringBefore('T').take(10)
-            return if (base.length == 10 && base[4] == '-' && base[7] == '-') base else null
-        }
+        /** Internamente siempre ISO `yyyy-MM-dd` para ordenar y comparar. */
+        fun normalizarFecha(crudo: String?): String? = normalizarFechaIso(crudo)
 
         fun normalizarHora(crudo: String?): String? {
             val texto = crudo?.trim().orEmpty()

@@ -46,7 +46,6 @@ import com.megamarket.cliente.viewmodel.InicioViewModel
 import com.megamarket.cliente.viewmodel.MisPedidosViewModel
 import com.megamarket.cliente.viewmodel.PagoQrViewModel
 import com.megamarket.cliente.viewmodel.PerfilViewModel
-import com.megamarket.cliente.viewmodel.SincronizacionViewModel
 import com.megamarket.cliente.viewmodel.SustitucionesViewModel
 import com.megamarket.cliente.viewmodel.ViewModelFactory
 
@@ -91,7 +90,6 @@ fun NavegacionCliente(
         composable(Ruta.Inicio.ruta) {
             PantallaInicio(
                 viewModel = viewModel<InicioViewModel>(factory = fabrica),
-                sincronizacionViewModel = viewModel<SincronizacionViewModel>(factory = fabrica),
                 alNavegar = controlador::irARaiz,
                 alCerrarSesion = cerrarSesion,
                 alAbrirProducto = { id -> controlador.navigate(Ruta.Detalle.crear(id)) }

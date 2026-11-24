@@ -22,7 +22,12 @@ interface ApiService {
     suspend fun listarCategorias(@Header("X-Expected-User") owner: String? = null): Response<CategoriasResponse>
 
     @GET("api/productos")
-    suspend fun listarProductos(@Header("X-Expected-User") owner: String? = null): Response<ProductosResponse>
+    suspend fun listarProductos(
+        @Header("X-Expected-User") owner: String? = null,
+        @Query("page") page: Int? = null,
+        @Query("limit") limit: Int? = null,
+        @Query("q") q: String? = null
+    ): Response<ProductosResponse>
 
     @GET("api/franjas")
     suspend fun listarFranjas(
@@ -41,7 +46,12 @@ interface ApiService {
     @GET("api/pedidos")
     suspend fun listarPedidos(
         @Query("estado") estado: String? = null,
-        @Header("X-Expected-User") owner: String
+        @Header("X-Expected-User") owner: String,
+        @Query("page") page: Int? = null,
+        @Query("limit") limit: Int? = null,
+        @Query("q") q: String? = null,
+        @Query("filtro") filtro: String? = null,
+        @Query("estados") estados: String? = null
     ): Response<ListaPedidosResponse>
 
     @GET("api/pedidos/{id}")
@@ -60,7 +70,9 @@ interface ApiService {
     @GET("api/sustituciones")
     suspend fun listarSustituciones(
         @Query("estado") estado: String? = null,
-        @Header("X-Expected-User") owner: String
+        @Header("X-Expected-User") owner: String,
+        @Query("page") page: Int? = null,
+        @Query("limit") limit: Int? = null
     ): Response<ListaSustitucionesResponse>
 
     @GET("api/sustituciones/{id}")
@@ -88,7 +100,9 @@ interface ApiService {
 
     @GET("api/billetera/movimientos")
     suspend fun listarMovimientosBilletera(
-        @Header("X-Expected-User") owner: String
+        @Header("X-Expected-User") owner: String,
+        @Query("page") page: Int? = null,
+        @Query("limit") limit: Int? = null
     ): Response<BilleteraMovimientosResponse>
 
     @POST("api/pagos/qr")

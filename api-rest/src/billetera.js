@@ -506,16 +506,25 @@ async function liquidarDescuentoAjuste(clienteDb, ctx) {
   };
 }
 
-async function listarMovimientosCuenta(clienteDb, cuentaId, limite = 50) {
+async function listarMovimientosCuenta(clienteDb, cuentaId, limite = 50, offset = 0) {
   const lim = Math.min(Math.max(Number(limite) || 50, 1), 200);
+  const off = Math.max(0, Number(offset) || 0);
   const { rows } = await clienteDb.query(
     `SELECT * FROM movimientos_billetera
      WHERE cuenta_id = $1
      ORDER BY created_at DESC
-     LIMIT $2`,
-    [cuentaId, lim]
+     LIMIT $2 OFFSET $3`,
+    [cuentaId, lim, off]
   );
   return rows.map(mapearMovimiento);
+}
+
+async function contarMovimientosCuenta(clienteDb, cuentaId) {
+  const { rows } = await clienteDb.query(
+    `SELECT COUNT(*)::int AS total FROM movimientos_billetera WHERE cuenta_id = $1`,
+    [cuentaId]
+  );
+  return rows[0]?.total ?? 0;
 }
 
 module.exports = {
@@ -530,5 +539,6 @@ module.exports = {
   liquidarCobroPedido,
   liquidarDevolucionAjuste,
   liquidarDescuentoAjuste,
-  listarMovimientosCuenta
+  listarMovimientosCuenta,
+  contarMovimientosCuenta
 };

@@ -115,7 +115,7 @@ async function semilla(pool) {
   );
   const { rows: [franja] } = await pool.query(
     `INSERT INTO franjas_entrega(fecha, hora_inicio, hora_fin, capacidad, activo)
-     VALUES (CURRENT_DATE, '10:00', '12:00', 20, true) RETURNING id`
+     VALUES (CURRENT_DATE + 1, '10:00', '12:00', 20, true) RETURNING id`
   );
   return { cliente, cliente2, admin, repartidor, producto, franja };
 }

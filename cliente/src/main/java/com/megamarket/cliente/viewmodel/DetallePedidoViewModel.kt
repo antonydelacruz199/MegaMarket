@@ -102,6 +102,7 @@ class DetallePedidoViewModel(
             when (resultado) {
                 is ResultadoPagos.Exito -> {
                     _estado.update { it.copy(cancelando = false, cancelado = true) }
+                    // Recarga detalle: sustituciones abiertas quedan CANCELADA.
                     cargar()
                 }
                 is ResultadoPagos.Error -> _estado.update {
@@ -185,8 +186,9 @@ class DetallePedidoViewModel(
                 if (r is ResultadoMisPedidos.Exito) {
                     _estado.update { it.copy(detalle = r.valor, cargando = false) }
                     val sigue =
-                        r.valor.sustituciones.any { EstadoSustitucion.esPendiente(it.estado) } ||
-                            r.valor.estado.uppercase() in ESTADOS_ACTIVOS
+                        r.valor.sustituciones.any {
+                            EstadoSustitucion.esRequiereAtencion(it.estado)
+                        } || r.valor.estado.uppercase() in ESTADOS_ACTIVOS
                     if (!sigue) {
                         detenerSeguimiento()
                         break

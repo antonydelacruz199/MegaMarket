@@ -1,4 +1,5 @@
 const pool = require('../database');
+const { paginar, metaPaginacion } = require('../paginacion');
 const {
   esUuid,
   assertRepartidorAsignado,
@@ -7,6 +8,8 @@ const {
   mapearEntrega,
   mapearPedidoEntrega
 } = require('../entregas');
+
+const ESTADOS_ENTREGA = new Set(['LISTO', 'EN_CAMINO', 'ENTREGADO']);
 
 async function cargarPago(cliente, pedidoId) {
   const { rows } = await cliente.query(
@@ -40,25 +43,51 @@ async function cargarEntregaPorPedido(cliente, pedidoId) {
 
 async function listar(req, res) {
   try {
-    // LISTO sin asignar = pool para tomar (picker → delivery).
-    // EN_CAMINO / ENTREGADO solo los del repartidor autenticado.
-    const { rows: pedidos } = await pool.query(
-      `SELECT id, cliente_id, estado, total_centimos, franja_entrega_id, repartidor_id,
-              fecha, version, updated_at
+    const { page, limit, offset } = paginar(req);
+    const estadoRaw = String(req.query.estado || '').trim().toUpperCase();
+    // Sin estado: compat legado (las tres colas). Con estado: una sola cola paginada.
+    const estado = ESTADOS_ENTREGA.has(estadoRaw) ? estadoRaw : null;
+    const params = [req.usuario.id];
+    let whereEstado;
+    if (estado === 'LISTO') {
+      whereEstado = `(estado = 'LISTO' AND (repartidor_id IS NULL OR repartidor_id = $1))`;
+    } else if (estado === 'EN_CAMINO') {
+      whereEstado = `(estado = 'EN_CAMINO' AND repartidor_id = $1)`;
+    } else if (estado === 'ENTREGADO') {
+      whereEstado = `(estado = 'ENTREGADO' AND repartidor_id = $1)`;
+    } else {
+      // LISTO sin asignar = pool; EN_CAMINO / ENTREGADO solo del repartidor.
+      whereEstado = `(
+        (estado = 'LISTO' AND (repartidor_id IS NULL OR repartidor_id = $1))
+        OR (estado IN ('EN_CAMINO', 'ENTREGADO') AND repartidor_id = $1)
+      )`;
+    }
+
+    const { rows: countRows } = await pool.query(
+      `SELECT COUNT(*)::int AS total
        FROM pedidos
-       WHERE deleted_at IS NULL
-         AND (
-           (estado = 'LISTO' AND (repartidor_id IS NULL OR repartidor_id = $1))
-           OR (estado IN ('EN_CAMINO', 'ENTREGADO') AND repartidor_id = $1)
-         )
-       ORDER BY
-         CASE
+       WHERE deleted_at IS NULL AND ${whereEstado}`,
+      params
+    );
+    const total = countRows[0]?.total ?? 0;
+
+    const orderSql = estado
+      ? (estado === 'ENTREGADO' ? 'fecha DESC' : 'fecha ASC')
+      : `CASE
            WHEN estado = 'LISTO' THEN 0
            WHEN estado = 'EN_CAMINO' THEN 1
            ELSE 2
          END,
-         fecha ASC`,
-      [req.usuario.id]
+         fecha ASC`;
+
+    const { rows: pedidos } = await pool.query(
+      `SELECT id, cliente_id, estado, total_centimos, franja_entrega_id, repartidor_id,
+              fecha, version, updated_at
+       FROM pedidos
+       WHERE deleted_at IS NULL AND ${whereEstado}
+       ORDER BY ${orderSql}
+       LIMIT $2 OFFSET $3`,
+      [req.usuario.id, limit, offset]
     );
 
     const resultado = [];
@@ -69,7 +98,10 @@ async function listar(req, res) {
         entrega: mapearEntrega(entrega)
       });
     }
-    return res.status(200).json({ pedidos: resultado });
+    return res.status(200).json({
+      pedidos: resultado,
+      ...metaPaginacion(total, { page, limit })
+    });
   } catch (error) {
     console.error('Error al listar entregas:', error.message);
     return res.status(500).json({ error: 'No se pudieron listar los pedidos de entrega' });

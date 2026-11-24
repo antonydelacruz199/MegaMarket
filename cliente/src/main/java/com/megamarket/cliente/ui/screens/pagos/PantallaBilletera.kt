@@ -21,8 +21,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -98,7 +98,6 @@ fun PantallaBilletera(
                         .fillMaxSize()
                         .padding(padding)
                 ) {
-                    if (estado.cargando) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(16.dp),
@@ -143,6 +142,25 @@ fun PantallaBilletera(
                             items(estado.movimientos, key = { it.id }) { movimiento ->
                                 FilaMovimiento(movimiento)
                                 HorizontalDivider()
+                            }
+                        }
+                        if (estado.hayMas) {
+                            item {
+                                if (estado.cargandoMas) {
+                                    Row(
+                                        Modifier
+                                            .fillMaxWidth()
+                                            .padding(12.dp),
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        CircularProgressIndicator()
+                                    }
+                                } else {
+                                    OutlinedButton(
+                                        onClick = viewModel::cargarMas,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) { Text("Cargar más") }
+                                }
                             }
                         }
                     }

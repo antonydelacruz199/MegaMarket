@@ -7,12 +7,20 @@ object EstadoSustitucion {
     const val ACEPTADA = "ACEPTADA"
     const val RECHAZADA = "RECHAZADA"
     const val CANCELADA = "CANCELADA"
+    const val SIN_STOCK = "SIN_STOCK"
 
     fun esPendiente(estado: String?): Boolean =
         estado?.trim().equals(PENDIENTE, ignoreCase = true) == true
 
+    fun esSinStock(estado: String?): Boolean =
+        estado?.trim().equals(SIN_STOCK, ignoreCase = true) == true
+
+    /** Pendiente de respuesta o aviso sin stock que el cliente debe ver. */
+    fun esRequiereAtencion(estado: String?): Boolean =
+        esPendiente(estado) || esSinStock(estado)
+
     fun esDefinitivo(estado: String?): Boolean = when (estado?.trim()?.uppercase()) {
-        ACEPTADA, RECHAZADA, CANCELADA -> true
+        ACEPTADA, RECHAZADA, CANCELADA, SIN_STOCK -> true
         else -> false
     }
 }
@@ -53,7 +61,10 @@ data class PropuestaSustitucionCliente(
     val fechaLimite: String?,
     val fechaRespuesta: String?,
     val respuestaAutomatica: Boolean
-)
+) {
+    val esAvisoSinStock: Boolean
+        get() = EstadoSustitucion.esSinStock(estado)
+}
 
 sealed class ResultadoSustitucion<out T> {
     data class Exito<T>(val valor: T) : ResultadoSustitucion<T>()

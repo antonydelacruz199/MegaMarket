@@ -12,11 +12,13 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -139,6 +141,14 @@ fun PantallaProductosAdmin(
                         solicitudImagen = viewModel.solicitudImagen(producto),
                         cargarImagen = viewModel::cargarImagen
                     )
+                }
+                if (estado.hayMas) {
+                    item {
+                        OutlinedButton(
+                            onClick = viewModel::cargarMas,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text("Cargar más") }
+                    }
                 }
             }
         }

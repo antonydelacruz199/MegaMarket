@@ -24,8 +24,6 @@ class ViewModelFactory(
                     container.imagenRepository,
                     container.sincronizacionRepository
                 )
-            modelClass.isAssignableFrom(SincronizacionViewModel::class.java) ->
-                SincronizacionViewModel(container.sincronizacionRepository)
             modelClass.isAssignableFrom(BilleteraComercioViewModel::class.java) ->
                 BilleteraComercioViewModel(container.billeteraComercioRepository)
             else -> throw IllegalArgumentException("ViewModel no soportado: ${modelClass.name}")

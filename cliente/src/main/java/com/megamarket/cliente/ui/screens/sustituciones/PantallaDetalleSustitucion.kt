@@ -19,7 +19,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -45,6 +44,7 @@ import com.megamarket.cliente.ui.components.ImagenProducto
 import com.megamarket.cliente.ui.textoEstadoSustitucion
 import com.megamarket.cliente.viewmodel.DetalleSustitucionViewModel
 import com.megamarket.modelo.SolicitudImagenProducto
+import com.megamarket.modelo.formatearFechaHoraPresentacion
 import com.megamarket.modelo.formatearSoles
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -144,71 +144,153 @@ fun PantallaDetalleSustitucion(
                             }
                         }
                         item {
-                            BloqueProducto(
-                                titulo = stringResource(R.string.sustitucion_producto_original),
-                                nombre = propuesta.nombreOriginal,
-                                marca = propuesta.marcaOriginal,
-                                imagen = propuesta.imagenOriginal,
-                                precioCentimos = propuesta.precioOriginalCentimos,
-                                cantidad = propuesta.cantidad
+                            Text(
+                                text = stringResource(R.string.sustitucion_contexto_disponibles),
+                                fontWeight = FontWeight.SemiBold
                             )
-                        }
-                        item {
-                            BloqueProducto(
-                                titulo = stringResource(R.string.sustitucion_producto_sustituto),
-                                nombre = propuesta.nombreSustituto,
-                                marca = propuesta.marcaSustituto,
-                                imagen = propuesta.imagenSustituto,
-                                precioCentimos = propuesta.precioSustitutoCentimos,
-                                cantidad = propuesta.cantidad
-                            )
+                            if (estado.lineasDisponibles.isEmpty()) {
+                                Text(
+                                    text = stringResource(R.string.sustitucion_sin_disponibles),
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                estado.lineasDisponibles.forEach { linea ->
+                                    Text("• ${linea.nombre} (x${linea.cantidad})")
+                                }
+                            }
                         }
                         item {
                             Text(
-                                text = stringResource(
-                                    R.string.sustitucion_importe_pagaras,
-                                    propuesta.importeClienteCentimos.formatearSoles()
-                                ),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
+                                text = stringResource(R.string.sustitucion_contexto_faltantes),
+                                fontWeight = FontWeight.SemiBold
                             )
-                            if (propuesta.precioSustitutoCentimos > propuesta.precioOriginalCentimos) {
+                            val faltantes = estado.lineasFaltantes.ifEmpty {
+                                emptyList()
+                            }
+                            if (faltantes.isEmpty()) {
+                                Text("• ${propuesta.nombreOriginal} (x${propuesta.cantidad})")
+                            } else {
+                                faltantes.forEach { linea ->
+                                    Text("• ${linea.nombre} (x${linea.cantidad})")
+                                }
+                            }
+                        }
+                        if (propuesta.esAvisoSinStock) {
+                            item {
                                 Text(
-                                    text = stringResource(R.string.sustitucion_no_paga_mas),
+                                    text = stringResource(R.string.sustitucion_sin_stock_titulo),
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                                Text(stringResource(R.string.sustitucion_sin_stock_mensaje))
+                            }
+                            item {
+                                BloqueProducto(
+                                    titulo = stringResource(R.string.sustitucion_producto_original),
+                                    nombre = propuesta.nombreOriginal,
+                                    marca = propuesta.marcaOriginal,
+                                    imagen = propuesta.imagenOriginal,
+                                    precioCentimos = propuesta.precioOriginalCentimos,
+                                    cantidad = propuesta.cantidad
+                                )
+                            }
+                            if (estado.pedidoCancelado) {
+                                item {
+                                    Text(
+                                        text = "Pedido cancelado.",
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                }
+                            } else if (estado.puedeCancelarPedido) {
+                                item {
+                                    OutlinedButton(
+                                        onClick = viewModel::cancelarPedido,
+                                        enabled = !estado.cancelandoPedido,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            if (estado.cancelandoPedido) {
+                                                "Cancelando…"
+                                            } else {
+                                                stringResource(R.string.cancelar_pedido_sustitucion)
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        } else {
+                            item {
+                                BloqueProducto(
+                                    titulo = stringResource(R.string.sustitucion_contexto_reemplazo),
+                                    nombre = propuesta.nombreSustituto,
+                                    marca = propuesta.marcaSustituto,
+                                    imagen = propuesta.imagenSustituto,
+                                    precioCentimos = propuesta.precioSustitutoCentimos,
+                                    cantidad = propuesta.cantidad
+                                )
+                                Text(
+                                    text = stringResource(
+                                        R.string.sustitucion_cantidad_igual,
+                                        propuesta.cantidad
+                                    ),
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                        }
-                        if (!propuesta.fechaLimite.isNullOrBlank()) {
+                            item {
+                                BloqueProducto(
+                                    titulo = stringResource(R.string.sustitucion_producto_original),
+                                    nombre = propuesta.nombreOriginal,
+                                    marca = propuesta.marcaOriginal,
+                                    imagen = propuesta.imagenOriginal,
+                                    precioCentimos = propuesta.precioOriginalCentimos,
+                                    cantidad = propuesta.cantidad
+                                )
+                            }
                             item {
                                 Text(
                                     text = stringResource(
-                                        R.string.sustitucion_vence,
-                                        propuesta.fechaLimite
+                                        R.string.sustitucion_importe_pagaras,
+                                        propuesta.importeClienteCentimos.formatearSoles()
                                     ),
-                                    style = MaterialTheme.typography.bodyMedium
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
                                 )
-                                if (EstadoSustitucion.esPendiente(propuesta.estado) &&
-                                    !estado.tiempoRestanteTexto.isNullOrBlank()
-                                ) {
+                                if (propuesta.precioSustitutoCentimos > propuesta.precioOriginalCentimos) {
+                                    Text(
+                                        text = stringResource(R.string.sustitucion_no_paga_mas),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            if (!propuesta.fechaLimite.isNullOrBlank()) {
+                                item {
                                     Text(
                                         text = stringResource(
-                                            R.string.sustitucion_tiempo_restante,
-                                            estado.tiempoRestanteTexto!!
+                                            R.string.sustitucion_vence,
+                                            formatearFechaHoraPresentacion(propuesta.fechaLimite)
                                         ),
-                                        fontWeight = FontWeight.SemiBold
+                                        style = MaterialTheme.typography.bodyMedium
                                     )
+                                    if (EstadoSustitucion.esPendiente(propuesta.estado) &&
+                                        !estado.tiempoRestanteTexto.isNullOrBlank()
+                                    ) {
+                                        Text(
+                                            text = stringResource(
+                                                R.string.sustitucion_tiempo_restante,
+                                                estado.tiempoRestanteTexto!!
+                                            ),
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                    }
                                 }
                             }
                         }
                         if (EstadoSustitucion.esPendiente(propuesta.estado)) {
                             item {
-                                if (estado.enviando || estado.consultandoEstado) {
-                                    LinearProgressIndicator(Modifier.fillMaxWidth())
-                                    Spacer(Modifier.height(8.dp))
-                                }
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(12.dp)
@@ -235,7 +317,9 @@ fun PantallaDetalleSustitucion(
                                     Text(stringResource(R.string.sustitucion_actualizar_estado))
                                 }
                             }
-                        } else if (EstadoSustitucion.esDefinitivo(propuesta.estado)) {
+                        } else if (EstadoSustitucion.esDefinitivo(propuesta.estado) &&
+                            !propuesta.esAvisoSinStock
+                        ) {
                             item {
                                 Text(
                                     text = stringResource(R.string.sustitucion_estado_definitivo),

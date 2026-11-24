@@ -45,7 +45,7 @@ test(
     await conEsquema(async (pool) => {
       const { rows: [franja] } = await pool.query(
         `INSERT INTO franjas_entrega(fecha, hora_inicio, hora_fin, capacidad, activo)
-         VALUES (CURRENT_DATE, '10:00', '12:00', 1, true)
+         VALUES (CURRENT_DATE + 1, '10:00', '12:00', 1, true)
          RETURNING id`
       );
       const clientes = [];
@@ -102,7 +102,7 @@ test(
     await conEsquema(async (pool) => {
       const { rows: [franja] } = await pool.query(
         `INSERT INTO franjas_entrega(fecha, hora_inicio, hora_fin, capacidad, activo)
-         VALUES (CURRENT_DATE, '14:00', '16:00', 1, true) RETURNING id`
+         VALUES (CURRENT_DATE + 1, '14:00', '16:00', 1, true) RETURNING id`
       );
       const { rows: [cliente] } = await pool.query(
         `INSERT INTO usuarios(nombre,usuario,correo,clave_hash,rol)
@@ -329,7 +329,7 @@ test(
       // Misma transacción: FOR UPDATE franja + INSERT pedido (patrón checkout v3).
       const { rows: [franja] } = await pool.query(
         `INSERT INTO franjas_entrega(fecha, hora_inicio, hora_fin, capacidad, activo)
-         VALUES (CURRENT_DATE, '09:00', '10:00', 1, true) RETURNING id`
+         VALUES (CURRENT_DATE + 1, '09:00', '10:00', 1, true) RETURNING id`
       );
       const db = await pool.connect();
       try {

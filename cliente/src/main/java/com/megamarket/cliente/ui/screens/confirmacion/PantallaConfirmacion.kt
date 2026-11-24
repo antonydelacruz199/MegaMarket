@@ -18,7 +18,6 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
@@ -84,53 +83,45 @@ fun PantallaConfirmacion(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(relleno)
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (estado.sincronizando || estado.cancelando) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            when {
+                estado.cargando && pedido == null -> CircularProgressIndicator()
+                pedido == null -> EstadoVacio(
+                    icono = Icons.Default.Warning,
+                    titulo = estado.error ?: "No hay una compra para mostrar",
+                    descripcion = "Puedes revisar tu carrito desde el inicio.",
+                    etiquetaAccion = "Reintentar",
+                    alPulsarAccion = { viewModel.cargarPedido(forzarSincronizacion = true) }
+                )
+                else -> ResumenYAcciones(
+                    estado = estado,
+                    alPagarConQr = alPagarConQr,
+                    alEscanearQr = alEscanearQr,
+                    alCancelar = viewModel::cancelarPedido,
+                    alAceptarPrecios = viewModel::aceptarPrecios,
+                    alReintentarEnvio = viewModel::reintentarEnvio,
+                    alCancelarRevision = viewModel::cancelarPedido,
+                    alSeguirPedido = {
+                        val remoto = pedido.remoteId?.trim().orEmpty()
+                        if (remoto.isNotEmpty()) alSeguirPedido(remoto)
+                        else alIrAlInicio()
+                    }
+                )
             }
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                when {
-                    estado.cargando && pedido == null -> CircularProgressIndicator()
-                    pedido == null -> EstadoVacio(
-                        icono = Icons.Default.Warning,
-                        titulo = estado.error ?: "No hay una compra para mostrar",
-                        descripcion = "Puedes revisar tu carrito desde el inicio.",
-                        etiquetaAccion = "Reintentar",
-                        alPulsarAccion = { viewModel.cargarPedido(forzarSincronizacion = true) }
-                    )
-                    else -> ResumenYAcciones(
-                        estado = estado,
-                        alPagarConQr = alPagarConQr,
-                        alEscanearQr = alEscanearQr,
-                        alCancelar = viewModel::cancelarPedido,
-                        alAceptarPrecios = viewModel::aceptarPrecios,
-                        alReintentarEnvio = viewModel::reintentarEnvio,
-                        alCancelarRevision = viewModel::cancelarPedido,
-                        alSeguirPedido = {
-                            val remoto = pedido.remoteId?.trim().orEmpty()
-                            if (remoto.isNotEmpty()) alSeguirPedido(remoto)
-                            else alIrAlInicio()
-                        }
-                    )
-                }
-                estado.error?.let {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(it, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
-                }
-                if (!estado.pagoRealizado) {
-                    Spacer(modifier = Modifier.height(24.dp))
-                    OutlinedButton(
-                        onClick = alIrAlInicio,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    ) { Text(stringResource(R.string.volver_inicio)) }
-                }
+            estado.error?.let {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(it, color = MaterialTheme.colorScheme.error, textAlign = TextAlign.Center)
+            }
+            if (!estado.pagoRealizado) {
+                Spacer(modifier = Modifier.height(24.dp))
+                OutlinedButton(
+                    onClick = alIrAlInicio,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) { Text(stringResource(R.string.volver_inicio)) }
             }
         }
     }
@@ -265,11 +256,6 @@ private fun ResumenYAcciones(
                     contentColor = Color.White
                 )
             ) { Text("Pago con QR") }
-            OutlinedButton(
-                onClick = alCancelar,
-                enabled = !estado.cancelando,
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(if (estado.cancelando) "Cancelando…" else "Cancelar pedido") }
         }
 
         estado.listoParaPagarContraentrega -> {
@@ -290,11 +276,6 @@ private fun ResumenYAcciones(
                     contentColor = Color.White
                 )
             ) { Text("Escanear QR") }
-            OutlinedButton(
-                onClick = alCancelar,
-                enabled = !estado.cancelando,
-                modifier = Modifier.fillMaxWidth()
-            ) { Text(if (estado.cancelando) "Cancelando…" else "Cancelar pedido") }
         }
 
         estado.esperandoSincronizacionPago -> {
@@ -339,7 +320,7 @@ private fun ResumenYAcciones(
                 textAlign = TextAlign.Center,
                 style = MaterialTheme.typography.bodyMedium
             )
-            if (pedido.estado in setOf("RECIBIDO", "EN_PICKING", Pedido.ESTADO_CONFIRMADO) &&
+            if (pedido.estado in setOf("RECIBIDO", "EN_PICKING") &&
                 estado.pagoConfirmado != true
             ) {
                 Spacer(modifier = Modifier.height(8.dp))

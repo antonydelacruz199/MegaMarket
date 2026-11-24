@@ -27,12 +27,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -138,7 +138,12 @@ fun PantallaDetalleEntrega(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.detalle_entrega)) },
+                title = {
+                    Text(
+                        text = stringResource(R.string.detalle_entrega),
+                        fontWeight = FontWeight.SemiBold
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = alVolver) {
                         Icon(
@@ -146,7 +151,11 @@ fun PantallaDetalleEntrega(
                             contentDescription = stringResource(R.string.volver)
                         )
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    navigationIconContentColor = MaterialTheme.colorScheme.primary
+                )
             )
         }
     ) { padding ->
@@ -184,9 +193,6 @@ fun PantallaDetalleEntrega(
                         .fillMaxSize()
                         .padding(padding)
                 ) {
-                    if (estado.refrescando || estado.registrando) {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                    }
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -418,9 +424,10 @@ private fun BloquePagoQr(
                     }
                 }
                 else -> {
-                    TextButton(
+                    Button(
                         onClick = alGenerarQr,
-                        enabled = !estado.confirmandoPago
+                        enabled = !estado.confirmandoPago,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(stringResource(R.string.pago_qr_generar))
                     }
@@ -435,30 +442,99 @@ private fun BloquePagoQr(
 
 @Composable
 private fun CuerpoEntrega(detalle: DetalleReparto) {
-    Text(
-        text = "Pedido ${detalle.pedido.id.take(8)}",
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.SemiBold
-    )
-    Text(textoFecha(detalle.pedido.fecha), style = MaterialTheme.typography.bodySmall)
-    Text(detalle.pedido.estado)
-    Text(detalle.pedido.totalCentimos.formatearSoles(), fontWeight = FontWeight.Medium)
-    Spacer(modifier = Modifier.height(4.dp))
-    Text(stringResource(R.string.direccion_entrega), fontWeight = FontWeight.SemiBold)
-    val direccion = detalle.direccion
-    if (direccion == null || direccion.texto().isEmpty()) {
-        Text(stringResource(R.string.sin_direccion))
-    } else {
-        Text(direccion.texto())
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = "Pedido ${detalle.pedido.id.take(8)}",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = textoFecha(detalle.pedido.fecha),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = detalle.pedido.estado,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = detalle.pedido.totalCentimos.formatearSoles(),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
-    val telefono = direccion?.telefono.orEmpty()
-    if (telefono.isNotBlank()) {
-        Text(stringResource(R.string.telefono_entrega, telefono))
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.direccion_entrega),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            val direccion = detalle.direccion
+            if (direccion == null || direccion.texto().isEmpty()) {
+                Text(
+                    text = stringResource(R.string.sin_direccion),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            } else {
+                Text(
+                    text = direccion.texto(),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+            val telefono = direccion?.telefono.orEmpty()
+            if (telefono.isNotBlank()) {
+                Text(
+                    text = stringResource(R.string.telefono_entrega, telefono),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+            }
+        }
     }
     val pago = detalle.pago
-    if (pago == null) {
-        Text(stringResource(R.string.sin_pago))
-    } else {
-        Text(stringResource(R.string.pago_entrega, pago.modalidad, pago.estado))
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = MaterialTheme.shapes.medium,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            if (pago == null) {
+                Text(
+                    text = stringResource(R.string.sin_pago),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            } else {
+                Text(
+                    text = stringResource(R.string.pago_entrega, pago.modalidad, pago.estado),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium
+                )
+            }
+        }
     }
 }

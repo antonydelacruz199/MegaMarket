@@ -1,17 +1,13 @@
 package com.megamarket.picker.ui
 
-fun Long.formatearSoles(): String {
-    val negativo = this < 0
-    val absoluto = kotlin.math.abs(this)
-    val soles = absoluto / 100
-    val centimos = absoluto % 100
-    val texto = "S/ $soles.${centimos.toString().padStart(2, '0')}"
-    return if (negativo) "-$texto" else texto
-}
+import com.megamarket.modelo.formatearFechaHoraPresentacion
+import com.megamarket.modelo.formatearSoles as formatearSolesModelo
+
+fun Long.formatearSoles(): String = formatearSolesModelo()
 
 fun textoFecha(fecha: String?): String {
     if (fecha.isNullOrBlank()) return ""
-    return fecha.replace('T', ' ').take(16)
+    return formatearFechaHoraPresentacion(fecha).let { if (it == "—") "" else it }
 }
 
 fun textoEstadoLinea(estado: String): String = when (estado) {
@@ -28,5 +24,6 @@ fun textoEstadoSustitucion(estado: String?): String = when (estado?.trim()?.uppe
     "ACEPTADA" -> "Aceptada"
     "RECHAZADA" -> "Rechazada"
     "CANCELADA" -> "Cancelada"
+    "SIN_STOCK" -> "Sin stock en almacén"
     else -> estado.orEmpty()
 }

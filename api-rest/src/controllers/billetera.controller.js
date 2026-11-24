@@ -4,9 +4,11 @@ const {
   asegurarCuentaCliente,
   asegurarCuentaComercio,
   listarMovimientosCuenta,
+  contarMovimientosCuenta,
   SALDO_INICIAL_CLIENTE_CENTIMOS,
   SALDO_INICIAL_COMERCIO_CENTIMOS
 } = require('../billetera');
+const { paginar, metaPaginacion } = require('../paginacion');
 
 async function saldoPropio(req, res) {
   const clienteDb = await pool.connect();
@@ -54,7 +56,7 @@ async function saldoPropio(req, res) {
 async function movimientosPropios(req, res) {
   const clienteDb = await pool.connect();
   try {
-    const limite = Number(req.query.limite || 50);
+    const { page, limit, offset } = paginar(req, { defaultLimit: 50, maxLimit: 200 });
     let cuenta;
     if (req.usuario.rol === 'CLIENTE') {
       await clienteDb.query('BEGIN');
@@ -71,11 +73,13 @@ async function movimientosPropios(req, res) {
       });
     }
 
-    const movimientos = await listarMovimientosCuenta(pool, cuenta.id, limite);
+    const total = await contarMovimientosCuenta(pool, cuenta.id);
+    const movimientos = await listarMovimientosCuenta(pool, cuenta.id, limit, offset);
     return res.status(200).json({
       cuenta: mapearCuenta(cuenta),
       movimientos,
-      simulacion: true
+      simulacion: true,
+      ...metaPaginacion(total, { page, limit })
     });
   } catch (error) {
     try {

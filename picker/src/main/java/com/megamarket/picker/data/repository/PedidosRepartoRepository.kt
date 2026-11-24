@@ -55,10 +55,45 @@ class PedidosRepartoRepository(
         exigirRepartidor()?.let { return@withContext it }
         val owner = almacen.usuarioActivoId() ?: return@withContext sesionVencida()
         try {
-            val respuesta = api.listarEntregas(owner)
+            val respuesta = api.listarEntregas(owner = owner)
             if (!respuesta.isSuccessful) return@withContext fallo(respuesta)
             val items = respuesta.body()?.pedidos.orEmpty()
             ResultadoOperacion.Exito(tableroDesde(items))
+        } catch (error: CancellationException) {
+            throw error
+        } catch (error: IOException) {
+            falloRed(error)
+        }
+    }
+
+    suspend fun listarPorEstado(
+        estado: String,
+        page: Int = 1,
+        limit: Int = 20
+    ): ResultadoOperacion<PaginaReparto> = withContext(io) {
+        exigirRepartidor()?.let { return@withContext it }
+        val owner = almacen.usuarioActivoId() ?: return@withContext sesionVencida()
+        try {
+            val respuesta = api.listarEntregas(
+                owner = owner,
+                estado = estado.trim().uppercase(),
+                page = page,
+                limit = limit
+            )
+            if (!respuesta.isSuccessful) return@withContext fallo(respuesta)
+            val cuerpo = respuesta.body()
+            val estadoPedido = estado.trim().uppercase()
+            val pedidos = cuerpo?.pedidos.orEmpty()
+                .mapNotNull { item -> pedidoDesde(item.pedido) }
+                .filter { it.estado.equals(estadoPedido, ignoreCase = true) }
+            ResultadoOperacion.Exito(
+                PaginaReparto(
+                    pedidos = pedidos,
+                    pagina = cuerpo?.pagina ?: page,
+                    hayMas = cuerpo?.hayMas == true,
+                    total = cuerpo?.total ?: pedidos.size
+                )
+            )
         } catch (error: CancellationException) {
             throw error
         } catch (error: IOException) {

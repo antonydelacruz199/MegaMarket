@@ -30,5 +30,9 @@ router.post(
   '/pedidos/:id/detalles/:detalleId/sustituciones',
   sustitucionesController.proponer
 );
+router.post(
+  '/pedidos/:id/detalles/:detalleId/aviso-sin-stock',
+  sustitucionesController.avisarSinStock
+);
 
 module.exports = router;

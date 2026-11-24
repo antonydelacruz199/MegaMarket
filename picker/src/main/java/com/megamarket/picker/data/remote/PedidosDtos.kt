@@ -7,7 +7,11 @@ data class ErrorApiDto(
 )
 
 data class PedidosResponse(
-    val pedidos: List<PedidoListaDto>?
+    val pedidos: List<PedidoListaDto>?,
+    val pagina: Int? = null,
+    val limite: Int? = null,
+    val total: Int? = null,
+    val hayMas: Boolean? = null
 )
 
 data class PedidoListaDto(
@@ -38,7 +42,11 @@ data class TransicionPedidoRequest(
 )
 
 data class PickingListaResponse(
-    val pedidos: List<PickingItemDto>?
+    val pedidos: List<PickingItemDto>?,
+    val pagina: Int? = null,
+    val limite: Int? = null,
+    val total: Int? = null,
+    val hayMas: Boolean? = null
 )
 
 data class PickingItemDto(

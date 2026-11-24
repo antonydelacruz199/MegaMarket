@@ -2,6 +2,7 @@ package com.megamarket.picker.ui.screens.picker
 
 import android.Manifest
 import android.content.pm.PackageManager
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.border
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -26,7 +28,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -46,6 +47,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
@@ -73,11 +75,12 @@ fun PantallaEscaner(
     alReintentar: () -> Unit,
     alContinuar: () -> Unit,
     alMarcarFaltante: () -> Unit,
-    alSustituir: () -> Unit = {}
+    alConfirmarPedido: () -> Unit = {}
 ) {
     val contexto = LocalContext.current
     var acceso by remember { mutableStateOf(EstadoCamaraUi()) }
     var permisoConcedido by remember { mutableStateOf(false) }
+    var ingresoManualElegido by rememberSaveable { mutableStateOf(false) }
     var codigoManual by rememberSaveable { mutableStateOf("") }
     val permiso = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { concedido ->
         permisoConcedido = concedido
@@ -102,12 +105,41 @@ fun PantallaEscaner(
         if (estado.idVibracion > 0) vibrarBreve(contexto)
     }
 
+    LaunchedEffect(estado.resultado) {
+        if (estado.resultado == TipoResultadoEscaneo.CORRECTO ||
+            estado.resultado == TipoResultadoEscaneo.PENDIENTE_LOCAL
+        ) {
+            codigoManual = ""
+        }
+    }
+
+    val puedeVolverACamara = ingresoManualElegido && permisoConcedido && acceso.decidido
+    val mostrarManual = ingresoManualElegido || (acceso.decidido && !acceso.camaraActiva)
+    val titulo = if (mostrarManual && !estado.pedidoListoParaConfirmar && !estado.lineaCompleta) {
+        stringResource(R.string.ingresar_codigo_manual)
+    } else {
+        stringResource(R.string.escaner_titulo)
+    }
+
+    fun cerrarManualOVolver() {
+        if (puedeVolverACamara) {
+            ingresoManualElegido = false
+            acceso = estadoTrasPermiso(true)
+        } else {
+            alVolver()
+        }
+    }
+
+    BackHandler {
+        cerrarManualOVolver()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.escaner_titulo)) },
+                title = { Text(titulo) },
                 navigationIcon = {
-                    IconButton(onClick = alVolver) {
+                    IconButton(onClick = { cerrarManualOVolver() }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.volver)
@@ -122,9 +154,15 @@ fun PantallaEscaner(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            EncabezadoLinea(estado, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            val flujoActivo = !estado.lineaCompleta &&
+                !estado.pedidoListoParaConfirmar &&
+                !estado.pedidoConfirmado
+            // Solo en cámara activa: los paneles de cierre/línea completa ya traen EncabezadoLinea.
+            if (!mostrarManual && flujoActivo) {
+                EncabezadoLinea(estado, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+            }
             when {
-                !acceso.decidido -> {
+                !acceso.decidido && !ingresoManualElegido -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             CircularProgressIndicator()
@@ -133,14 +171,85 @@ fun PantallaEscaner(
                         }
                     }
                 }
-                acceso.camaraActiva -> {
+                estado.pedidoListoParaConfirmar || estado.pedidoConfirmado -> {
+                    PanelCierrePedido(
+                        estado = estado,
+                        alConfirmarPedido = alConfirmarPedido,
+                        alVolver = alVolver,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
+                    )
+                }
+                estado.lineaCompleta -> {
+                    PanelLineaCompleta(
+                        estado = estado,
+                        alVolver = alVolver,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
+                    )
+                }
+                mostrarManual -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .verticalScroll(rememberScrollState())
+                            .padding(16.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.ingresar_codigo_manual),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        if (!ingresoManualElegido) {
+                            Spacer(Modifier.height(8.dp))
+                            Text(textoMotivo(acceso.motivo))
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = codigoManual,
+                            onValueChange = { codigoManual = it },
+                            label = { Text(stringResource(R.string.codigo_manual)) },
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Text,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = KeyboardActions(
+                                onDone = {
+                                    if (codigoManual.isNotBlank() && !estado.enviando) {
+                                        alManual(codigoManual)
+                                    }
+                                }
+                            ),
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !estado.enviando && !estado.lineaCompleta
+                        )
+                        Spacer(Modifier.height(12.dp))
+                        Button(
+                            onClick = { alManual(codigoManual) },
+                            enabled = codigoManual.isNotBlank() &&
+                                !estado.enviando &&
+                                !estado.lineaCompleta,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(stringResource(R.string.registrar_codigo))
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        PanelResultadoCompacto(estado, alReintentar, alContinuar)
+                        Spacer(Modifier.height(16.dp))
+                        PanelProgresoPedido(estado)
+                    }
+                }
+                else -> {
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
                     ) {
                         VistaPreviaCodigo(
-                            activo = true,
+                            activo = !estado.enviando,
                             alDetectar = alDetectar,
                             alVacio = { alDetectar(null) },
                             alSinCamara = {
@@ -156,56 +265,31 @@ fun PantallaEscaner(
                         )
                     }
                     Column(Modifier.padding(16.dp)) {
-                        PanelResultado(estado, alReintentar, alContinuar)
-                        TextButton(onClick = { acceso = estadoManual() }) {
+                        PanelResultadoCompacto(estado, alReintentar, alContinuar)
+                        TextButton(
+                            onClick = {
+                                ingresoManualElegido = true
+                                acceso = estadoManual()
+                            },
+                            enabled = !estado.enviando
+                        ) {
                             Text(stringResource(R.string.ingresar_codigo_manual))
                         }
-                        AccionesFaltanteSustitucion(
-                            estado = estado,
-                            alMarcarFaltante = alMarcarFaltante,
-                            alSustituir = alSustituir
-                        )
-                        ListaOperaciones(estado)
-                    }
-                }
-                else -> {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
-                            .padding(16.dp)
-                    ) {
-                        Text(textoMotivo(acceso.motivo))
-                        Spacer(Modifier.height(12.dp))
-                        OutlinedTextField(
-                            value = codigoManual,
-                            onValueChange = { codigoManual = it },
-                            label = { Text(stringResource(R.string.codigo_manual)) },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Spacer(Modifier.height(12.dp))
-                        Button(
-                            onClick = { alManual(codigoManual) },
-                            enabled = codigoManual.isNotBlank() && !estado.enviando,
-                            modifier = Modifier.fillMaxWidth()
+                        TextButton(
+                            onClick = alMarcarFaltante,
+                            enabled = !estado.enviando &&
+                                !estado.faltantePendiente &&
+                                !estado.estadoLinea.equals("FALTANTE", true)
                         ) {
-                            Text(stringResource(R.string.registrar_codigo))
+                            Text(stringResource(R.string.marcar_faltante))
                         }
-                        if (permisoConcedido) {
-                            TextButton(onClick = { acceso = estadoTrasPermiso(true) }) {
-                                Text(stringResource(R.string.usar_camara))
-                            }
+                        if (estado.faltantePendiente) {
+                            Text(
+                                text = stringResource(R.string.sustitucion_faltante_pendiente),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
                         }
-                        Spacer(Modifier.height(12.dp))
-                        PanelResultado(estado, alReintentar, alContinuar)
-                        AccionesFaltanteSustitucion(
-                            estado = estado,
-                            alMarcarFaltante = alMarcarFaltante,
-                            alSustituir = alSustituir
-                        )
-                        ListaOperaciones(estado)
                     }
                 }
             }
@@ -214,29 +298,68 @@ fun PantallaEscaner(
 }
 
 @Composable
-private fun AccionesFaltanteSustitucion(
+private fun PanelCierrePedido(
     estado: EscanerUiState,
-    alMarcarFaltante: () -> Unit,
-    alSustituir: () -> Unit
+    alConfirmarPedido: () -> Unit,
+    alVolver: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    TextButton(
-        onClick = alMarcarFaltante,
-        enabled = !estado.enviando && !estado.faltantePendiente
-    ) {
-        Text(stringResource(R.string.marcar_faltante))
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        EncabezadoLinea(estado)
+        Spacer(Modifier.height(24.dp))
+        if (estado.pedidoConfirmado) {
+            Text(
+                text = stringResource(R.string.pedido_listo_ok),
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(16.dp))
+            Button(onClick = alVolver, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.volver))
+            }
+        } else {
+            Text(
+                text = stringResource(R.string.linea_completa),
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Spacer(Modifier.height(16.dp))
+            Button(
+                onClick = alConfirmarPedido,
+                enabled = !estado.confirmandoPedido,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    if (estado.confirmandoPedido) {
+                        stringResource(R.string.confirmando_pedido)
+                    } else {
+                        stringResource(R.string.confirmar_pedido)
+                    }
+                )
+            }
+            if (!estado.mensaje.isNullOrBlank()) {
+                Spacer(Modifier.height(8.dp))
+                Text(estado.mensaje, color = MaterialTheme.colorScheme.error)
+            }
+        }
     }
-    if (estado.faltantePendiente) {
+}
+
+@Composable
+private fun PanelLineaCompleta(
+    estado: EscanerUiState,
+    alVolver: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        EncabezadoLinea(estado)
+        Spacer(Modifier.height(24.dp))
         Text(
-            text = stringResource(R.string.sustitucion_faltante_pendiente),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.error
+            text = stringResource(R.string.linea_completa),
+            style = MaterialTheme.typography.bodyLarge
         )
-    } else if (estado.estadoLinea.equals("FALTANTE", ignoreCase = true)) {
-        TextButton(
-            onClick = alSustituir,
-            enabled = !estado.enviando
-        ) {
-            Text(stringResource(R.string.proponer_sustituto))
+        Spacer(Modifier.height(16.dp))
+        Button(onClick = alVolver, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(R.string.volver_preparacion))
         }
     }
 }
@@ -277,29 +400,70 @@ private fun EncabezadoLinea(estado: EscanerUiState, modifier: Modifier = Modifie
 }
 
 @Composable
-private fun ListaOperaciones(estado: EscanerUiState) {
-    if (estado.operaciones.isEmpty()) return
-    Spacer(Modifier.height(8.dp))
-    estado.operaciones.take(8).forEach { op ->
+private fun PanelProgresoPedido(estado: EscanerUiState) {
+    Text(
+        text = stringResource(R.string.progreso_escaneados),
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold
+    )
+    Spacer(Modifier.height(4.dp))
+    if (estado.lineasEscaneadas.isEmpty()) {
         Text(
-            text = "${textoEstadoOperacion(op.estado, op.resultado)} · ${op.operacion}" +
-                (op.codigoBarras?.let { " · $it" } ?: "") +
-                (op.ultimoError?.let { " · $it" } ?: ""),
-            style = MaterialTheme.typography.bodySmall
+            text = stringResource(R.string.progreso_vacio_escaneados),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+    } else {
+        estado.lineasEscaneadas.forEach { linea ->
+            Text(
+                text = stringResource(
+                    R.string.progreso_linea,
+                    linea.nombre,
+                    linea.cantidadArmada,
+                    linea.cantidadSolicitada
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+    Spacer(Modifier.height(12.dp))
+    Text(
+        text = stringResource(R.string.progreso_pendientes),
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.SemiBold
+    )
+    Spacer(Modifier.height(4.dp))
+    if (estado.lineasPendientes.isEmpty()) {
+        Text(
+            text = stringResource(R.string.progreso_vacio_pendientes),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    } else {
+        estado.lineasPendientes.forEach { linea ->
+            Text(
+                text = stringResource(
+                    R.string.progreso_linea,
+                    linea.nombre,
+                    linea.cantidadArmada,
+                    linea.cantidadSolicitada
+                ),
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
     }
 }
 
 @Composable
-private fun PanelResultado(
+private fun PanelResultadoCompacto(
     estado: EscanerUiState,
     alReintentar: () -> Unit,
     alContinuar: () -> Unit
 ) {
     if (estado.enviando) {
-        LinearProgressIndicator(Modifier.fillMaxWidth())
-        Spacer(Modifier.height(8.dp))
         Text(stringResource(R.string.registrando_escaneo))
+        Spacer(Modifier.height(8.dp))
     }
     val resultado = estado.resultado
     if (resultado != null) {
@@ -324,8 +488,13 @@ private fun PanelResultado(
             Text(stringResource(R.string.reintentar))
         }
     }
-    val hayResultado = resultado != null || !estado.mensaje.isNullOrBlank()
-    if (!estado.enviando && hayResultado && resultado != TipoResultadoEscaneo.SESION_VENCIDA) {
+    val mostrarSeguir = resultado != null &&
+        resultado != TipoResultadoEscaneo.CORRECTO &&
+        resultado != TipoResultadoEscaneo.PENDIENTE_LOCAL &&
+        resultado != TipoResultadoEscaneo.SESION_VENCIDA &&
+        !estado.enviando &&
+        !estado.lineaCompleta
+    if (mostrarSeguir) {
         TextButton(onClick = alContinuar) {
             Text(stringResource(R.string.seguir_escaneando))
         }
@@ -341,15 +510,6 @@ private fun tituloResultado(tipo: TipoResultadoEscaneo): String = when (tipo) {
     TipoResultadoEscaneo.SESION_VENCIDA -> stringResource(R.string.resultado_sesion_vencida)
     TipoResultadoEscaneo.PENDIENTE_LOCAL -> stringResource(R.string.resultado_pendiente_local)
     TipoResultadoEscaneo.RECHAZADO -> stringResource(R.string.resultado_rechazado)
-}
-
-@Composable
-private fun textoEstadoOperacion(estado: String, resultado: String?): String = when {
-    estado == "PENDIENTE" || estado == "ENVIANDO" -> stringResource(R.string.operacion_pendiente)
-    estado == "ERROR" -> stringResource(R.string.operacion_rechazada)
-    resultado == "INCORRECTO" -> stringResource(R.string.operacion_incorrecta)
-    estado == "SINCRONIZADO" -> stringResource(R.string.operacion_confirmada)
-    else -> estado
 }
 
 @Composable

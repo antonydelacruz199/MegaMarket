@@ -121,6 +121,10 @@ data class BilleteraMovimientosResponse(
     val cuenta: CuentaBilleteraDto? = null,
     val movimientos: List<MovimientoBilleteraDto>? = null,
     val simulacion: Boolean? = null,
+    val pagina: Int? = null,
+    val limite: Int? = null,
+    val total: Int? = null,
+    val hayMas: Boolean? = null,
     val error: String? = null,
     val codigo: String? = null
 )

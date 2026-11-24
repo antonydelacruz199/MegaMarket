@@ -1,7 +1,11 @@
 package com.megamarket.picker.data.remote
 
 data class EntregasListaResponse(
-    val pedidos: List<EntregaListaItemDto>?
+    val pedidos: List<EntregaListaItemDto>?,
+    val pagina: Int? = null,
+    val limite: Int? = null,
+    val total: Int? = null,
+    val hayMas: Boolean? = null
 )
 
 data class EntregaListaItemDto(

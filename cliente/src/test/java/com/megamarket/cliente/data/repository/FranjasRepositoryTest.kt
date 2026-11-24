@@ -31,7 +31,7 @@ class FranjasRepositoryTest {
             listOf(
                 FranjaApiDto(
                     id = "ok",
-                    fecha = "2026-11-18",
+                    fecha = "2099-06-15",
                     horaInicio = "09:00:00",
                     horaFin = "11:00:00",
                     capacidad = 20,
@@ -41,7 +41,7 @@ class FranjasRepositoryTest {
                 ),
                 FranjaApiDto(
                     id = "full",
-                    fecha = "2026-11-18",
+                    fecha = "2099-06-15",
                     horaInicio = "11:00:00",
                     horaFin = "13:00:00",
                     capacidad = 1,
@@ -92,7 +92,7 @@ class FranjasRepositoryTest {
             error("n/a")
         override suspend fun login(body: LoginRequest): Response<LoginResponse> = error("n/a")
         override suspend fun listarCategorias(owner: String?): Response<CategoriasResponse> = error("n/a")
-        override suspend fun listarProductos(owner: String?): Response<ProductosResponse> = error("n/a")
+        override suspend fun listarProductos(owner: String?, page: Int?, limit: Int?, q: String?): Response<ProductosResponse> = error("n/a")
         override suspend fun listarFranjas(owner: String?): Response<ListaFranjasResponse> {
             if (fallarRed) throw IOException("sin red")
             errorHttp?.let { return it as Response<ListaFranjasResponse> }
@@ -110,19 +110,27 @@ class FranjasRepositoryTest {
         }
         override suspend fun crearPedido(body: CrearPedidoRequest, owner: String?): Response<CrearPedidoResponse> =
             error("n/a")
-        override suspend fun listarPedidos(estado: String?, owner: String) = error("n/a")
+        override suspend fun listarPedidos(
+            estado: String?,
+            owner: String,
+            page: Int?,
+            limit: Int?,
+            q: String?,
+            filtro: String?,
+            estados: String?
+        ) = error("n/a")
         override suspend fun obtenerPedido(id: String, owner: String) = error("n/a")
         override suspend fun transicionarPedido(
             id: String,
             body: com.megamarket.cliente.data.remote.TransicionPedidoRequest,
             owner: String
         ) = error("n/a")
-        override suspend fun listarSustituciones(estado: String?, owner: String) = error("n/a")
+        override suspend fun listarSustituciones(estado: String?, owner: String, page: Int?, limit: Int?) = error("n/a")
         override suspend fun obtenerSustitucion(id: String, owner: String) = error("n/a")
         override suspend fun aceptarSustitucion(id: String, owner: String) = error("n/a")
         override suspend fun rechazarSustitucion(id: String, owner: String) = error("n/a")
         override suspend fun obtenerSaldoBilletera(owner: String) = error("n/a")
-        override suspend fun listarMovimientosBilletera(owner: String) = error("n/a")
+        override suspend fun listarMovimientosBilletera(owner: String, page: Int?, limit: Int?) = error("n/a")
         override suspend fun generarQrPago(body: GenerarQrRequest, owner: String) = error("n/a")
         override suspend fun obtenerPagoDelPedido(pedidoId: String, owner: String) = error("n/a")
         override suspend fun obtenerPago(id: String, owner: String) = error("n/a")

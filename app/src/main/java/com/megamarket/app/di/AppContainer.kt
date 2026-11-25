@@ -9,6 +9,8 @@ import com.megamarket.app.data.local.SesionLocalStore
 import com.megamarket.app.data.remote.ApiClient
 import com.megamarket.app.data.repository.BilleteraComercioRepository
 import com.megamarket.app.data.repository.CatalogoRemotoRepository
+import com.megamarket.app.data.repository.ComprasRepository
+import com.megamarket.app.data.repository.ProveedoresRepository
 import com.megamarket.app.data.repository.SesionRepository
 import com.megamarket.app.data.repository.CategoriaRepository
 import com.megamarket.app.data.repository.ImagenRepository
@@ -74,6 +76,10 @@ class AppContainer(context: Context) {
     )
 
     val billeteraComercioRepository = BilleteraComercioRepository(api = apiService)
+
+    val proveedoresRepository = ProveedoresRepository(api = apiService)
+
+    val comprasRepository = ComprasRepository(api = apiService)
 
     val imagenRepository = ImagenRepository(
         contexto = appContext,

@@ -26,6 +26,13 @@ class ViewModelFactory(
                 )
             modelClass.isAssignableFrom(BilleteraComercioViewModel::class.java) ->
                 BilleteraComercioViewModel(container.billeteraComercioRepository)
+            modelClass.isAssignableFrom(ProveedoresViewModel::class.java) ->
+                ProveedoresViewModel(container.proveedoresRepository)
+            modelClass.isAssignableFrom(OrdenesCompraViewModel::class.java) ->
+                OrdenesCompraViewModel(
+                    container.comprasRepository,
+                    container.proveedoresRepository
+                )
             else -> throw IllegalArgumentException("ViewModel no soportado: ${modelClass.name}")
         }
         @Suppress("UNCHECKED_CAST")

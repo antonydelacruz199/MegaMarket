@@ -1,4 +1,4 @@
-package com.megamarket.app.data.repository
+﻿package com.megamarket.app.data.repository
 
 import com.megamarket.app.data.remote.ActualizarProductoRequest
 import com.megamarket.app.data.remote.ApiService
@@ -111,7 +111,7 @@ class BilleteraComercioRepositoryTest {
     private class ApiBilletera(
         private val saldo: Response<BilleteraSaldoResponse>,
         private val movimientos: Response<BilleteraMovimientosResponse>
-    ) : ApiService {
+    ) : ApiServiceNoSoportado() {
         var fallaRed = false
         var llamadasMovimientos = 0
 
@@ -127,32 +127,5 @@ class BilleteraComercioRepositoryTest {
             llamadasMovimientos++
             return movimientos
         }
-
-        override suspend fun login(body: LoginRequest): Response<LoginResponse> = throw UnsupportedOperationException()
-        override suspend fun listarCategorias(): Response<CategoriasResponse> = throw UnsupportedOperationException()
-        override suspend fun listarProductos(
-            page: Int?,
-            limit: Int?,
-            q: String?
-        ): Response<ProductosResponse> = throw UnsupportedOperationException()
-        override suspend fun obtenerProducto(id: String): Response<ProductoResponse> =
-            throw UnsupportedOperationException()
-        override suspend fun crearProducto(body: CrearProductoRequest): Response<ProductoResponse> =
-            throw UnsupportedOperationException()
-        override suspend fun actualizarProducto(
-            id: String,
-            body: ActualizarProductoRequest
-        ): Response<ProductoResponse> = throw UnsupportedOperationException()
-        override suspend fun eliminarProducto(
-            id: String,
-            body: EliminarProductoRequest
-        ): Response<EliminarProductoResponse> = throw UnsupportedOperationException()
-        override suspend fun registrarMovimiento(
-            body: MovimientoInventarioRequest
-        ): Response<MovimientoInventarioResponse> = throw UnsupportedOperationException()
-        override suspend fun subirImagenProducto(
-            productoId: String,
-            archivo: MultipartBody.Part
-        ): Response<SubidaImagenProductoResponse> = throw UnsupportedOperationException()
     }
 }

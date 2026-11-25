@@ -51,6 +51,8 @@ app.use('/api/carritos', require('./routes/carritos.routes'));
 app.use('/api/pagos', require('./routes/pagos.routes'));
 app.use('/api/billetera', require('./routes/billetera.routes'));
 app.use('/api/inventario', inventarioRoutes);
+app.use('/api/proveedores', require('./routes/proveedores.routes'));
+app.use('/api/compras', require('./routes/compras.routes'));
 
 app.use((_req, res) => {
   res.status(404).json({ error: 'Ruta no encontrada' });

@@ -1,4 +1,4 @@
-package com.megamarket.app.data.remote
+﻿package com.megamarket.app.data.remote
 
 import okhttp3.MultipartBody
 import retrofit2.Response
@@ -59,6 +59,82 @@ interface ApiService {
         @Query("page") page: Int? = null,
         @Query("limit") limit: Int? = null
     ): Response<BilleteraMovimientosResponse>
+
+    // ---------- Fase 7: proveedores (solo ADMINISTRADOR) ----------
+
+    @GET("api/proveedores")
+    suspend fun listarProveedores(
+        @Query("q") q: String? = null,
+        @Query("activo") activo: Boolean? = null,
+        @Query("page") page: Int? = null,
+        @Query("limit") limit: Int? = null
+    ): Response<ProveedoresResponse>
+
+    @GET("api/proveedores/{id}")
+    suspend fun obtenerProveedor(@Path("id") id: String): Response<ProveedorResponse>
+
+    @POST("api/proveedores")
+    suspend fun crearProveedor(@Body body: CrearProveedorRequest): Response<ProveedorResponse>
+
+    @PATCH("api/proveedores/{id}")
+    suspend fun actualizarProveedor(
+        @Path("id") id: String,
+        @Body body: ActualizarProveedorRequest
+    ): Response<ProveedorResponse>
+
+    @GET("api/proveedores/{id}/ordenes")
+    suspend fun listarOrdenesDeProveedor(
+        @Path("id") id: String,
+        @Query("estado") estado: String? = null,
+        @Query("page") page: Int? = null,
+        @Query("limit") limit: Int? = null
+    ): Response<OrdenesCompraResponse>
+
+    // ---------- Fase 7: órdenes de compra (solo ADMINISTRADOR) ----------
+
+    @GET("api/compras/ordenes")
+    suspend fun listarOrdenesCompra(
+        @Query("estado") estado: String? = null,
+        @Query("proveedorId") proveedorId: String? = null,
+        @Query("page") page: Int? = null,
+        @Query("limit") limit: Int? = null
+    ): Response<OrdenesCompraResponse>
+
+    @GET("api/compras/ordenes/{id}")
+    suspend fun obtenerOrdenCompra(@Path("id") id: String): Response<OrdenCompraResponse>
+
+    @POST("api/compras/ordenes")
+    suspend fun crearOrdenCompra(@Body body: CrearOrdenCompraRequest): Response<OrdenCompraResponse>
+
+    @POST("api/compras/ordenes/{id}/aprobar")
+    suspend fun aprobarOrdenCompra(
+        @Path("id") id: String,
+        @Body body: AprobarOrdenRequest
+    ): Response<OrdenCompraResponse>
+
+    @POST("api/compras/ordenes/{id}/cancelar")
+    suspend fun cancelarOrdenCompra(@Path("id") id: String): Response<OrdenCompraResponse>
+
+    /** Pago por simulador académico "Banco Andino". Un 409 puede traer la transferencia en el cuerpo. */
+    @POST("api/compras/ordenes/{id}/pago")
+    suspend fun pagarOrdenCompra(
+        @Path("id") id: String,
+        @Body body: PagarOrdenRequest
+    ): Response<OrdenCompraResponse>
+
+    @POST("api/compras/ordenes/{id}/recepciones")
+    suspend fun registrarRecepcionOrden(
+        @Path("id") id: String,
+        @Body body: RecepcionOrdenRequest
+    ): Response<OrdenCompraResponse>
+
+    @GET("api/compras/ordenes/{id}/recepciones")
+    suspend fun listarRecepcionesOrden(@Path("id") id: String): Response<RecepcionesResponse>
+
+    @GET("api/compras/transferencias/{uuidOperacion}")
+    suspend fun consultarTransferenciaProveedor(
+        @Path("uuidOperacion") uuidOperacion: String
+    ): Response<TransferenciaResponse>
 
     @Multipart
     @POST("api/medios/productos/{productoId}")

@@ -149,10 +149,10 @@ test('eliminación: FALTANTE con rechazo, sin stock o sin aceptación', () => {
   assert.equal(repetida.yaResuelta, true);
 });
 
-test('picker sin asignación no puede cerrar a LISTO', () => {
+test('picker sin asignación no puede confirmar preparación (CONFIRMADO)', () => {
   const r = evaluarTransicion({
     desde: 'EN_PICKING',
-    hacia: 'LISTO',
+    hacia: 'CONFIRMADO',
     rol: 'PICKER',
     usuarioId: 'pick-1',
     pedido: { id: 'p1', picker_id: null, cliente_id: 'c', repartidor_id: null },
@@ -163,7 +163,20 @@ test('picker sin asignación no puede cerrar a LISTO', () => {
   assert.equal(r.codigo, 'PEDIDO_NO_ASIGNADO');
 });
 
-test('picker asignado puede intentar LISTO (validación de líneas aparte)', () => {
+test('picker asignado puede confirmar preparación (CONFIRMADO)', () => {
+  const r = evaluarTransicion({
+    desde: 'EN_PICKING',
+    hacia: 'CONFIRMADO',
+    rol: 'PICKER',
+    usuarioId: 'pick-1',
+    pedido: { id: 'p1', picker_id: 'pick-1', cliente_id: 'c', repartidor_id: null },
+    pago: null,
+    origenInternoBancario: false
+  });
+  assert.equal(r.ok, true);
+});
+
+test('EN_PICKING → LISTO es transición inválida (debe pasar por CONFIRMADO)', () => {
   const r = evaluarTransicion({
     desde: 'EN_PICKING',
     hacia: 'LISTO',
@@ -173,5 +186,6 @@ test('picker asignado puede intentar LISTO (validación de líneas aparte)', () 
     pago: null,
     origenInternoBancario: false
   });
-  assert.equal(r.ok, true);
+  assert.equal(r.ok, false);
+  assert.equal(r.codigo, 'TRANSICION_INVALIDA');
 });

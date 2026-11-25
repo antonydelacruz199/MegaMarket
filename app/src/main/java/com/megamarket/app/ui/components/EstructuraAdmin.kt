@@ -13,6 +13,8 @@ import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.LocalShipping
+import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -59,6 +61,8 @@ fun EstructuraAdmin(
     val itemsMenu = listOf(
         ItemMenuAdmin("Panel", Ruta.PanelAdmin.ruta, Icons.Default.Dashboard),
         ItemMenuAdmin("Productos", Ruta.ProductosAdmin.ruta, Icons.Default.Inventory2),
+        ItemMenuAdmin("Proveedores", Ruta.ProveedoresAdmin.ruta, Icons.Default.LocalShipping),
+        ItemMenuAdmin("Órdenes compra", Ruta.OrdenesCompraAdmin.ruta, Icons.Default.ShoppingCart),
         ItemMenuAdmin("Billetera", Ruta.BilleteraAdmin.ruta, Icons.Default.AccountBalanceWallet),
         ItemMenuAdmin(
             etiqueta = stringResource(R.string.cerrar_sesion),
@@ -92,7 +96,7 @@ fun EstructuraAdmin(
                         color = MaterialTheme.colorScheme.primary
                     )
                     Text(
-                        text = "Catálogo, stock y cobros",
+                        text = "Catálogo, abastecimiento y cobros",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f),
                         modifier = Modifier.padding(top = Espaciado.xs)

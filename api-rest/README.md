@@ -110,6 +110,15 @@ Todas requieren JWT, salvo login y health.
 | POST /api/medios/entregas/:pedidoId | Repartidor asignado | Sube foto privada; devuelve `fotoReferencia` |
 | GET /api/medios/entregas/:pedidoId | Admin / cliente / repartidor | Lectura privada de evidencia |
 | POST /api/inventario/movimientos | Administrador | Ajustes que respetan las reservas existentes |
+| GET/POST/PATCH /api/proveedores | Administrador | CRUD de proveedores (RUC 11 dígitos, sin borrado físico) |
+| GET /api/proveedores/:id/ordenes | Administrador | Órdenes asociadas a un proveedor |
+| GET/POST /api/compras/ordenes | Administrador | Listado y creación de OC (`SUGERIDA`) |
+| GET /api/compras/ordenes/:id | Administrador | Detalle con proveedor, ítems y transferencia |
+| POST /api/compras/ordenes/:id/aprobar | Administrador | `SUGERIDA` → `APROBADA` |
+| POST /api/compras/ordenes/:id/cancelar | Administrador | Cancelación desde `SUGERIDA`/`APROBADA` |
+| POST /api/compras/ordenes/:id/pago | Administrador | Transferencia simulada → `PAGADA` si confirma |
+| POST/GET /api/compras/ordenes/:id/recepciones | Administrador | Recepción parcial/completa + historial `ENTRADA_COMPRA` |
+| GET /api/compras/transferencias/:uuidOperacion | Administrador | Consulta de intento de transferencia |
 | GET /api/billetera/saldo | Cliente / Admin | Saldo propio (cliente) o comercial (admin) |
 | GET /api/billetera/movimientos | Cliente / Admin | Historial de movimientos |
 | GET /api/billetera/comercio | Administrador | Alias del saldo comercial MegaMarket |
@@ -139,7 +148,20 @@ npm test
 
 Las pruebas de controladores utilizan transacciones SQLite en memoria con un adaptador SQL. No verifican los bloqueos de PostgreSQL.
 
-Para probar migraciones, índice de nombres y reservas concurrentes en PostgreSQL, proporcionar explícitamente `TEST_DATABASE_URL` de una base de pruebas y ejecutar `npm test`. La prueba crea un esquema aislado aleatorio y lo elimina al terminar; no utiliza `DATABASE_URL`. Sin esa variable, esa prueba se omite.
+Para probar migraciones, índice de nombres y reservas concurrentes en PostgreSQL, proporcionar explícitamente `TEST_DATABASE_URL` de una base de pruebas y ejecutar `npm test`. Cada suite PostgreSQL crea un esquema aislado aleatorio y lo elimina al terminar; **no utiliza `DATABASE_URL`**. Sin `TEST_DATABASE_URL`, esas pruebas se omiten (`# SKIP`).
+
+### Configurar base de pruebas (independiente de `bd_megamarket`)
+
+1. En Neon (u otro PostgreSQL), cree una base **distinta** de producción, por ejemplo `bd_megamarket_test`.
+2. No apunte `TEST_DATABASE_URL` a `bd_megamarket`.
+3. En `api-rest/.env` (local, no versionado) agregue solo la URL de la base de pruebas:
+   ```
+   TEST_DATABASE_URL=postgresql://USUARIO:CLAVE@HOST/bd_megamarket_test?sslmode=require
+   ```
+4. Ejecute `npm test`. Las suites aplican `001`…`007` dentro de un schema temporal y hacen `DROP SCHEMA … CASCADE`.
+5. No copie ni publique credenciales reales en el repositorio ni en la documentación.
+
+Fase 7 (abastecimiento): en Neon producción aplicar manualmente `sql/007_abastecimiento.sql` sobre `bd_megamarket` si aún faltaba. Las pruebas `test/fase7-abastecimiento.test.js` requieren `TEST_DATABASE_URL` y también aplican `007` en el schema de prueba. El adaptador `BANCO_ANDINO_SIMULADO` no mueve dinero real; use `forzarResultado` solo en pruebas académicas. Detalle: `../docs/FASE7_ABASTECIMIENTO.md`.
 
 `test/fase2-disk-storage.test.js` ejercita el disco en un directorio temporal. No escribe en `data/media` ni borra fotos ya guardadas. La suite de endpoints de medios sigue fijando `memoryStorage`.
 

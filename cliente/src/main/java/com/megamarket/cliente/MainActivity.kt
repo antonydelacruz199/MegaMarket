@@ -9,6 +9,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.megamarket.cliente.ui.navigation.NavegacionCliente
 import com.megamarket.cliente.ui.theme.TemaMegaMarket
+import com.megamarket.cliente.worker.SincronizacionWorker
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -21,5 +22,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        SincronizacionWorker.programar(this)
     }
 }

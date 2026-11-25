@@ -3,14 +3,18 @@ package com.megamarket.picker.ui.camera
 import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
+import android.util.Size
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageProxy
 import androidx.camera.core.Preview
+import androidx.camera.core.resolutionselector.ResolutionSelector
+import androidx.camera.core.resolutionselector.ResolutionStrategy
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -34,9 +38,35 @@ private const val TAG = "MegaMarketPickerCamara"
 fun tieneCamara(contexto: Context): Boolean =
     contexto.packageManager.hasSystemFeature(PackageManager.FEATURE_CAMERA_ANY)
 
+private val selectorLectura = ResolutionSelector.Builder()
+    .setResolutionStrategy(
+        ResolutionStrategy(
+            Size(1280, 720),
+            ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER
+        )
+    )
+    .build()
+
+private val opcionesBarras = BarcodeScannerOptions.Builder()
+    .setBarcodeFormats(
+        Barcode.FORMAT_EAN_13,
+        Barcode.FORMAT_EAN_8,
+        Barcode.FORMAT_UPC_A,
+        Barcode.FORMAT_UPC_E,
+        Barcode.FORMAT_CODE_128,
+        Barcode.FORMAT_CODE_39,
+        Barcode.FORMAT_ITF
+    )
+    .build()
+
+private class ControlAnalisis {
+    @Volatile var analizar: Boolean = true
+}
+
 @Composable
 fun VistaPreviaCodigo(
     activo: Boolean,
+    analizando: Boolean = true,
     alDetectar: (String) -> Unit,
     alVacio: () -> Unit,
     alSinCamara: () -> Unit,
@@ -50,6 +80,8 @@ fun VistaPreviaCodigo(
             scaleType = PreviewView.ScaleType.FILL_CENTER
         }
     }
+    val control = remember { ControlAnalisis() }
+    SideEffect { control.analizar = analizando }
     val detectar by rememberUpdatedState(alDetectar)
     val vacio by rememberUpdatedState(alVacio)
     val sinCamara by rememberUpdatedState(alSinCamara)
@@ -62,14 +94,11 @@ fun VistaPreviaCodigo(
         }
         val ejecutor = Executors.newSingleThreadExecutor()
         val principal = ContextCompat.getMainExecutor(contexto)
-        val lector = BarcodeScanning.getClient(
-            BarcodeScannerOptions.Builder()
-                .setBarcodeFormats(Barcode.FORMAT_ALL_FORMATS)
-                .build()
-        )
+        val lector = BarcodeScanning.getClient(opcionesBarras)
         var proveedor: ProcessCameraProvider? = null
         val analizador = AnalizadorBarras(
             lector = lector,
+            debeAnalizar = { control.analizar },
             alDetectar = { codigo -> principal.execute { detectar(codigo) } },
             alVacio = { principal.execute { vacio() } }
         )
@@ -94,6 +123,7 @@ fun VistaPreviaCodigo(
                 it.surfaceProvider = vistaPrevia.surfaceProvider
             }
             val analisis = ImageAnalysis.Builder()
+                .setResolutionSelector(selectorLectura)
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .setOutputImageFormat(ImageAnalysis.OUTPUT_IMAGE_FORMAT_YUV_420_888)
                 .build()
@@ -124,6 +154,7 @@ fun VistaPreviaCodigo(
 
 private class AnalizadorBarras(
     private val lector: BarcodeScanner,
+    private val debeAnalizar: () -> Boolean,
     private val alDetectar: (String) -> Unit,
     private val alVacio: () -> Unit
 ) : ImageAnalysis.Analyzer {
@@ -137,7 +168,7 @@ private class AnalizadorBarras(
     }
 
     override fun analyze(imagen: ImageProxy) {
-        if (!activo) {
+        if (!activo || !debeAnalizar()) {
             imagen.close()
             return
         }

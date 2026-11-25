@@ -5,7 +5,9 @@ import android.content.pm.PackageManager
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -23,14 +26,22 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Keyboard
+import androidx.compose.material.icons.filled.SwapHoriz
+import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
@@ -64,6 +75,7 @@ import com.megamarket.picker.ui.textoEstadoLinea
 import com.megamarket.picker.ui.vibrarBreve
 import com.megamarket.picker.ui.camera.VistaPreviaCodigo
 import com.megamarket.picker.ui.camera.tieneCamara
+import com.megamarket.picker.ui.theme.Espaciado
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -115,11 +127,17 @@ fun PantallaEscaner(
 
     val puedeVolverACamara = ingresoManualElegido && permisoConcedido && acceso.decidido
     val mostrarManual = ingresoManualElegido || (acceso.decidido && !acceso.camaraActiva)
-    val titulo = if (mostrarManual && !estado.pedidoListoParaConfirmar && !estado.lineaCompleta) {
+    val mostrarCierre = !estado.enviando &&
+        (estado.pedidoListoParaConfirmar || estado.pedidoConfirmado)
+    val mostrarLineaCompleta = !estado.enviando && estado.lineaCompleta
+    val titulo = if (mostrarManual && !mostrarCierre && !mostrarLineaCompleta) {
         stringResource(R.string.ingresar_codigo_manual)
     } else {
         stringResource(R.string.escaner_titulo)
     }
+    val puedeCambiarProducto = !estado.enviando &&
+        !estado.faltantePendiente &&
+        !estado.estadoLinea.equals("FALTANTE", true)
 
     fun cerrarManualOVolver() {
         if (puedeVolverACamara) {
@@ -154,13 +172,6 @@ fun PantallaEscaner(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            val flujoActivo = !estado.lineaCompleta &&
-                !estado.pedidoListoParaConfirmar &&
-                !estado.pedidoConfirmado
-            // Solo en cámara activa: los paneles de cierre/línea completa ya traen EncabezadoLinea.
-            if (!mostrarManual && flujoActivo) {
-                EncabezadoLinea(estado, Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
-            }
             when {
                 !acceso.decidido && !ingresoManualElegido -> {
                     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -171,7 +182,7 @@ fun PantallaEscaner(
                         }
                     }
                 }
-                estado.pedidoListoParaConfirmar || estado.pedidoConfirmado -> {
+                mostrarCierre -> {
                     PanelCierrePedido(
                         estado = estado,
                         alConfirmarPedido = alConfirmarPedido,
@@ -181,7 +192,7 @@ fun PantallaEscaner(
                             .padding(16.dp)
                     )
                 }
-                estado.lineaCompleta -> {
+                mostrarLineaCompleta -> {
                     PanelLineaCompleta(
                         estado = estado,
                         alVolver = alVolver,
@@ -195,18 +206,26 @@ fun PantallaEscaner(
                         modifier = Modifier
                             .fillMaxSize()
                             .verticalScroll(rememberScrollState())
-                            .padding(16.dp)
+                            .padding(Espaciado.lg),
+                        verticalArrangement = Arrangement.spacedBy(Espaciado.md)
                     ) {
-                        Text(
-                            text = stringResource(R.string.ingresar_codigo_manual),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                        if (!ingresoManualElegido) {
-                            Spacer(Modifier.height(8.dp))
-                            Text(textoMotivo(acceso.motivo))
+                        Surface(
+                            shape = MaterialTheme.shapes.medium,
+                            color = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            EncabezadoLinea(
+                                estado,
+                                Modifier.padding(Espaciado.md)
+                            )
                         }
-                        Spacer(Modifier.height(12.dp))
+                        if (!ingresoManualElegido) {
+                            Text(
+                                text = textoMotivo(acceso.motivo),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         OutlinedTextField(
                             value = codigoManual,
                             onValueChange = { codigoManual = it },
@@ -223,22 +242,62 @@ fun PantallaEscaner(
                                 }
                             ),
                             singleLine = true,
+                            shape = MaterialTheme.shapes.small,
                             modifier = Modifier.fillMaxWidth(),
                             enabled = !estado.enviando && !estado.lineaCompleta
                         )
-                        Spacer(Modifier.height(12.dp))
                         Button(
                             onClick = { alManual(codigoManual) },
                             enabled = codigoManual.isNotBlank() &&
                                 !estado.enviando &&
                                 !estado.lineaCompleta,
-                            modifier = Modifier.fillMaxWidth()
+                            shape = MaterialTheme.shapes.small,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(52.dp)
                         ) {
-                            Text(stringResource(R.string.registrar_codigo))
+                            if (estado.enviando) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.registrando_escaneo))
+                            } else {
+                                Text(stringResource(R.string.registrar_codigo))
+                            }
                         }
-                        Spacer(Modifier.height(12.dp))
+                        if (puedeVolverACamara) {
+                            OutlinedButton(
+                                onClick = {
+                                    ingresoManualElegido = false
+                                    acceso = estadoTrasPermiso(true)
+                                },
+                                enabled = !estado.enviando,
+                                shape = MaterialTheme.shapes.small,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(52.dp)
+                            ) {
+                                Icon(Icons.Filled.PhotoCamera, contentDescription = null)
+                                Spacer(Modifier.width(8.dp))
+                                Text(stringResource(R.string.usar_camara))
+                            }
+                        }
+                        BotonCambiarProducto(
+                            onClick = alMarcarFaltante,
+                            enabled = puedeCambiarProducto
+                        )
+                        if (estado.faltantePendiente) {
+                            Text(
+                                text = stringResource(R.string.sustitucion_faltante_pendiente),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        BarraUnidades(estado)
                         PanelResultadoCompacto(estado, alReintentar, alContinuar)
-                        Spacer(Modifier.height(16.dp))
                         PanelProgresoPedido(estado)
                     }
                 }
@@ -247,9 +306,11 @@ fun PantallaEscaner(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxWidth()
+                            .background(Color.Black)
                     ) {
                         VistaPreviaCodigo(
-                            activo = !estado.enviando,
+                            activo = true,
+                            analizando = !estado.enviando,
                             alDetectar = alDetectar,
                             alVacio = { alDetectar(null) },
                             alSinCamara = {
@@ -260,35 +321,65 @@ fun PantallaEscaner(
                         Box(
                             modifier = Modifier
                                 .align(Alignment.Center)
-                                .size(width = 240.dp, height = 140.dp)
-                                .border(2.dp, Color.White, RoundedCornerShape(12.dp))
+                                .size(width = 260.dp, height = 160.dp)
+                                .border(3.dp, Color.White, RoundedCornerShape(18.dp))
+                        )
+                        Text(
+                            text = if (estado.enviando) {
+                                stringResource(R.string.registrando_escaneo)
+                            } else {
+                                stringResource(R.string.escaner_apunta)
+                            },
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelLarge,
+                            modifier = Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(bottom = Espaciado.lg)
+                                .background(
+                                    Color.Black.copy(alpha = 0.55f),
+                                    RoundedCornerShape(20.dp)
+                                )
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
                         )
                     }
-                    Column(Modifier.padding(16.dp)) {
-                        PanelResultadoCompacto(estado, alReintentar, alContinuar)
-                        TextButton(
-                            onClick = {
-                                ingresoManualElegido = true
-                                acceso = estadoManual()
-                            },
-                            enabled = !estado.enviando
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 440.dp),
+                        shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                        color = MaterialTheme.colorScheme.surface,
+                        shadowElevation = 8.dp
+                    ) {
+                        Column(
+                            modifier = Modifier
+                                .verticalScroll(rememberScrollState())
+                                .padding(Espaciado.lg),
+                            verticalArrangement = Arrangement.spacedBy(Espaciado.sm)
                         ) {
-                            Text(stringResource(R.string.ingresar_codigo_manual))
-                        }
-                        TextButton(
-                            onClick = alMarcarFaltante,
-                            enabled = !estado.enviando &&
-                                !estado.faltantePendiente &&
-                                !estado.estadoLinea.equals("FALTANTE", true)
-                        ) {
-                            Text(stringResource(R.string.marcar_faltante))
-                        }
-                        if (estado.faltantePendiente) {
-                            Text(
-                                text = stringResource(R.string.sustitucion_faltante_pendiente),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.error
+                            EncabezadoLinea(estado)
+                            BarraUnidades(estado)
+                            if (estado.enviando) {
+                                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                            }
+                            PanelResultadoCompacto(estado, alReintentar, alContinuar)
+                            BotonIngresarCodigo(
+                                onClick = {
+                                    ingresoManualElegido = true
+                                    acceso = estadoManual()
+                                },
+                                enabled = !estado.enviando
                             )
+                            BotonCambiarProducto(
+                                onClick = alMarcarFaltante,
+                                enabled = puedeCambiarProducto
+                            )
+                            if (estado.faltantePendiente) {
+                                Text(
+                                    text = stringResource(R.string.sustitucion_faltante_pendiente),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
                         }
                     }
                 }
@@ -314,7 +405,13 @@ private fun PanelCierrePedido(
                 fontWeight = FontWeight.SemiBold
             )
             Spacer(Modifier.height(16.dp))
-            Button(onClick = alVolver, modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = alVolver,
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
+            ) {
                 Text(stringResource(R.string.volver))
             }
         } else {
@@ -326,7 +423,10 @@ private fun PanelCierrePedido(
             Button(
                 onClick = alConfirmarPedido,
                 enabled = !estado.confirmandoPedido,
-                modifier = Modifier.fillMaxWidth()
+                shape = MaterialTheme.shapes.small,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
             ) {
                 Text(
                     if (estado.confirmandoPedido) {
@@ -358,9 +458,63 @@ private fun PanelLineaCompleta(
             style = MaterialTheme.typography.bodyLarge
         )
         Spacer(Modifier.height(16.dp))
-        Button(onClick = alVolver, modifier = Modifier.fillMaxWidth()) {
+        Button(
+            onClick = alVolver,
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(52.dp)
+        ) {
             Text(stringResource(R.string.volver_preparacion))
         }
+    }
+}
+
+@Composable
+private fun BarraUnidades(estado: EscanerUiState) {
+    if (estado.cantidadSolicitada <= 0) return
+    val fraccion = (estado.cantidadArmada.toFloat() / estado.cantidadSolicitada).coerceIn(0f, 1f)
+    LinearProgressIndicator(
+        progress = { fraccion },
+        modifier = Modifier.fillMaxWidth(),
+        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+        color = MaterialTheme.colorScheme.primary
+    )
+}
+
+@Composable
+private fun BotonIngresarCodigo(onClick: () -> Unit, enabled: Boolean) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        shape = MaterialTheme.shapes.small,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+    ) {
+        Icon(Icons.Filled.Keyboard, contentDescription = null)
+        Spacer(Modifier.width(8.dp))
+        Text(stringResource(R.string.ingresar_codigo_manual))
+    }
+}
+
+@Composable
+private fun BotonCambiarProducto(onClick: () -> Unit, enabled: Boolean) {
+    FilledTonalButton(
+        onClick = onClick,
+        enabled = enabled,
+        shape = MaterialTheme.shapes.small,
+        colors = ButtonDefaults.filledTonalButtonColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+    ) {
+        Icon(Icons.Filled.SwapHoriz, contentDescription = null)
+        Spacer(Modifier.width(8.dp))
+        Text(stringResource(R.string.marcar_faltante))
     }
 }
 
@@ -461,10 +615,6 @@ private fun PanelResultadoCompacto(
     alReintentar: () -> Unit,
     alContinuar: () -> Unit
 ) {
-    if (estado.enviando) {
-        Text(stringResource(R.string.registrando_escaneo))
-        Spacer(Modifier.height(8.dp))
-    }
     val resultado = estado.resultado
     if (resultado != null) {
         Spacer(Modifier.height(8.dp))

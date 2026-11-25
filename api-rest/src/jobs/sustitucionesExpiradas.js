@@ -5,6 +5,7 @@
  */
 
 const pool = require('../database');
+const { textoError } = require('../erroresDb');
 
 /** Clave estable de advisory lock (no depende de tablas nuevas). */
 const ADVISORY_LOCK_KEY = 75245025;
@@ -31,7 +32,7 @@ async function ejecutarCicloExpiradas() {
   let locked = false;
   try {
     const { rows } = await cliente.query(
-      `SELECT pg_try_advisory_lock($1) AS ok`,
+      `SELECT pg_try_advisory_lock($1::bigint) AS ok`,
       [ADVISORY_LOCK_KEY]
     );
     if (!rows[0].ok) {
@@ -57,7 +58,7 @@ async function ejecutarCicloExpiradas() {
   } finally {
     if (locked) {
       try {
-        await cliente.query(`SELECT pg_advisory_unlock($1)`, [ADVISORY_LOCK_KEY]);
+        await cliente.query(`SELECT pg_advisory_unlock($1::bigint)`, [ADVISORY_LOCK_KEY]);
       } catch (_e) {
         // ignore
       }
@@ -89,7 +90,7 @@ function iniciarSchedulerExpiradas(opciones = {}) {
         );
       }
     } catch (error) {
-      console.error('Job sustituciones expiradas:', error.message);
+      console.error('Job sustituciones expiradas:', textoError(error));
     } finally {
       corriendo = false;
     }

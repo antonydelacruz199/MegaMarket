@@ -5,8 +5,10 @@ import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.megamarket.picker.MegaMarketPickerApplication
@@ -30,6 +32,8 @@ class SincronizacionPickingWorker(
 
     companion object {
         const val NOMBRE_UNICO = "megamarket_picker_sync"
+        const val NOMBRE_PERIODICO = "megamarket_picker_sync_periodico"
+        private const val INTERVALO_MINUTOS = 15L
 
         fun programar(contexto: Context, reemplazar: Boolean = false) {
             val constraints = Constraints.Builder()
@@ -48,5 +52,21 @@ class SincronizacionPickingWorker(
         }
 
         fun programarInmediata(contexto: Context) = programar(contexto, reemplazar = true)
+
+        fun programarPeriodica(contexto: Context) {
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
+            val trabajo = PeriodicWorkRequestBuilder<SincronizacionPickingWorker>(INTERVALO_MINUTOS, TimeUnit.MINUTES)
+                .setConstraints(constraints)
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+                .build()
+            WorkManager.getInstance(contexto.applicationContext)
+                .enqueueUniquePeriodicWork(
+                    NOMBRE_PERIODICO,
+                    ExistingPeriodicWorkPolicy.KEEP,
+                    trabajo
+                )
+        }
     }
 }

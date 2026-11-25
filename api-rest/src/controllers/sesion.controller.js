@@ -1,6 +1,7 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const pool = require('../database');
+const { textoError } = require('../erroresDb');
 
 const JWT_EXPIRA_SEGUNDOS = 60 * 60 * 24;
 
@@ -65,7 +66,7 @@ async function login(req, res) {
       usuario: mapearUsuario(fila)
     });
   } catch (error) {
-    console.error('Error en login:', error.message);
+    console.error('Error en login:', textoError(error));
     return res.status(500).json({ error: 'No se pudo iniciar sesión' });
   }
 }
@@ -87,7 +88,7 @@ async function me(req, res) {
 
     return res.status(200).json({ usuario: mapearUsuario(fila) });
   } catch (error) {
-    console.error('Error en /auth/me:', error.message);
+    console.error('Error en /auth/me:', textoError(error));
     return res.status(500).json({ error: 'No se pudo obtener el usuario' });
   }
 }

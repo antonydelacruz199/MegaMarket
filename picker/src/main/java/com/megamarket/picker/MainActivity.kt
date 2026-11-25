@@ -9,6 +9,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import com.megamarket.picker.ui.navigation.NavegacionPicker
 import com.megamarket.picker.ui.theme.TemaMegaMarket
+import com.megamarket.picker.worker.SincronizacionPickingWorker
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -21,5 +22,10 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        SincronizacionPickingWorker.programar(this)
     }
 }

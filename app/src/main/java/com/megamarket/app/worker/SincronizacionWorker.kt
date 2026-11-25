@@ -5,8 +5,10 @@ import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.megamarket.app.MegaMarketApplication
@@ -21,6 +23,7 @@ class SincronizacionWorker(
     override suspend fun doWork(): Result {
         val app = applicationContext as? MegaMarketApplication
             ?: return Result.success()
+        if (app.container.sesionLocal.accessToken.isNullOrBlank()) return Result.success()
         return when (app.container.sincronizacionRepository.sincronizarPendientes()) {
             is ResultadoSincronizacion.Exito,
             is ResultadoSincronizacion.SinTrabajo -> Result.success()
@@ -30,6 +33,8 @@ class SincronizacionWorker(
 
     companion object {
         const val NOMBRE_UNICO = "megamarket_admin_sync"
+        const val NOMBRE_PERIODICO = "megamarket_admin_sync_periodico"
+        private const val INTERVALO_MINUTOS = 15L
 
         fun programar(contexto: Context, reemplazar: Boolean = false) {
             val constraints = Constraints.Builder()
@@ -48,5 +53,21 @@ class SincronizacionWorker(
         }
 
         fun programarSincronizacionInmediata(contexto: Context) = programar(contexto, reemplazar = true)
+
+        fun programarPeriodica(contexto: Context) {
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
+            val trabajo = PeriodicWorkRequestBuilder<SincronizacionWorker>(INTERVALO_MINUTOS, TimeUnit.MINUTES)
+                .setConstraints(constraints)
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+                .build()
+            WorkManager.getInstance(contexto.applicationContext)
+                .enqueueUniquePeriodicWork(
+                    NOMBRE_PERIODICO,
+                    ExistingPeriodicWorkPolicy.KEEP,
+                    trabajo
+                )
+        }
     }
 }

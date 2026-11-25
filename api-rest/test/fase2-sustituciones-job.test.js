@@ -249,7 +249,7 @@ test('job: concurrencia con advisory lock — un ciclo gana', { skip }, async ()
     const holder = await pool.connect();
     try {
       const { rows } = await holder.query(
-        `SELECT pg_try_advisory_lock($1) AS ok`,
+        `SELECT pg_try_advisory_lock($1::bigint) AS ok`,
         [job.ADVISORY_LOCK_KEY]
       );
       assert.equal(rows[0].ok, true);
@@ -257,7 +257,7 @@ test('job: concurrencia con advisory lock — un ciclo gana', { skip }, async ()
       assert.equal(omitido.skipped, true);
       assert.equal(omitido.resueltas, 0);
     } finally {
-      await holder.query(`SELECT pg_advisory_unlock($1)`, [job.ADVISORY_LOCK_KEY]);
+      await holder.query(`SELECT pg_advisory_unlock($1::bigint)`, [job.ADVISORY_LOCK_KEY]);
       holder.release();
     }
     const activo = await job.ejecutarCicloExpiradas();

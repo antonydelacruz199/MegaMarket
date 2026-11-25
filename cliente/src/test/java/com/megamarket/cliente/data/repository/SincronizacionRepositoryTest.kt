@@ -87,11 +87,13 @@ class SincronizacionRepositoryTest {
     }
 
     @Test
-    fun sinSesionNoProcesaOperaciones() = runBlocking {
+    fun sinOwnerLocalNoEnviaPedidosPeroRefrescaCatalogo() = runBlocking {
         val op=OperacionPendiente(id=13,uuidOperacion="ana",tipoEntidad="PEDIDO",entidadIdLocal=1,operacion="CREAR_PEDIDO",ownerId=1,payload="{}",fechaCreacion=1)
         val dao=DaoOperacionesPendientesFalso(op)
-        assertTrue(crearRepositorio(dao,ownerActivo=0).sincronizarPendientes() is ResultadoSincronizacion.SinTrabajo)
+        val resultado = crearRepositorio(dao,ownerActivo=0).sincronizarPendientes()
+        assertTrue(resultado is ResultadoSincronizacion.Reintentar)
         assertEquals(EstadoSincronizacion.PENDIENTE,dao.porId(13)?.estado)
+        assertEquals(0, dao.porId(13)?.intentos)
     }
 
     private fun crearRepositorio(operaciones: OperacionPendienteDao, ownerActivo: Long = 1L): SincronizacionRepository {

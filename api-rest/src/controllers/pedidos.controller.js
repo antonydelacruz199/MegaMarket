@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const pool = require('../database');
+const { textoError } = require('../erroresDb');
 const { agruparItems, huella } = require('../reglas');
 const { asegurarCupoFranja } = require('../franjas');
 const { evaluarTransicion, puedeVerPedido } = require('../pedidosEstados');
@@ -674,7 +675,7 @@ async function listar(req, res) {
       ...metaPaginacion(total, { page, limit })
     });
   } catch (error) {
-    console.error('Error al listar pedidos:', error.message);
+    console.error('Error al listar pedidos:', textoError(error));
     return res.status(500).json({ error: 'No se pudieron obtener los pedidos' });
   }
 }

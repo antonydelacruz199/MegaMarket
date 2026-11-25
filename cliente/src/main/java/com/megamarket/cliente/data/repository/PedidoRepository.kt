@@ -13,6 +13,7 @@ import com.megamarket.cliente.data.local.Pedido as PedidoRoom
 import com.megamarket.cliente.data.mapper.toEntity
 import com.megamarket.cliente.data.mapper.toModel
 import com.megamarket.cliente.model.CheckoutException
+import com.megamarket.cliente.model.FrescuraCatalogo
 import com.megamarket.cliente.model.Direccion
 import com.megamarket.cliente.model.FranjaEntrega
 import com.megamarket.cliente.model.ModalidadPagoCheckout
@@ -42,7 +43,8 @@ class PedidoRepository(
     private val movimientoDao: MovimientoInventarioDao,
     private val operacionDao: OperacionPendienteDao,
     private val programarSincronizacion: () -> Unit,
-    private val sesion: com.megamarket.cliente.data.local.SesionLocalStore
+    private val sesion: com.megamarket.cliente.data.local.SesionLocalStore,
+    private val actualizarCatalogo: suspend () -> Boolean = { false }
 ) {
     /**
      * Checkout v3 local-first. Exige franja y modalidad; no inventa valores.
@@ -55,10 +57,7 @@ class PedidoRepository(
         modalidad: ModalidadPagoCheckout
     ): Long {
         if(sesion.owner.value!=clienteId) throw CheckoutException("Tu sesión cambió. Vuelve a iniciar sesión.")
-        val meta=database.metadatosSincronizacionDao().obtener()
-        val ultima=meta?.ultimaSincronizacionExitosa
-        if(!com.megamarket.cliente.model.FrescuraCatalogo.vigenteConReloj(ultima,System.currentTimeMillis(),meta?.sincronizadoElapsed,android.os.SystemClock.elapsedRealtime(),meta?.bootCount,sesion.bootCount()))
-            throw CheckoutException("Tus datos llevan más de una hora sin actualizarse. Sincroniza para realizar el pedido.")
+        asegurarCatalogoFresco()
         direccion.error()?.let { throw CheckoutException(it) }
         if (!franja.disponible) {
             throw CheckoutException(
@@ -106,7 +105,7 @@ class PedidoRepository(
         return try {
             val pedidoId = database.withTransaction {
                 if(sesion.owner.value!=clienteId) throw CheckoutException("Tu sesión cambió")
-                if(!com.megamarket.cliente.model.FrescuraCatalogo.vigenteConReloj(ultima,System.currentTimeMillis(),meta?.sincronizadoElapsed,android.os.SystemClock.elapsedRealtime(),meta?.bootCount,sesion.bootCount())) throw CheckoutException("Sincroniza el catálogo antes de realizar el pedido")
+                if(!catalogoEstaVigente()) throw CheckoutException("No se pudo actualizar el catálogo. Inténtalo de nuevo.")
                 val actuales=carritoDao.obtenerTodos(clienteId).map { ProductoSolicitado(it.productoId,it.cantidad) }
                 if(actuales!=solicitados) throw CheckoutException("El carrito cambió. Revisa tu compra.")
                 val id = pedidoDao.insertarPedido(
@@ -184,10 +183,11 @@ class PedidoRepository(
         }
     }
 
-    suspend fun aceptarPrecios(pedidoId: Long, totalAceptado: Long) = database.withTransaction {
+    suspend fun aceptarPrecios(pedidoId: Long, totalAceptado: Long) {
+        asegurarCatalogoFresco()
+        database.withTransaction {
         val p=pedidoDao.obtenerPedidoPorId(pedidoId)?.takeIf { it.clienteId==sesion.owner.value && it.estado=="REQUIERE_REVISION" } ?: throw CheckoutException("Pedido no disponible para revisión")
-        val meta=database.metadatosSincronizacionDao().obtener()
-        if(!com.megamarket.cliente.model.FrescuraCatalogo.vigenteConReloj(meta?.ultimaSincronizacionExitosa,System.currentTimeMillis(),meta?.sincronizadoElapsed,android.os.SystemClock.elapsedRealtime(),meta?.bootCount,sesion.bootCount())) throw CheckoutException("Sincroniza el catálogo antes de aceptar los precios")
+        if(!catalogoEstaVigente()) throw CheckoutException("No se pudo actualizar el catálogo. Inténtalo de nuevo.")
         val total=totalActual(pedidoId)
         if(total!=totalAceptado) throw CheckoutException("El precio volvió a cambiar. Revisa el total")
         val op=operacionDao.obtenerPendienteDe(TipoOperacionPendiente.PEDIDO,p.id,TipoOperacionPendiente.CREAR_PEDIDO) ?: throw CheckoutException("No hay operación pendiente")
@@ -198,6 +198,36 @@ class PedidoRepository(
         pedidoDao.actualizarPedido(p.copy(totalCentimos=total,estado="PENDIENTE_CONFIRMACION",estadoSync=EstadoSincronizacion.PENDIENTE))
         operacionDao.actualizarOperacionPendiente(op.copy(estado=EstadoSincronizacion.PENDIENTE,ultimoError=null))
         programarSincronizacion()
+        }
+    }
+
+    /**
+     * Si el catálogo superó la hora de vigencia, lo baja de nuevo antes de cobrar.
+     * El usuario no tiene que sincronizar a mano.
+     */
+    private suspend fun asegurarCatalogoFresco() {
+        if (catalogoEstaVigente()) return
+        val actualizado = runCatching { actualizarCatalogo() }.getOrDefault(false)
+        if (catalogoEstaVigente()) return
+        throw CheckoutException(
+            if (actualizado) {
+                "No se pudo confirmar que el catálogo está al día. Inténtalo de nuevo."
+            } else {
+                "No se pudo actualizar el catálogo. Revisa tu conexión e inténtalo de nuevo."
+            }
+        )
+    }
+
+    private suspend fun catalogoEstaVigente(): Boolean {
+        val meta = database.metadatosSincronizacionDao().obtener()
+        return FrescuraCatalogo.vigenteConReloj(
+            meta?.ultimaSincronizacionExitosa,
+            System.currentTimeMillis(),
+            meta?.sincronizadoElapsed,
+            android.os.SystemClock.elapsedRealtime(),
+            meta?.bootCount,
+            sesion.bootCount()
+        )
     }
 
     /**

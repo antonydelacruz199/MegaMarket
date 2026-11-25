@@ -285,6 +285,11 @@ class PedidosPickerRepository(
             }
         }
 
+    suspend fun leerPreparacionLocal(pedidoId: String): PreparacionPedido? = withContext(io) {
+        val owner = almacen.usuarioActivoId() ?: return@withContext null
+        preparacionDesdeCache(pedidoId, owner)
+    }
+
     fun observarPreparacion(pedidoId: String): Flow<PreparacionPedido?> {
         val owner = almacen.usuarioActivoId() ?: return flowOf(null)
         return combine(

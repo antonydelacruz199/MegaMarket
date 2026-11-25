@@ -109,6 +109,23 @@ class EscanerViewModelTest {
     }
 
     @Test
+    fun ultimoEscaneoNoAbreConfirmacionHastaLaRespuesta() = runBlocking {
+        val api = ApiEscaner()
+        api.puerta = CompletableDeferred()
+        val modelo = modelo(api, armadaInicial = 0, cantidad = 1)
+        modelo.enviarManual("770001")
+        assertTrue(modelo.estado.value.enviando)
+        assertTrue(modelo.estado.value.cantidadPendienteLocal >= 1)
+        assertFalse(modelo.estado.value.lineaCompleta)
+        assertFalse(modelo.estado.value.pedidoListoParaConfirmar)
+        api.puerta?.complete(exito("770001", armada = 1, estado = "ARMADO"))
+        assertFalse(modelo.estado.value.enviando)
+        assertEquals(1, modelo.estado.value.cantidadArmada)
+        assertTrue(modelo.estado.value.lineaCompleta)
+        assertTrue(modelo.estado.value.pedidoListoParaConfirmar)
+    }
+
+    @Test
     fun escaneoCorrectoActualizaArmadaConfirmada() = runBlocking {
         val api = ApiEscaner()
         api.respuesta = exito("770001", armada = 2, estado = "ARMADO")
@@ -166,10 +183,12 @@ class EscanerViewModelTest {
     private fun modelo(
         api: ApiEscaner,
         armadaInicial: Int = 0,
-        estadoInicial: String = "PENDIENTE"
+        estadoInicial: String = "PENDIENTE",
+        cantidad: Int = 3
     ): EscanerViewModel {
         api.armadaInicial = armadaInicial
         api.estadoInicial = estadoInicial
+        api.cantidadLinea = cantidad
         runBlocking {
             api.lineas.guardarTodas(
                 listOf(
@@ -179,7 +198,7 @@ class EscanerViewModelTest {
                         ownerId = "picker-1",
                         productoId = "prod-1",
                         nombre = "Leche",
-                        cantidad = 3,
+                        cantidad = cantidad,
                         cantidadArmada = armadaInicial,
                         estadoPicking = estadoInicial,
                         pasillo = "1",
@@ -265,6 +284,7 @@ class EscanerViewModelTest {
         var puerta: CompletableDeferred<Response<EscaneoResponse>>? = null
         var armadaInicial: Int = 0
         var estadoInicial: String = "PENDIENTE"
+        var cantidadLinea: Int = 3
 
         override suspend fun registrarEscaneo(
             id: String,
@@ -310,7 +330,7 @@ class EscanerViewModelTest {
                             pedidoId = "p1",
                             productoId = "prod-1",
                             nombreProducto = "Leche",
-                            cantidad = 3,
+                            cantidad = cantidadLinea,
                             cantidadArmada = armadaInicial,
                             estadoPicking = estadoInicial,
                             precioUnitarioCentimos = 100,

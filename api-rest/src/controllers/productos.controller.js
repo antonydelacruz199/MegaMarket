@@ -141,21 +141,25 @@ async function listar(req, res) {
   try {
     const { page, limit, offset } = paginar(req);
     const esAdmin = req.usuario.rol === 'ADMINISTRADOR';
-    const params = [req.usuario.id, esAdmin];
-    let where = 'p.deleted_at IS NULL AND ($2::boolean OR p.activo = true)';
     const q = String(req.query.q || '').trim();
+    const paramsConteo = [esAdmin];
+    let whereConteo = 'p.deleted_at IS NULL AND ($1::boolean OR p.activo = true)';
     if (q) {
-      params.push(`%${q}%`);
-      where += ` AND (p.nombre ILIKE $${params.length} OR COALESCE(p.marca, '') ILIKE $${params.length})`;
+      paramsConteo.push(`%${q}%`);
+      whereConteo += ` AND (p.nombre ILIKE $${paramsConteo.length} OR COALESCE(p.marca, '') ILIKE $${paramsConteo.length})`;
     }
 
     const { rows: countRows } = await pool.query(
-      `SELECT COUNT(*)::int AS total FROM productos p WHERE ${where}`,
-      params
+      `SELECT COUNT(*)::int AS total FROM productos p WHERE ${whereConteo}`,
+      paramsConteo
     );
     const total = countRows[0]?.total ?? 0;
 
-    const listParams = [...params, limit, offset];
+    const listParams = [req.usuario.id, ...paramsConteo, limit, offset];
+    let whereLista = 'p.deleted_at IS NULL AND ($2::boolean OR p.activo = true)';
+    if (q) {
+      whereLista += ` AND (p.nombre ILIKE $3 OR COALESCE(p.marca, '') ILIKE $3)`;
+    }
     const result = await pool.query(
       `SELECT p.*,
               p.stock - COALESCE((SELECT SUM(r.cantidad) FROM reservas_carrito r WHERE r.producto_id = p.id), 0) AS disponible,
@@ -166,7 +170,7 @@ async function listar(req, res) {
                 WHERE r.producto_id = p.id AND c.usuario_id = $1
               ), '[]'::json) AS reservas
        FROM productos p
-       WHERE ${where}
+       WHERE ${whereLista}
        ORDER BY p.nombre
        LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
       listParams

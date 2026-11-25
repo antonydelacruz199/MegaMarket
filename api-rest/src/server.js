@@ -2,6 +2,7 @@ require('dotenv').config();
 
 const express = require('express');
 const pool = require('./database');
+const { textoError } = require('./erroresDb');
 
 const sesionRoutes = require('./routes/sesion.routes');
 const categoriasRoutes = require('./routes/categorias.routes');
@@ -29,7 +30,7 @@ app.get('/api/health', async (_req, res) => {
       database: 'connected'
     });
   } catch (error) {
-    console.error('Health check falló:', error.message);
+    console.error('Health check falló:', textoError(error));
     return res.status(500).json({
       ok: false,
       database: 'disconnected'
@@ -56,7 +57,7 @@ app.use((_req, res) => {
 });
 
 app.use((error, _req, res, _next) => {
-  console.error('Error no controlado:', error.message);
+  console.error('Error no controlado:', textoError(error));
   res.status(500).json({ error: 'Error interno del servidor' });
 });
 

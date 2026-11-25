@@ -239,13 +239,13 @@ class EscanerViewModel(
 
     private fun refrescarEstadoPedido() {
         viewModelScope.launch {
-            val resultado = try {
-                repositorio.obtenerPreparacion(pedidoId)
+            val prep = try {
+                repositorio.leerPreparacionLocal(pedidoId)
+            } catch (error: CancellationException) {
+                throw error
             } catch (_: Exception) {
                 return@launch
-            }
-            if (resultado !is ResultadoOperacion.Exito) return@launch
-            val prep = resultado.valor
+            } ?: return@launch
             val linea = prep.grupos.flatMap { it.lineas }.firstOrNull { it.id == detalleId }
             val progreso = progresoDesde(prep)
             _estado.update { actual ->
@@ -366,14 +366,6 @@ class EscanerViewModel(
             return
         }
         gestor.continuar()
-        _estado.update {
-            it.copy(
-                resultado = null,
-                mensaje = null,
-                vibrar = false,
-                puedeReintentar = false
-            )
-        }
     }
 
     private fun intentarNavegarSustitucion() {
@@ -387,9 +379,10 @@ class EscanerViewModel(
 }
 
 private fun lineaCompletaDesde(linea: LineaPreparacion): Boolean {
+    if (linea.faltantePendiente || linea.cantidadPendienteLocal > 0) return false
     val estado = linea.estadoPicking.trim().uppercase()
     if (estado == "FALTANTE" || estado == "ELIMINADO") return true
-    return linea.cantidadArmada + linea.cantidadPendienteLocal >= linea.cantidad
+    return linea.cantidad > 0 && linea.cantidadArmada >= linea.cantidad
 }
 
 private fun progresoDesde(
@@ -404,16 +397,18 @@ private fun progresoDesde(
             id = linea.id,
             nombre = linea.nombreVigente(),
             cantidadSolicitada = linea.cantidad,
-            cantidadArmada = linea.cantidadArmada + linea.cantidadPendienteLocal,
+            cantidadArmada = linea.cantidadArmada,
             estadoLinea = linea.estadoPicking
         )
         val estado = linea.estadoPicking.trim().uppercase()
-        val completa = estado == "ARMADO" ||
-            estado == "SUSTITUIDO" ||
-            estado == "ELIMINADO" ||
-            (estado != "FALTANTE" &&
-                linea.cantidad > 0 &&
-                linea.cantidadArmada + linea.cantidadPendienteLocal >= linea.cantidad)
+        val completa = linea.cantidadPendienteLocal == 0 &&
+            !linea.faltantePendiente &&
+            (estado == "ARMADO" ||
+                estado == "SUSTITUIDO" ||
+                estado == "ELIMINADO" ||
+                (estado != "FALTANTE" &&
+                    linea.cantidad > 0 &&
+                    linea.cantidadArmada >= linea.cantidad))
         if (completa) escaneadas += resumen else pendientes += resumen
     }
     return escaneadas to pendientes

@@ -18,5 +18,7 @@ class FrescuraCatalogoTest {
         assertFalse(FrescuraCatalogo.vigenteConReloj(1000,2000,1000,2000,3,4))
         assertFalse(FrescuraCatalogo.vigenteConReloj(1000,2000,1000,999,3,3))
         assertTrue(FrescuraCatalogo.vigenteConReloj(1000,2000,1000,2000,3,3))
+        assertTrue(FrescuraCatalogo.vigenteConReloj(1000,2000,1000,2000,-1,-1))
+        assertFalse(FrescuraCatalogo.vigenteConReloj(1000,2000,1000,2000,-1,3))
     }
 }

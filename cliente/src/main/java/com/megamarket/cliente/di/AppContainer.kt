@@ -18,10 +18,16 @@ import com.megamarket.cliente.data.repository.MediosImagenRepository
 import com.megamarket.cliente.data.repository.MisPedidosRepository
 import com.megamarket.cliente.data.repository.PagosRepository
 import com.megamarket.cliente.data.repository.PedidoRepository
+import com.megamarket.cliente.data.repository.ResultadoSincronizacion
 import com.megamarket.cliente.data.repository.SincronizacionRepository
 import com.megamarket.cliente.data.repository.SustitucionesRepository
 import com.megamarket.cliente.worker.SincronizacionWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 class AppContainer(context: Context) {
 
@@ -99,7 +105,10 @@ class AppContainer(context: Context) {
         database.operacionPendienteDao(),
         // REPLACE: el pedido recién creado no debe quedar detrás de un Work KEEP pendiente.
         { SincronizacionWorker.programarSincronizacionInmediata(appContext) },
-        sesionLocal
+        sesionLocal,
+        actualizarCatalogo = {
+            sincronizacionRepository.sincronizarPendientes() !is ResultadoSincronizacion.Reintentar
+        }
     )
 
     val franjasRepository = FranjasRepository(
@@ -134,4 +143,14 @@ class AppContainer(context: Context) {
         api = apiService,
         usuarioRemotoId = { sesionLocal.usuarioRemotoId }
     )
+
+    init {
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            observadorConexion.observarConexion().collectLatest { estado ->
+                if (estado == EstadoConexion.CONECTADO) {
+                    SincronizacionWorker.programar(appContext)
+                }
+            }
+        }
+    }
 }

@@ -41,8 +41,10 @@ data class EscanerUiState(
 
     fun recalcularLineaCompleta(): Boolean {
         if (cantidadSolicitada <= 0) return false
+        // Un escaneo todavía en vuelo no cierra la línea ni abre la confirmación.
+        if (faltantePendiente || cantidadPendienteLocal > 0) return false
         val estado = estadoLinea.trim().uppercase()
         if (estado == "FALTANTE" || estado == "ELIMINADO") return true
-        return unidadesEfectivas >= cantidadSolicitada
+        return cantidadArmada >= cantidadSolicitada
     }
 }

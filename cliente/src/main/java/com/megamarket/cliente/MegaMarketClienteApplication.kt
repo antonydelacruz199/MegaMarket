@@ -17,6 +17,7 @@ class MegaMarketClienteApplication : Application(), SingletonImageLoader.Factory
         super.onCreate()
         container = AppContainer(this)
         SincronizacionWorker.programar(this)
+        SincronizacionWorker.programarPeriodica(this)
     }
 
     override fun newImageLoader(context: PlatformContext): ImageLoader =

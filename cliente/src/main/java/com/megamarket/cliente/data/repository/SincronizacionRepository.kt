@@ -73,27 +73,22 @@ class SincronizacionRepository(
     }
 
     suspend fun sincronizarPendientes(): ResultadoSincronizacion = mutex.withLock { withContext(Dispatchers.IO) {
-        val owner=sesion.owner.value
         val remoteOwner=sesion.usuarioRemotoId ?: return@withContext ResultadoSincronizacion.SinTrabajo
-        if(owner<=0 || sesion.accessToken.isNullOrBlank()) return@withContext ResultadoSincronizacion.SinTrabajo
+        if(sesion.accessToken.isNullOrBlank()) return@withContext ResultadoSincronizacion.SinTrabajo
+        val owner=sesion.owner.value
         val ahora = System.currentTimeMillis()
-        operacionDao.recuperarEnviandoAtascadas(ahora)
-        operacionDao.marcarLegacyStockComoError(
-            "Operación legacy ACTUALIZAR_STOCK incompatible con movimientos de inventario.",
-            ahora
-        )
         registrarIntentoDeSincronizacion(ahora)
-
-        val pendientes = operacionDao.pendientesDelUsuario(owner)
-        if (pendientes.isEmpty()) {
-            val descarga=catalogoRemoto.descargarYGuardarCatalogo()
-            return@withContext if(descarga is ResultadoDescargaCatalogo.Error) ResultadoSincronizacion.Reintentar(descarga.mensaje) else ResultadoSincronizacion.SinTrabajo
-        }
 
         var huboExito = false
         var reintentar: String? = null
-
-        for (op in pendientes) {
+        if (owner > 0) {
+            operacionDao.recuperarEnviandoAtascadas(ahora)
+            operacionDao.marcarLegacyStockComoError(
+                "Operación legacy ACTUALIZAR_STOCK incompatible con movimientos de inventario.",
+                ahora
+            )
+            val pendientes = operacionDao.pendientesDelUsuario(owner)
+            for (op in pendientes) {
             if(sesion.owner.value!=owner || sesion.accessToken.isNullOrBlank()) break
             operacionDao.marcarOperacionEnviando(op.id, System.currentTimeMillis())
             when (val resultado = enviarOperacion(op,remoteOwner)) {
@@ -121,6 +116,7 @@ class SincronizacionRepository(
                     reintentar = resultado.mensaje
                     break
                 }
+            }
             }
         }
 
@@ -305,12 +301,15 @@ class SincronizacionRepository(
     }
 
     private suspend fun marcarExito(ahora: Long) {
+        val actual = metadatosSincronizacionDao.obtener()
         metadatosSincronizacionDao.guardar(
             SyncMetadata(
                 id = SyncMetadata.FILA_UNICA,
                 ultimaSincronizacionExitosa = ahora,
                 ultimoIntento = ahora,
-                ultimoErrorGeneral = null
+                ultimoErrorGeneral = null,
+                sincronizadoElapsed = android.os.SystemClock.elapsedRealtime(),
+                bootCount = actual?.bootCount
             )
         )
     }

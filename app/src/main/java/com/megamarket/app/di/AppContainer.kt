@@ -15,7 +15,12 @@ import com.megamarket.app.data.repository.ImagenRepository
 import com.megamarket.app.data.repository.ProductoRepository
 import com.megamarket.app.data.repository.SincronizacionRepository
 import com.megamarket.app.worker.SincronizacionWorker
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 class AppContainer(context: Context) {
 
@@ -75,4 +80,14 @@ class AppContainer(context: Context) {
         api = apiService,
         baseUrl = BuildConfig.MEGAMARKET_API_BASE_URL
     )
+
+    init {
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch {
+            observadorConexion.observarConexion().collectLatest { estado ->
+                if (estado == EstadoConexion.CONECTADO) {
+                    SincronizacionWorker.programar(appContext)
+                }
+            }
+        }
+    }
 }

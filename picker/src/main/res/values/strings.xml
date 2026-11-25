@@ -31,6 +31,7 @@
     <string name="codigo_barras">Código: %1$s</string>
     <string name="escanear">Escanear</string>
     <string name="escaner_titulo">Escanear producto</string>
+    <string name="escaner_apunta">Centra el código en el recuadro</string>
     <string name="registrando_escaneo">Registrando escaneo…</string>
     <string name="ingresar_codigo_manual">Ingresar Código</string>
     <string name="usar_camara">Usar cámara</string>

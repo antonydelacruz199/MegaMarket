@@ -5,8 +5,10 @@ import androidx.work.BackoffPolicy
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
+import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
+import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.megamarket.cliente.MegaMarketClienteApplication
@@ -30,6 +32,10 @@ class SincronizacionWorker(
 
     companion object {
         const val NOMBRE_UNICO = "megamarket_cliente_sync"
+        const val NOMBRE_PERIODICO = "megamarket_cliente_sync_periodico"
+
+        /** Menor que el límite de frescura del catálogo (1 h) para que no venza en uso normal. */
+        private const val INTERVALO_MINUTOS = 15L
 
         fun programar(contexto: Context, reemplazar: Boolean = false) {
             val constraints = Constraints.Builder()
@@ -48,5 +54,21 @@ class SincronizacionWorker(
         }
 
         fun programarSincronizacionInmediata(contexto: Context) = programar(contexto, reemplazar = true)
+
+        fun programarPeriodica(contexto: Context) {
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
+            val trabajo = PeriodicWorkRequestBuilder<SincronizacionWorker>(INTERVALO_MINUTOS, TimeUnit.MINUTES)
+                .setConstraints(constraints)
+                .setBackoffCriteria(BackoffPolicy.EXPONENTIAL, 30, TimeUnit.SECONDS)
+                .build()
+            WorkManager.getInstance(contexto.applicationContext)
+                .enqueueUniquePeriodicWork(
+                    NOMBRE_PERIODICO,
+                    ExistingPeriodicWorkPolicy.KEEP,
+                    trabajo
+                )
+        }
     }
 }

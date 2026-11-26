@@ -91,6 +91,12 @@ class SesionRepository(
                     403 -> ResultadoInicioSesion.Error(
                         "No tienes permiso para acceder a esta aplicación."
                     )
+                    404 -> {
+                        Log.w(TAG, "Login remoto 404 en $urlLogin (¿PORT/base URL o proceso ajeno en ese puerto?)")
+                        ResultadoInicioSesion.Error(
+                            "No se encontró la API de MegaMarket (HTTP 404). Revise MEGAMARKET_API_BASE_URL y que el backend escuche ese puerto."
+                        )
+                    }
                     in 500..599 -> ResultadoInicioSesion.Error(
                         "El servidor de MegaMarket no está disponible temporalmente."
                     )

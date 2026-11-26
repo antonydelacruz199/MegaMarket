@@ -1,5 +1,7 @@
 package com.megamarket.picker.data.repository
 
+import android.util.Log
+import com.megamarket.picker.BuildConfig
 import com.megamarket.picker.data.local.AlmacenSesion
 import com.megamarket.picker.data.local.PerfilSesion
 import com.megamarket.picker.data.remote.ApiClient
@@ -29,6 +31,8 @@ object MensajesSesion {
     const val RESPUESTA = "Respuesta de login inválida"
     const val GENERICO = "No se pudo iniciar sesión"
     const val USUARIO_AUSENTE = "Usuario no encontrado"
+    const val API_NO_ENCONTRADA =
+        "No se encontró la API de MegaMarket (HTTP 404). Revise MEGAMARKET_API_BASE_URL y que el backend escuche ese puerto."
 }
 
 sealed class ResultadoInicioSesion {
@@ -49,12 +53,18 @@ class SesionRepository(
     private val ahoraMillis: () -> Long = { System.currentTimeMillis() },
     private val nombreDispositivo: () -> String = { "Android" }
 ) {
+    companion object {
+        private const val TAG = "SesionRepository"
+    }
+
     suspend fun iniciarSesion(nombreUsuario: String, clave: String): ResultadoInicioSesion =
         withContext(Dispatchers.IO) {
             val usuarioTrim = nombreUsuario.trim()
             if (usuarioTrim.isBlank() || clave.isBlank()) {
                 return@withContext ResultadoInicioSesion.Error(MensajesSesion.COMPLETA)
             }
+            val urlLogin = "${BuildConfig.MEGAMARKET_API_BASE_URL.trimEnd('/')}/api/auth/login"
+            Log.i(TAG, "Login remoto: POST $urlLogin")
             try {
                 val respuesta = api.login(
                     LoginRequest(
@@ -68,12 +78,20 @@ class SesionRepository(
                     400 -> ResultadoInicioSesion.Error(MensajesSesion.DATOS)
                     401 -> ResultadoInicioSesion.Error(MensajesSesion.CREDENCIALES)
                     403 -> ResultadoInicioSesion.Error(MensajesSesion.PERMISO)
+                    404 -> {
+                        Log.w(TAG, "Login remoto 404 en $urlLogin")
+                        ResultadoInicioSesion.Error(MensajesSesion.API_NO_ENCONTRADA)
+                    }
                     in 500..599 -> ResultadoInicioSesion.Error(MensajesSesion.SERVIDOR)
-                    else -> ResultadoInicioSesion.Error("${MensajesSesion.GENERICO} ($codigo)")
+                    else -> {
+                        Log.i(TAG, "Login remoto HTTP: $codigo")
+                        ResultadoInicioSesion.Error("${MensajesSesion.GENERICO} ($codigo)")
+                    }
                 }
             } catch (error: CancellationException) {
                 throw error
             } catch (error: IOException) {
+                Log.w(TAG, "Login remoto excepción: ${error.javaClass.simpleName}")
                 ResultadoInicioSesion.Error(mensajeRed(error))
             } catch (_: Exception) {
                 ResultadoInicioSesion.Error(MensajesSesion.GENERICO)

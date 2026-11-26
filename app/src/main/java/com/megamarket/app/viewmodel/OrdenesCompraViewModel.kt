@@ -326,7 +326,7 @@ class OrdenesCompraViewModel(
     }
 
     /**
-     * Pago por el simulador académico. El uuid se conserva si la transferencia queda PENDIENTE/DESCONOCIDA
+     * Pago a proveedor. El uuid se conserva si la transferencia queda PENDIENTE/DESCONOCIDA
      * o si falla la red; se descarta solo al CONFIRMARSE o RECHAZARSE (en ese caso un nuevo intento
      * necesita un uuid nuevo).
      */
@@ -352,8 +352,8 @@ class OrdenesCompraViewModel(
                             avisoPago = respuesta.aviso,
                             mensajePago = respuesta.mensajeServidor,
                             mensaje = when {
-                                respuesta.confirmada -> "Pago simulado confirmado"
-                                estadoT == EstadoTransferencia.RECHAZADA -> "El simulador rechazó la transferencia"
+                                respuesta.confirmada -> "Pago confirmado"
+                                estadoT == EstadoTransferencia.RECHAZADA -> "La transferencia fue rechazada"
                                 estadoT == EstadoTransferencia.PENDIENTE -> "Transferencia pendiente"
                                 else -> "Resultado desconocido: no reintentes sin consultar"
                             }

@@ -3,7 +3,7 @@ package com.megamarket.app.data.remote
 /**
  * Contrato Fase 7: abastecimiento (proveedores y órdenes de compra).
  * Todos los campos de respuesta son anulables: el servidor es la fuente de verdad y el
- * repositorio descarta lo que llegue incompleto. Los pagos a proveedor son una simulación académica.
+ * repositorio descarta lo que llegue incompleto.
  */
 
 // ---------- Proveedores ----------

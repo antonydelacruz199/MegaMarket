@@ -50,16 +50,12 @@ import com.megamarket.app.ui.components.EstadoVacio
 import com.megamarket.app.ui.components.InsigniaEstadoOrden
 import com.megamarket.app.ui.components.InsigniaEstadoTransferencia
 import com.megamarket.app.ui.theme.MegaAdvertencia
-import com.megamarket.app.ui.theme.MegaContenedorAdvertencia
 import com.megamarket.app.viewmodel.OrdenesCompraViewModel
 import com.megamarket.app.viewmodel.validarRecepcion
 import com.megamarket.modelo.formatearFechaHoraPresentacion
 import com.megamarket.modelo.formatearSoles
 
 private enum class DialogoOrden { APROBAR, CANCELAR, PAGAR, RECIBIR }
-
-const val AVISO_SIMULADOR =
-    "Simulador académico \"Banco Andino\": este pago NO mueve dinero real ni contacta un banco."
 
 @Composable
 fun PantallaDetalleOrden(
@@ -184,12 +180,11 @@ private fun DialogosOrden(
         }
 
         DialogoOrden.PAGAR -> DialogoConfirmacion(
-            titulo = "Autorizar pago simulado",
+            titulo = "Autorizar pago",
             confirmar = "Confirmar pago",
             alConfirmar = alPagar,
             alCerrar = alCerrar
         ) {
-            AvisoSimulador()
             Text("Monto: ${orden.totalCentimos.formatearSoles()}", fontWeight = FontWeight.SemiBold)
             Text("Proveedor: ${orden.proveedor?.razonSocial ?: "—"}")
             Text("Cuenta destino: ${orden.proveedor?.cuentaBancaria ?: "—"}")
@@ -244,19 +239,6 @@ private fun DialogoConfirmacion(
     )
 }
 
-@Composable
-private fun AvisoSimulador() {
-    Card(colors = CardDefaults.cardColors(containerColor = MegaContenedorAdvertencia)) {
-        Text(
-            text = AVISO_SIMULADOR,
-            modifier = Modifier.padding(12.dp),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MegaAdvertencia,
-            fontWeight = FontWeight.Medium
-        )
-    }
-}
-
 // ---------- Secciones ----------
 
 @Composable
@@ -285,11 +267,11 @@ private fun CabeceraOrden(orden: OrdenCompra) {
             )
             orden.createdAt?.let { FilaFecha("Creada", it) }
             orden.fechaAprobacion?.let { FilaFecha("Aprobada", it) }
-            orden.fechaPago?.let { FilaFecha("Pagada (simulada)", it) }
+            orden.fechaPago?.let { FilaFecha("Pagada", it) }
             orden.fechaRecepcion?.let { FilaFecha("Recibida", it) }
             orden.numeroOperacionBanco?.let {
                 Text(
-                    "Operación simulada: $it",
+                    "Nº de operación: $it",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -352,9 +334,6 @@ private fun SeccionPago(
     val transferencia = orden.transferencia
     val estadoPago = detalle.estadoPago ?: transferencia?.estado
     if (estadoPago == null) {
-        if (orden.estado == EstadoOrden.APROBADA) {
-            AvisoSimulador()
-        }
         return
     }
     Text("Pago a proveedor", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
@@ -364,23 +343,19 @@ private fun SeccionPago(
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             InsigniaEstadoTransferencia(estadoPago)
-            AvisoSimulador()
             (detalle.mensajePago ?: transferencia?.mensaje)?.let {
                 Text(it, style = MaterialTheme.typography.bodyMedium)
             }
-            detalle.avisoPago?.let {
-                Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
             transferencia?.numeroOperacionBanco?.let {
-                Text("Nº de operación simulada: $it", style = MaterialTheme.typography.bodySmall)
+                Text("Nº de operación: $it", style = MaterialTheme.typography.bodySmall)
             }
             when (estadoPago) {
                 EstadoTransferencia.CONFIRMADA -> Text(
-                    "Transferencia simulada confirmada.",
+                    "Transferencia confirmada.",
                     style = MaterialTheme.typography.bodySmall
                 )
                 EstadoTransferencia.RECHAZADA -> Text(
-                    "El simulador rechazó la transferencia. La orden sigue aprobada: puedes intentar un nuevo pago.",
+                    "La transferencia fue rechazada. La orden sigue aprobada: puedes intentar un nuevo pago.",
                     style = MaterialTheme.typography.bodySmall
                 )
                 EstadoTransferencia.PENDIENTE, EstadoTransferencia.DESCONOCIDA -> {
@@ -440,7 +415,7 @@ private fun SeccionAcciones(
                     when {
                         detalle.accion == AccionOrden.PAGAR -> "Procesando pago…"
                         transferenciaAbierta -> "Reintentar la misma operación de pago"
-                        else -> "Pagar al proveedor (simulado)"
+                        else -> "Pagar al proveedor"
                     }
                 )
             }

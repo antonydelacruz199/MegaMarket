@@ -50,7 +50,7 @@ interface ApiService {
         @Body body: MovimientoInventarioRequest
     ): Response<MovimientoInventarioResponse>
 
-    /** Saldo de la cuenta comercio MegaMarket (solo ADMIN). Simulación académica. */
+    /** Saldo de la cuenta comercio MegaMarket (solo ADMIN). */
     @GET("api/billetera/comercio")
     suspend fun obtenerBilleteraComercio(): Response<BilleteraSaldoResponse>
 
@@ -115,7 +115,7 @@ interface ApiService {
     @POST("api/compras/ordenes/{id}/cancelar")
     suspend fun cancelarOrdenCompra(@Path("id") id: String): Response<OrdenCompraResponse>
 
-    /** Pago por simulador académico "Banco Andino". Un 409 puede traer la transferencia en el cuerpo. */
+    /** Pago a proveedor vía Banco Andino. Un 409 puede traer la transferencia en el cuerpo. */
     @POST("api/compras/ordenes/{id}/pago")
     suspend fun pagarOrdenCompra(
         @Path("id") id: String,

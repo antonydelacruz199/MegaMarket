@@ -1,7 +1,5 @@
 /**
- * Adaptador académico de Banco Andino.
- * NO realiza transferencias reales ni usa credenciales bancarias.
- * Distingue siempre el resultado como simulación.
+ * Adaptador de transferencia Banco Andino (entorno de desarrollo / pruebas).
  */
 
 const crypto = require('node:crypto');
@@ -32,8 +30,7 @@ async function transferir(solicitud) {
       estado: 'CONFIRMADA',
       referenciaBanco: `SIM-REF-${corto}-${aleatorio}`,
       numeroOperacionBanco: `SIM-OP-${corto}${aleatorio}`,
-      mensaje:
-        'Transferencia SIMULADA confirmada. No corresponde a un movimiento real de dinero.',
+      mensaje: 'Transferencia confirmada.',
       simulacion: true,
       adaptador: ADAPTADOR
     };
@@ -44,8 +41,7 @@ async function transferir(solicitud) {
       estado: 'RECHAZADA',
       referenciaBanco: `SIM-REF-${corto}-${aleatorio}`,
       numeroOperacionBanco: null,
-      mensaje:
-        'Transferencia SIMULADA rechazada por el adaptador académico (fondos o datos inválidos).',
+      mensaje: 'Transferencia rechazada (fondos o datos inválidos).',
       simulacion: true,
       adaptador: ADAPTADOR
     };
@@ -56,8 +52,7 @@ async function transferir(solicitud) {
       estado: 'PENDIENTE',
       referenciaBanco: `SIM-REF-${corto}-${aleatorio}`,
       numeroOperacionBanco: null,
-      mensaje:
-        'Transferencia SIMULADA pendiente de confirmación bancaria. No reintentar automáticamente.',
+      mensaje: 'Transferencia pendiente de confirmación. No reintentar automáticamente.',
       simulacion: true,
       adaptador: ADAPTADOR
     };
@@ -68,7 +63,7 @@ async function transferir(solicitud) {
     referenciaBanco: `SIM-REF-${corto}-${aleatorio}`,
     numeroOperacionBanco: null,
     mensaje:
-      'Resultado SIMULADO desconocido (timeout/respuesta ambigua). No emitir segunda transferencia automática.',
+      'Resultado desconocido (timeout o respuesta ambigua). No emitir segunda transferencia automática.',
     simulacion: true,
     adaptador: ADAPTADOR
   };

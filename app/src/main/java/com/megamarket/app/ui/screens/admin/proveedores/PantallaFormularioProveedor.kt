@@ -150,7 +150,7 @@ private fun ContenidoFormulario(
             label = { Text("Cuenta bancaria (necesaria para pagar)") },
             singleLine = true,
             enabled = !bloqueado,
-            supportingText = { Text("Se usa como destino en el pago simulado.") }
+            supportingText = { Text("Se usa como destino en el pago.") }
         )
         Row(
             modifier = Modifier.fillMaxWidth(),

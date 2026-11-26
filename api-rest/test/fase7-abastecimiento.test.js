@@ -331,7 +331,7 @@ test(
       assert.equal(pagoOk.body.orden.estado, 'PAGADA');
       assert.equal(pagoOk.body.simulacion, true);
       assert.ok(pagoOk.body.transferencia.numeroOperacionBanco);
-      assert.match(pagoOk.body.aviso || '', /SIMULADOR|académic/i);
+      assert.ok(!pagoOk.body.aviso);
 
       const reintento = await ejecutar(
         compras.pagarOrden,

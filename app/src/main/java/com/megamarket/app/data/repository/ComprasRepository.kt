@@ -34,7 +34,7 @@ fun totalLineas(lineas: List<LineaOrdenNueva>): Long = lineas.sumOf { it.subtota
 
 /**
  * Cliente delgado de `api/compras` para el rol administrador. El servidor es la única fuente de
- * estados y totales. El pago es una SIMULACIÓN académica ("Banco Andino"): jamás mueve dinero real.
+ * estados y totales. El pago a proveedor usa el adaptador Banco Andino.
  */
 class ComprasRepository(
     private val api: ApiService,
@@ -104,7 +104,7 @@ class ComprasRepository(
     )
 
     /**
-     * Pago simulado. El servidor responde 409 cuando la transferencia no queda CONFIRMADA pero
+     * Pago a proveedor. El servidor responde 409 cuando la transferencia no queda CONFIRMADA pero
      * adjunta la transferencia: en ese caso se devuelve [ResultadoAbastecimiento.Ok] con
      * [RespuestaPago.confirmada] en falso para que la UI muestre el estado real.
      * Solo un error sin transferencia (red, validación, conflicto) se devuelve como Error.
@@ -233,7 +233,6 @@ internal fun OrdenCompraResponse.aRespuestaPago(): RespuestaPago {
     return RespuestaPago(
         orden = ordenDominio,
         transferencia = transf,
-        // El pago a proveedor siempre es simulación académica.
         simulacion = true,
         aviso = aviso?.takeIf { it.isNotBlank() },
         idempotente = idempotente == true,

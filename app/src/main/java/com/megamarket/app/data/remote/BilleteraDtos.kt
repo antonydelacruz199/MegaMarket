@@ -1,6 +1,6 @@
 package com.megamarket.app.data.remote
 
-/** Contrato Fase 3: billetera simulada del comercio. Todo es académico, sin bancos reales. */
+/** Contrato Fase 3: billetera del comercio. */
 
 data class CuentaBilleteraDto(
     val id: String? = null,

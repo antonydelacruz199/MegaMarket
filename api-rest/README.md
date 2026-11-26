@@ -26,7 +26,7 @@ cp .env.example .env
 
 - `DATABASE_URL` — cadena de conexión de Neon
 - `JWT_SECRET` — secreto para firmar tokens
-- `PORT` — por defecto `8000`
+- `PORT` — por defecto `8000`. Android (emulador) usa `10.0.2.2:<PORT>` vía `local.properties` (`MEGAMARKET_API_BASE_URL`). En dispositivo físico use la IP LAN del PC, p. ej. `http://192.168.x.x:8020/`
 - `MEDIA_STORAGE` — `disk` guarda fotos en disco; las pruebas de endpoints siguen usando memoria
 - `MEDIA_ROOT` — carpeta de esas fotos (`data/media` o una ruta absoluta). No se sube a Git
 
@@ -68,7 +68,7 @@ La migración `003` refleja nombres reales de Neon (`franja_entrega_id`, `produc
 
 La migración `004` añade `cuentas_billetera` y `movimientos_billetera` (céntimos enteros, sin saldos negativos). Semilla la cuenta comercial MegaMarket en S/ 500,000 y, si ya existen clientes, les asigna S/ 1,000,000,000. No conecta bancos reales.
 
-Configurar `PORT=8010` para coincidir con la URL Android predeterminada, o alinear ambos lados.
+Alinear `PORT` del `.env` con `MEGAMARKET_API_BASE_URL` en `local.properties` (predeterminado del proyecto: **8020**). Si otro proceso ocupa el mismo puerto en `127.0.0.1` (p. ej. un uvicorn ajeno), el emulador (`10.0.2.2`) recibirá HTTP 404 de esa otra app: cambie `PORT` o detenga el proceso conflictivo.
 
 El API ejecuta un job interno que aplica `preferencia_sustitucion` a propuestas con `fecha_limite` vencida (`SUSTITUCIONES_JOB`, `SUSTITUCIONES_JOB_MS` en `.env`). No depende de las apps Android.
 

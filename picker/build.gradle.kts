@@ -27,7 +27,8 @@ android {
         if (localProperties.exists()) {
             FileInputStream(localProperties).use { stream -> props.load(stream) }
         }
-        val apiBaseUrl = props.getProperty("MEGAMARKET_API_BASE_URL", "http://10.0.2.2:8010/")
+        // Emulador: 10.0.2.2 → loopback del host. Dispositivo físico: IP LAN en local.properties.
+        val apiBaseUrl = props.getProperty("MEGAMARKET_API_BASE_URL", "http://10.0.2.2:8020/")
         buildConfigField("String", "MEGAMARKET_API_BASE_URL", "\"$apiBaseUrl\"")
     }
 

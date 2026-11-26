@@ -83,12 +83,12 @@ APROBADA → CANCELADA
 5. Idempotencia por `uuidOperacion` + `solicitud_hash`.
 6. Si hay intento `PENDIENTE`/`DESCONOCIDA`, no emitir otra transferencia automática con UUID distinto.
 
-## 8. Simulador académico
+## 8. Adaptador bancario
 
 - Adaptador: `api-rest/src/banco/bancoAndinoSimulado.js` (`BANCO_ANDINO_SIMULADO`).
 - Resultados: `CONFIRMADA` | `RECHAZADA` | `PENDIENTE` | `DESCONOCIDA`.
 - Campo `forzarResultado` / env `BANCO_ANDINO_MODO` solo para pruebas.
-- Respuestas incluyen `simulacion: true` y aviso explícito. **No es dinero real.**
+- Las respuestas JSON pueden incluir `simulacion: true` (campo técnico); la UI no muestra avisos de simulación.
 
 ## 9. Recepción de inventario
 

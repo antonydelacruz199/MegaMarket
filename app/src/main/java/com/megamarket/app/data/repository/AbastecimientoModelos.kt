@@ -210,7 +210,6 @@ internal fun TransferenciaDto.aDominio(): TransferenciaProveedor? {
         referenciaBanco = referenciaBanco,
         numeroOperacionBanco = numeroOperacionBanco,
         mensaje = mensaje,
-        // Todo pago a proveedor es simulado en esta fase; nunca se presenta como real.
         simulacion = simulacion != false,
         fechaRespuesta = fechaRespuesta
     )

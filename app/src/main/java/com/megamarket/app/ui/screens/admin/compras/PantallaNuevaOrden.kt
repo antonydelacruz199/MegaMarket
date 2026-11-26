@@ -165,7 +165,7 @@ fun PantallaNuevaOrden(
                 )
             }
             Text(
-                "La orden se crea como SUGERIDA. Después debes aprobarla, pagarla (simulador académico) y recibirla.",
+                "La orden se crea como SUGERIDA. Después debes aprobarla, pagarla y recibirla.",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

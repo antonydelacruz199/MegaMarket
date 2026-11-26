@@ -1,7 +1,7 @@
 /**
  * Contrato de transferencia a proveedores.
  * Una implementación real de Banco Andino debería cumplir esta interfaz.
- * El adaptador académico NO mueve dinero real.
+ * Adaptador de transferencia bancaria (desarrollo / pruebas).
  */
 
 /**
@@ -17,7 +17,7 @@
  * @property {string} rucProveedor
  * @property {string} razonSocial
  * @property {string} cuentaDestino
- * @property {string} [forzarResultado] Solo simulador académico.
+ * @property {string} [forzarResultado] Solo para forzar resultado en pruebas.
  */
 
 /**

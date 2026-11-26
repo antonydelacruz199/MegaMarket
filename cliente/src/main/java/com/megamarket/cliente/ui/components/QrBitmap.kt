@@ -9,7 +9,7 @@ import com.google.zxing.common.BitMatrix
 import com.google.zxing.qrcode.QRCodeWriter
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 
-/** Codifica el contenido simulado que entrega la API en un QR visual (solo presentación). */
+/** Codifica el contenido que entrega la API en un QR visual (solo presentación). */
 object QrBitmap {
 
     /** Matriz QR pura (sin Android) para poder verificarla en pruebas JVM. */

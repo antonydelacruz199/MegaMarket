@@ -454,9 +454,7 @@ async function pagarOrden(req, res) {
         ...respuestaOrdenCompleta(paquete),
         transferencia: mapearTransferencia(t),
         idempotente: true,
-        simulacion: true,
-        aviso:
-          'Resultado de transferencia académica previamente registrada. No es un movimiento bancario real.'
+        simulacion: true
       };
       const codigo = t.estado === 'CONFIRMADA' ? 200 : 409;
       await registrarOperacionIdempotente(clientePrep, {
@@ -573,7 +571,7 @@ async function pagarOrden(req, res) {
         proveedor.cuenta_bancaria,
         solicitudHash,
         adaptadorBancario().nombre,
-        'Solicitud registrada. Transferencia académica pendiente de resultado.'
+        'Solicitud registrada. Transferencia pendiente de resultado.'
       ]
     );
 
@@ -635,7 +633,7 @@ async function pagarOrden(req, res) {
       referenciaBanco: null,
       numeroOperacionBanco: null,
       mensaje:
-        'El adaptador académico no respondió. Resultado desconocido; no reintentar automáticamente.',
+        'El adaptador bancario no respondió. Resultado desconocido; no reintentar automáticamente.',
       simulacion: true,
       adaptador: adaptadorBancario().nombre
     };
@@ -663,9 +661,7 @@ async function pagarOrden(req, res) {
         ...respuestaOrdenCompleta(paquete),
         transferencia: mapearTransferencia(transferencia),
         idempotente: true,
-        simulacion: true,
-        aviso:
-          'Transferencia académica ya confirmada. No es un movimiento bancario real.'
+        simulacion: true
       };
       await clienteFin.query('COMMIT');
       return res.status(200).json(respuesta);
@@ -729,16 +725,14 @@ async function pagarOrden(req, res) {
       ...respuestaOrdenCompleta(paquete),
       transferencia: mapearTransferencia(transferencia),
       idempotente: false,
-      simulacion: true,
-      aviso:
-        'Resultado de SIMULADOR académico Banco Andino. No representa una transferencia real de dinero.'
+      simulacion: true
     };
     if (estadoFinal !== 'CONFIRMADA') {
       respuesta.error =
         estadoFinal === 'RECHAZADA'
-          ? 'La transferencia simulada fue rechazada'
+          ? 'La transferencia fue rechazada'
           : estadoFinal === 'PENDIENTE'
-            ? 'La transferencia simulada quedó pendiente'
+            ? 'La transferencia quedó pendiente'
             : 'Resultado de transferencia desconocido; no se marcó la orden como PAGADA';
     }
 
@@ -785,8 +779,7 @@ async function consultarTransferencia(req, res) {
     }
     return res.status(200).json({
       transferencia: mapearTransferencia(resultado.rows[0]),
-      simulacion: true,
-      aviso: 'Consulta de transferencia académica (simulador).'
+      simulacion: true
     });
   } catch (error) {
     console.error('Error consultando transferencia:', error.message);
